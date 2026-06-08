@@ -1,0 +1,24 @@
+{
+  "overview": {
+    "total_value": 1256800.00,
+    "total_cost": 1080000.00,
+    "total_pnl": 176800.00,
+    "total_pnl_pct": 16.37,
+    "annualized_return": 8.52
+  },
+  "net_worth_history": [
+    { "date": "2025-12-01", "value": 1020000, "cost": 1000000 },
+    { "date": "2026-01-01", "value": 1050000, "cost": 1020000 },
+    { "date": "2026-02-01", "value": 1080000, "cost": 1040000 },
+    { "date": "2026-03-01", "value": 1120000, "cost": 1050000 },
+    { "date": "2026-04-01", "value": 1180000, "cost": 1060000 },
+    { "date": "2026-05-01", "value": 1220000, "cost": 1070000 },
+    { "date": "2026-06-01", "value": 1256800, "cost": 1080000 }
+  ],
+  "asset_allocation": [
+    { "market": "A", "label": "A 股", "value": 580000, "pct": 46.2 },
+    { "market": "US", "label": "美股", "value": 320000, "pct": 25.4 },
+    { "market": "FUND", "label": "基金", "value": 256800, "pct": 20.4 },
+    { "market": "CRYPTO", "label": "加密货币", "value": 100000, "pct": 8.0 }
+  ]
+}

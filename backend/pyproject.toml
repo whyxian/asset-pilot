@@ -1,0 +1,20 @@
+[project]
+name = "assetpilot-backend"
+version = "0.1.0"
+description = "AssetPilot 个人投资看板 - 后端服务"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
+    "httpx>=0.28",
+    "playwright>=1.50",
+    "pyxirr>=0.10",
+    "aiosqlite>=0.20",
+]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

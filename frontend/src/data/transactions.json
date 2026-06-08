@@ -1,0 +1,90 @@
+[
+  {
+    "id": 1,
+    "ticker": "600519",
+    "name": "贵州茅台",
+    "date": "2025-01-15",
+    "type": "buy",
+    "quantity": 100,
+    "unit_price": 1650.00,
+    "amount": 165000.00,
+    "notes": "首次建仓"
+  },
+  {
+    "id": 2,
+    "ticker": "000858",
+    "name": "五粮液",
+    "date": "2025-03-10",
+    "type": "buy",
+    "quantity": 200,
+    "unit_price": 145.00,
+    "amount": 29000.00,
+    "notes": ""
+  },
+  {
+    "id": 3,
+    "ticker": "AAPL",
+    "name": "Apple Inc",
+    "date": "2025-06-01",
+    "type": "buy",
+    "quantity": 20,
+    "unit_price": 175.00,
+    "amount": 3500.00,
+    "notes": "第一次买入"
+  },
+  {
+    "id": 4,
+    "ticker": "AAPL",
+    "name": "Apple Inc",
+    "date": "2025-09-15",
+    "type": "buy",
+    "quantity": 30,
+    "unit_price": 180.00,
+    "amount": 5400.00,
+    "notes": "加仓"
+  },
+  {
+    "id": 5,
+    "ticker": "166002",
+    "name": "中欧新蓝筹混合A",
+    "date": "2025-02-01",
+    "type": "buy",
+    "quantity": 2000,
+    "unit_price": 3.15,
+    "amount": 6300.00,
+    "notes": "首次定投"
+  },
+  {
+    "id": 6,
+    "ticker": "166002",
+    "name": "中欧新蓝筹混合A",
+    "date": "2025-03-01",
+    "type": "buy",
+    "quantity": 1500,
+    "unit_price": 3.22,
+    "amount": 4830.00,
+    "notes": "定投"
+  },
+  {
+    "id": 7,
+    "ticker": "166002",
+    "name": "中欧新蓝筹混合A",
+    "date": "2025-04-01",
+    "type": "buy",
+    "quantity": 1500,
+    "unit_price": 3.25,
+    "amount": 4870.00,
+    "notes": "定投"
+  },
+  {
+    "id": 8,
+    "ticker": "BTC",
+    "name": "Bitcoin",
+    "date": "2025-04-05",
+    "type": "buy",
+    "quantity": 0.5,
+    "unit_price": 48000.00,
+    "amount": 24000.00,
+    "notes": ""
+  }
+]
