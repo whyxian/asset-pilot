@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -12,9 +12,12 @@ class AssetVarietyRecord(Base):
     """资产品种目录"""
 
     __tablename__ = "asset_varieties"
+    __table_args__ = (
+        UniqueConstraint("asset_class", "market", "ticker", name="uq_variety"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ticker: Mapped[str] = mapped_column(String(30), nullable=False, index=True, unique=True)
+    ticker: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     market: Mapped[str] = mapped_column(String(10), nullable=False)
     asset_class: Mapped[str] = mapped_column(String(10), nullable=False)
