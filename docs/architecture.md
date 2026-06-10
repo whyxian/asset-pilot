@@ -1,6 +1,6 @@
 # AssetPilot V2 架构设计
 
-> 版本：v2.2
+> 版本：v2.3
 > 最后更新：2026-06-10
 
 ---
@@ -42,7 +42,8 @@ AssetPilot/
 ├── docs/               # 文档
 │   ├── architecture.md
 │   ├── requirements.md
-│   └── database.md
+│   ├── database.md
+│   └── progress.md
 ├── .gitignore
 ├── CLAUDE.md
 └── README.md
@@ -68,11 +69,12 @@ backend/
 │   │   └── asset_variety_api.py   # 品种目录 CRUD
 │   ├── models/                    # 数据模型
 │   │   ├── asset_quote.py         # AssetQuote (Pydantic)
-│   │   ├── asset_quote_orm.py     # AssetQuoteRecord (SQLAlchemy)
 │   │   ├── asset_holding.py       # AssetHolding (Pydantic)
-│   │   ├── asset_holding_orm.py   # AssetHoldingRecord (SQLAlchemy)
 │   │   ├── asset_variety.py       # AssetVariety (Pydantic)
-│   │   └── asset_variety_orm.py   # AssetVarietyRecord (SQLAlchemy)
+│   │   └── orm/                   # SQLAlchemy ORM 模型
+│   │       ├── asset_quote_orm.py
+│   │       ├── asset_holding_orm.py
+│   │       └── asset_variety_orm.py
 │   ├── repositories/              # 数据访问层
 │   │   ├── asset_quote_repository.py  # 行情 Repo（调用 DataSource）
 │   │   ├── asset_holding_repository.py# 持仓 CRUD

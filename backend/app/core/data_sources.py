@@ -14,7 +14,7 @@ from playwright.async_api import async_playwright
 from app.core.database import async_session
 from app.core.logger import logger
 from app.models.asset_quote import AssetQuote
-from app.models.asset_variety_orm import AssetVarietyRecord
+from app.models.orm.asset_variety_orm import AssetVarietyRecord
 
 # ═══════════════════════════════════════════
 # 数据源层（纯获取逻辑，不涉及 DB 操作）
@@ -52,10 +52,11 @@ class TencentDataSource(QuoteDataSource):
         return "tencent"
 
     def supports(self, asset_class: str, market: str) -> bool:
-        return asset_class == "STOCK" and market in ("A", "US")
+        return (asset_class == "STOCK" and market in ("CN", "US")) or \
+               (asset_class == "FUND" and market == "US")
 
     async def fetch(self, codes: list[str], market: str) -> list[AssetQuote]:
-        if market == "A":
+        if market == "CN":
             return await self._fetch_a_shares(codes)
         return await self._fetch_us_stocks(codes)
 
@@ -86,7 +87,7 @@ class TencentDataSource(QuoteDataSource):
                 continue
             code = key[2:]
             results.append(AssetQuote(
-                ticker=code, market="A", name=vals[1],
+                ticker=code, market="CN", name=vals[1],
                 price=Decimal(str(vals[3])) if vals[3] else Decimal("0"),
                 currency="CNY",
                 change_price=Decimal(str(vals[31])) if vals[31] else None,
@@ -266,7 +267,7 @@ class EastMoneyFundDataSource(QuoteDataSource):
         return "pingzhong"
 
     def supports(self, asset_class: str, market: str) -> bool:
-        return asset_class == "FUND" and market == "A"
+        return asset_class == "FUND" and market == "CN"
 
     async def fetch(self, codes: list[str], market: str) -> list[AssetQuote]:
         async def fetch_one(code: str) -> AssetQuote | None:
@@ -295,7 +296,7 @@ class EastMoneyFundDataSource(QuoteDataSource):
                         change_price = nav - prev_nav
                         change_ratio = float((change_price / prev_nav) * 100)
                 return AssetQuote(
-                    ticker=code, market="A", name=name, price=nav, currency="CNY",
+                    ticker=code, market="CN", name=name, price=nav, currency="CNY",
                     change_price=change_price, change_ratio=change_ratio,
                     updated_at=nav_date, source="EASTMONEY_FUND",
                 )
@@ -315,7 +316,7 @@ class AkshareFundDataSource(QuoteDataSource):
         return "akshare"
 
     def supports(self, asset_class: str, market: str) -> bool:
-        return asset_class == "FUND" and market == "A"
+        return asset_class == "FUND" and market == "CN"
 
     async def fetch(self, codes: list[str], market: str) -> list[AssetQuote]:
         import akshare as ak
@@ -335,7 +336,7 @@ class AkshareFundDataSource(QuoteDataSource):
                         change_price = nav - prev_nav
                         change_ratio = float((change_price / prev_nav) * 100)
                 return AssetQuote(
-                    ticker=code, market="A", name="", price=nav, currency="CNY",
+                    ticker=code, market="CN", name="", price=nav, currency="CNY",
                     change_price=change_price, change_ratio=change_ratio,
                     updated_at=nav_date, source="AKSHARE",
                 )

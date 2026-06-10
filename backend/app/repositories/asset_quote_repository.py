@@ -14,15 +14,19 @@ from app.core.data_sources import (
 from app.core.database import async_session
 from app.core.exceptions import BusinessError
 from app.models.asset_quote import AssetQuote
-from app.models.asset_quote_orm import AssetQuoteRecord
+from app.models.orm.asset_quote_orm import AssetQuoteRecord
 
 class AssetQuoteRepository(abc.ABC):
     """行情数据访问抽象基类"""
 
     @abc.abstractmethod
-    async def fetch_realtime_quote(self, codes: list[str]) -> list[AssetQuote]:
-        """批量获取实时行情"""
-        ...
+    async def fetch_realtime_quote(self, codes: list[str], market: str) -> list[AssetQuote]:
+        """批量获取实时行情
+
+        Args:
+            codes: 标的代码列表
+            market: "CN" / "US" / "CRYPTO"
+        """
 
     @abc.abstractmethod
     def close(self):
@@ -66,17 +70,17 @@ class StockQuoteRepository(AssetQuoteRepository):
         self._sina = SinaDataSource()
 
     async def fetch_realtime_quote(
-        self, codes: list[str], market: str = "A", source: str = "tencent"
+        self, codes: list[str], market: str = "CN", source: str = "tencent"
     ) -> list[AssetQuote]:
         """批量获取股票行情
 
         Args:
             codes: 代码列表
-            market: "A" / "US"
+            market: "CN" / "US"
             source: "tencent"（默认） / "sina"（仅美股备选）
         """
-        if market == "A":
-            return await self._tencent.fetch(codes, market="A")
+        if market == "CN":
+            return await self._tencent.fetch(codes, market="CN")
         if market == "US":
             if source == "tencent":
                 return await self._tencent.fetch(codes, market="US")
@@ -96,11 +100,11 @@ class CryptoQuoteRepository(AssetQuoteRepository):
         self._source = CoinGlassDataSource()
 
     async def fetch_realtime_quote(
-        self, codes: list[str], source: str = 'coinglass'
+        self, codes: list[str], market: str = "CRYPTO", source: str = "coinglass"
     ) -> list[AssetQuote]:
-        if source == 'coinglass':
-            return await self._source.fetch(codes, market='CRYPTO')
-        raise BusinessError(400, f'不支持的数据源: {source}')
+        if source == "coinglass":
+            return await self._source.fetch(codes, market="CRYPTO")
+        raise BusinessError(400, f"不支持的数据源: {source}")
 
     def close(self):
         pass
@@ -112,14 +116,17 @@ class FundQuoteRepository(AssetQuoteRepository):
     def __init__(self):
         self._pingzhong = EastMoneyFundDataSource()
         self._akshare = AkshareFundDataSource()
+        self._tencent = TencentDataSource()
 
     async def fetch_realtime_quote(
-        self, codes: list[str], source: str = "pingzhong"
+        self, codes: list[str], market: str = "CN", source: str = "pingzhong"
     ) -> list[AssetQuote]:
+        if market == "US":
+            return await self._tencent.fetch(codes, market="US")
         if source == "pingzhong":
-            return await self._pingzhong.fetch(codes, market="A")
+            return await self._pingzhong.fetch(codes, market="CN")
         if source == "akshare":
-            return await self._akshare.fetch(codes, market="A")
+            return await self._akshare.fetch(codes, market="CN")
         raise BusinessError(400, f"不支持的数据源: {source}")
 
     def close(self):

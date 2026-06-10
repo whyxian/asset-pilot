@@ -11,7 +11,7 @@ class AssetHolding(BaseModel):
     """当前持仓"""
     ticker: str                       # 标的代码
     name: str = ""                    # 名称
-    market: str                       # 市场, "A" / "US" / "CRYPTO"
+    market: str                       # 市场, "CN" / "US" / "CRYPTO"
     asset_class: str                  # 资产类别, "STOCK" / "FUND"
     currency: str = "CNY"             # 计价货币
     quantity: Decimal                 # 持仓量

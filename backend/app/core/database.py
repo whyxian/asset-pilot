@@ -27,7 +27,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     """创建所有表"""
     async with engine.begin() as conn:
-        from app.models.asset_quote_orm import AssetQuoteRecord  # noqa: F401
-        from app.models.asset_holding_orm import AssetHoldingRecord  # noqa: F401
-        from app.models.asset_variety_orm import AssetVarietyRecord  # noqa: F401
+        from app.models.orm.asset_quote_orm import AssetQuoteRecord  # noqa: F401
+        from app.models.orm.asset_holding_orm import AssetHoldingRecord  # noqa: F401
+        from app.models.orm.asset_variety_orm import AssetVarietyRecord  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)

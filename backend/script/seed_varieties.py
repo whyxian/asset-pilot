@@ -7,7 +7,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.database import async_session
-from app.models.asset_variety_orm import AssetVarietyRecord
+from app.models.orm.asset_variety_orm import AssetVarietyRecord
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "source"
 

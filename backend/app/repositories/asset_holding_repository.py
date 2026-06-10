@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.core.database import async_session
 from app.models.asset_holding import AssetHolding, AssetHoldingCreate, AssetHoldingUpdate
-from app.models.asset_holding_orm import AssetHoldingRecord
+from app.models.orm.asset_holding_orm import AssetHoldingRecord
 
 
 class AssetHoldingRepository:
