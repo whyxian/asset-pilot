@@ -37,11 +37,12 @@ AssetPilot/
 │   │   │   └── asset_variety_api.py # 品种目录接口
 │   │   ├── models/
 │   │   │   ├── asset_quote.py       # AssetQuote (Pydantic)
-│   │   │   ├── asset_quote_orm.py   # AssetQuoteRecord (SQLAlchemy)
 │   │   │   ├── asset_holding.py     # AssetHolding (Pydantic)
-│   │   │   ├── asset_holding_orm.py # AssetHoldingRecord (SQLAlchemy)
 │   │   │   ├── asset_variety.py     # AssetVariety (Pydantic)
-│   │   │   └── asset_variety_orm.py # AssetVarietyRecord (SQLAlchemy)
+│   │   │   └── orm/                 # SQLAlchemy ORM
+│   │   │       ├── asset_quote_orm.py
+│   │   │       ├── asset_holding_orm.py
+│   │   │       └── asset_variety_orm.py
 │   │   ├── repositories/
 │   │   │   ├── asset_quote_repository.py  # 行情 Repo（调用 DataSource）
 │   │   │   ├── asset_holding_repository.py# 持仓 CRUD
@@ -50,10 +51,10 @@ AssetPilot/
 │   │       ├── asset_quote_service.py     # 行情业务逻辑
 │   │       ├── asset_holding_service.py   # 持仓业务逻辑
 │   │       └── asset_variety_service.py   # 品种目录业务逻辑
-│   ├── tests/
+│   ├── test/
 │   │   ├── test_stock_api.py        # 行情接口测试
-│   │   ├── test_fund_repo.py        # 基金净值测试
-│   │   └── test_okx_proxy.py        # akshare 测试
+│   │   ├── test_us_quotes.py      # 美股行情测试
+│   │   └── test_xueqiu.py        # 雪球爬取测试
 ├── frontend/                    # React SPA (规划中)
 ├── data/
 │   └── database/
@@ -61,7 +62,8 @@ AssetPilot/
 ├── docs/
 │   ├── architecture.md
 │   ├── requirements.md
-│   └── database.md
+│   ├── database.md
+│   └── progress.md
 └── CLAUDE.md
 ```
 
@@ -87,8 +89,8 @@ uvicorn app.main:app --reload
 ### 运行测试
 
 ```bash
-.venv/bin/python backend/tests/test_stock_api.py    # 需先启动服务
-.venv/bin/python backend/tests/test_fund_repo.py     # 直接运行，无需启动服务
+.venv/bin/python backend/test/test_stock_api.py    # 需先启动服务
+.venv/bin/python backend/test/test_fund_repo.py     # 直接运行，无需启动服务
 ```
 
 ## 四层架构
@@ -143,7 +145,7 @@ api (HTTP 路由) → services (业务逻辑) → repositories (数据访问) �
 
 | DataSource | 覆盖范围 |
 |-----------|---------|
-| `TencentDataSource` | STOCK + A 股 / STOCK + 美股 |
+| `TencentDataSource` | STOCK+CN / STOCK+US / FUND+US |
 | `SinaDataSource` | STOCK + 美股（Playwright 备选） |
 | `CoinGlassDataSource` | CRYPTO |
 | `EastMoneyFundDataSource` | FUND（天天基金 pingzhongdata） |

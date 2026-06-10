@@ -1,8 +1,12 @@
 """Pydantic 请求/响应模型
 
 按功能域分文件：
-- price.py: 三市场实时行情 Adapter + 统一格式
-- asset.py: 资产 CRUD
-- transaction.py: 交易记录 CRUD
-- portfolio.py: 持仓汇总 / XIRR / 历史净值
+- asset_quote.py:     统一行情模型 AssetQuote
+- asset_holding.py:   持仓模型 + 带行情的持仓 HoldingWithQuote
+- asset_variety.py:   品种目录模型
+
+ORM 模型在 orm/ 子目录下：
+- orm/asset_quote_orm.py:     AssetQuoteRecord
+- orm/asset_holding_orm.py:   AssetHoldingRecord
+- orm/asset_variety_orm.py:   AssetVarietyRecord
 """

@@ -53,7 +53,7 @@ async def fetch_us_names(
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
 
-        time.sleep(1)
+        await asyncio.sleep(1)
 
     await ds.close()
 

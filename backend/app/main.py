@@ -12,17 +12,17 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.asset_holding_api import router as asset_holding_router
 from app.api.asset_quote_api import router as asset_quote_router
 from app.api.asset_variety_api import router as asset_variety_router
-from app.core.database import init_db
+from app.core.database import engine, init_db
 from app.core.exceptions import BusinessError
 from app.core.logger import logger
-from app.core.response import error
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """启动时初始化数据库"""
+    """启动时初始化数据库，关闭时释放资源"""
     await init_db()
     yield
+    await engine.dispose()
 
 
 app = FastAPI(title="AssetPilot", version="0.1.0", lifespan=lifespan)

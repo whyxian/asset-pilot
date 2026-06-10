@@ -1,7 +1,6 @@
 """行情数据访问 — A股、美股、加密货币、基金"""
 
 import abc
-import asyncio
 
 from app.core.data_sources import (
     AkshareFundDataSource,

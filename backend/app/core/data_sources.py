@@ -8,11 +8,15 @@ import traceback
 from datetime import datetime
 from decimal import Decimal
 
+import akshare as ak
 import httpx
 from playwright.async_api import async_playwright
 
 from app.core.logger import logger
 from app.models.asset_quote import AssetQuote
+
+# 腾讯 API 返回状态码：200 表示成功获取数据
+_TENCENT_RET_OK = "200"
 
 # ═══════════════════════════════════════════
 # 数据源层（纯获取逻辑，不涉及 DB 操作）
@@ -114,7 +118,7 @@ class TencentDataSource(QuoteDataSource):
             if not line.strip() or "=" not in line:
                 continue
             vals = line.split('"')[1].split("~")
-            if len(vals) < 47 or vals[0] != "200":
+            if len(vals) < 47 or vals[0] != _TENCENT_RET_OK:
                 continue
             ticker = vals[2].split(".")[0]
             results.append(AssetQuote(
@@ -169,8 +173,9 @@ class SinaDataSource(QuoteDataSource):
 
         async def fetch_one(symbol: str) -> AssetQuote | None:
             url = f"https://stock.finance.sina.com.cn/usstock/quotes/{symbol}.html"
-            page = await browser.new_page()
+            page = None
             try:
+                page = await browser.new_page()
                 await page.goto(url, timeout=20000)
                 await page.wait_for_selector("#hqPrice", timeout=10000, state="attached")
                 price_el = await page.query_selector("#hqPrice")
@@ -197,7 +202,8 @@ class SinaDataSource(QuoteDataSource):
                 logger.error(f"[SinaDataSource] 获取 {symbol} 失败: {e}")
                 return None
             finally:
-                await page.close()
+                if page is not None:
+                    await page.close()
 
         t0 = datetime.now()
         results = await asyncio.gather(*[fetch_one(s) for s in codes])
@@ -311,8 +317,6 @@ class AkshareFundDataSource(QuoteDataSource):
         return asset_class == "FUND" and market == "CN"
 
     async def fetch(self, codes: list[str], market: str) -> list[AssetQuote]:
-        import akshare as ak
-
         async def fetch_one(code: str) -> AssetQuote | None:
             try:
                 df = await asyncio.to_thread(ak.fund_open_fund_info_em, symbol=code)

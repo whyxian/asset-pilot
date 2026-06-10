@@ -7,6 +7,6 @@ logger.setLevel(logging.INFO)
 
 _handler = logging.StreamHandler()
 _handler.setFormatter(logging.Formatter(
-    "%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    "%(asctime)s [%(levelname)s] [%(name)s] %(message)s", datefmt="%H:%M:%S"
 ))
 logger.addHandler(_handler)

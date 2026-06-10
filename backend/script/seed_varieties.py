@@ -26,26 +26,30 @@ async def import_json(file_name: str, label: str):
     skipped = 0
     total = len(records)
 
+    # 一次性查询已存在的记录，避免 N+1
+    async with async_session() as session:
+        result = await session.execute(
+            select(
+                AssetVarietyRecord.asset_class,
+                AssetVarietyRecord.market,
+                AssetVarietyRecord.ticker,
+            )
+        )
+        existing = {(r.asset_class, r.market, r.ticker) for r in result}
+
     async with async_session() as session:
         for idx, r in enumerate(records, 1):
-            result = await session.execute(
-                select(AssetVarietyRecord).where(
-                    AssetVarietyRecord.asset_class == r.get("asset_class", "STOCK"),
-                    AssetVarietyRecord.market == r["market"],
-                    AssetVarietyRecord.ticker == r["ticker"],
-                )
-            )
-            if result.scalar_one_or_none():
+            key = (r.get("asset_class", "STOCK"), r["market"], r["ticker"])
+            if key in existing:
                 skipped += 1
             else:
-                record = AssetVarietyRecord(
+                session.add(AssetVarietyRecord(
                     ticker=r["ticker"],
                     name=r["name"],
                     market=r["market"],
                     asset_class=r.get("asset_class", "STOCK"),
                     currency=r.get("currency", "USD"),
-                )
-                session.add(record)
+                ))
                 added += 1
 
             if idx % 1000 == 0 or idx == total:
