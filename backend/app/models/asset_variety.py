@@ -9,9 +9,10 @@ class AssetVariety(BaseModel):
     """资产品种"""
     ticker: str
     name: str
-    market: str      # A / US / CRYPTO
-    asset_class: str # STOCK / FUND
-    currency: str    # CNY / USD
+    market: str           # CN / US / CRYPTO
+    asset_class: str      # STOCK / FUND / CRYPTO
+    sub_category: Optional[str] = None  # ETF / LOF / None
+    currency: str         # CNY / USD
     is_active: bool = True
 
 
@@ -21,4 +22,5 @@ class AssetVarietyCreate(BaseModel):
     name: str
     market: str
     asset_class: str
+    sub_category: Optional[str] = None
     currency: str = "CNY"

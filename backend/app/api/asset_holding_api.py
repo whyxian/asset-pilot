@@ -11,6 +11,13 @@ router = APIRouter(prefix="/api/v1", tags=["holding"])
 service = AssetHoldingService()
 
 
+@router.get("/holdings/with-quotes")
+async def list_holdings_with_quotes():
+    """获取持仓 + 实时行情 + 市值/盈亏/年化"""
+    data = await service.list_holdings_with_quotes()
+    return success(data)
+
+
 @router.get("/holdings")
 async def list_holdings():
     """获取全部持仓"""

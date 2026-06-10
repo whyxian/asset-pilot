@@ -1,6 +1,7 @@
 """AssetQuote ORM 模型 — 对应 asset_quote 表"""
 
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import DateTime, Float, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -17,9 +18,9 @@ class AssetQuoteRecord(Base):
     ticker: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     market: Mapped[str] = mapped_column(String(10), nullable=False)
     name: Mapped[str] = mapped_column(String(200), default="")
-    price: Mapped[float] = mapped_column(Numeric(18, 4), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
-    change_price: Mapped[float | None] = mapped_column(Numeric(18, 4), nullable=True)
+    change_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     change_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     source: Mapped[str] = mapped_column(String(30), default="")

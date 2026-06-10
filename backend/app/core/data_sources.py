@@ -11,10 +11,8 @@ from decimal import Decimal
 import httpx
 from playwright.async_api import async_playwright
 
-from app.core.database import async_session
 from app.core.logger import logger
 from app.models.asset_quote import AssetQuote
-from app.models.orm.asset_variety_orm import AssetVarietyRecord
 
 # ═══════════════════════════════════════════
 # 数据源层（纯获取逻辑，不涉及 DB 操作）
@@ -61,10 +59,16 @@ class TencentDataSource(QuoteDataSource):
         return await self._fetch_us_stocks(codes)
 
     async def _fetch_a_shares(self, codes: list[str]) -> list[AssetQuote]:
-        """A 股行情"""
+        """A 股行情
+
+        交易所前缀规则：
+          sh（沪市）: 6xxxxx / 9xxxxx（股票）  51xxx / 58xxx（ETF）  501xx / 502xx（LOF）
+          sz（深市）: 0xxxxx / 3xxxxx（股票）  159xxx / 158xxx（ETF）  16xxxx / 15xxxx（LOF）
+          bj（北交所）: 8xxxxx
+        """
         prefixed = []
         for c in codes:
-            if c.startswith(("6", "9")):
+            if c.startswith(("5", "6", "9")):
                 prefixed.append(f"sh{c}")
             elif c.startswith("8"):
                 prefixed.append(f"bj{c}")
@@ -98,18 +102,6 @@ class TencentDataSource(QuoteDataSource):
 
     async def _fetch_us_stocks(self, codes: list[str]) -> list[AssetQuote]:
         """美股行情"""
-        from sqlalchemy import select
-
-        name_map = {}
-        async with async_session() as session:
-            result = await session.execute(
-                select(AssetVarietyRecord.ticker, AssetVarietyRecord.name).where(
-                    AssetVarietyRecord.ticker.in_(codes)
-                )
-            )
-            for row in result:
-                name_map[row[0]] = row[1]
-
         prefixed = ",".join(f"us{c}" for c in codes)
         url = f"https://qt.gtimg.cn/q={prefixed}"
         async with httpx.AsyncClient() as client:
@@ -127,7 +119,7 @@ class TencentDataSource(QuoteDataSource):
             ticker = vals[2].split(".")[0]
             results.append(AssetQuote(
                 ticker=ticker, market="US",
-                name=name_map.get(ticker, vals[46] or vals[1]),
+                name=vals[46] or vals[1],
                 price=Decimal(str(vals[3])) if vals[3] else Decimal("0"),
                 currency=vals[35] if vals[35] else "USD",
                 change_price=Decimal(str(vals[31])) if vals[31] else None,

@@ -1,6 +1,7 @@
 """AssetHolding ORM 模型 — 对应 asset_holdings 表"""
 
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import Date, DateTime, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -19,9 +20,9 @@ class AssetHoldingRecord(Base):
     market: Mapped[str] = mapped_column(String(10), nullable=False)
     asset_class: Mapped[str] = mapped_column(String(10), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
-    quantity: Mapped[float] = mapped_column(Numeric(18, 4), nullable=False)
-    cost_price: Mapped[float] = mapped_column(Numeric(18, 4), nullable=False)
-    total_invested: Mapped[float] = mapped_column(Numeric(18, 4), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    cost_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    total_invested: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     first_buy_date: Mapped[datetime] = mapped_column(Date, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now(), nullable=True)

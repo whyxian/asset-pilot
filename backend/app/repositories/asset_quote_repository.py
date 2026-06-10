@@ -15,6 +15,7 @@ from app.core.database import async_session
 from app.core.exceptions import BusinessError
 from app.models.asset_quote import AssetQuote
 from app.models.orm.asset_quote_orm import AssetQuoteRecord
+from app.models.orm.asset_variety_orm import AssetVarietyRecord
 
 class AssetQuoteRepository(abc.ABC):
     """行情数据访问抽象基类"""
@@ -29,7 +30,7 @@ class AssetQuoteRepository(abc.ABC):
         """
 
     @abc.abstractmethod
-    def close(self):
+    async def close(self):
         """释放资源"""
         ...
 
@@ -88,9 +89,9 @@ class StockQuoteRepository(AssetQuoteRepository):
                 return await self._sina.fetch(codes, market="US")
         raise BusinessError(400, f"不支持的市场/数据源: market={market}, source={source}")
 
-    def close(self):
+    async def close(self):
         """释放资源"""
-        self._sina.close()
+        await self._sina.close()
 
 
 class CryptoQuoteRepository(AssetQuoteRepository):
@@ -106,7 +107,7 @@ class CryptoQuoteRepository(AssetQuoteRepository):
             return await self._source.fetch(codes, market="CRYPTO")
         raise BusinessError(400, f"不支持的数据源: {source}")
 
-    def close(self):
+    async def close(self):
         pass
 
 
@@ -123,13 +124,39 @@ class FundQuoteRepository(AssetQuoteRepository):
     ) -> list[AssetQuote]:
         if market == "US":
             return await self._tencent.fetch(codes, market="US")
-        if source == "pingzhong":
-            return await self._pingzhong.fetch(codes, market="CN")
-        if source == "akshare":
-            return await self._akshare.fetch(codes, market="CN")
-        raise BusinessError(400, f"不支持的数据源: {source}")
 
-    def close(self):
+        # CN 市场：区分 ETF（腾讯接口）和普通基金（天天基金）
+        etf_set = await self._get_etf_tickers(codes)
+        etf_codes = [c for c in codes if c in etf_set]
+        fund_codes = [c for c in codes if c not in etf_set]
+
+        results = []
+        if etf_codes:
+            results.extend(await self._tencent.fetch(etf_codes, market="CN"))
+        if fund_codes:
+            if source == "pingzhong":
+                results.extend(await self._pingzhong.fetch(fund_codes, market="CN"))
+            elif source == "akshare":
+                results.extend(await self._akshare.fetch(fund_codes, market="CN"))
+            else:
+                raise BusinessError(400, f"不支持的数据源: {source}")
+        return results
+
+    async def _get_etf_tickers(self, codes: list[str]) -> set[str]:
+        """查询哪些代码属于 ETF（CN 市场）"""
+        from sqlalchemy import select
+
+        async with async_session() as session:
+            rows = (await session.execute(
+                select(AssetVarietyRecord.ticker).where(
+                    AssetVarietyRecord.ticker.in_(codes),
+                    AssetVarietyRecord.sub_category == "ETF",
+                    AssetVarietyRecord.market == "CN",
+                )
+            )).all()
+            return {row[0] for row in rows}
+
+    async def close(self):
         pass
 
 

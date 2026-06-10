@@ -40,3 +40,22 @@ class AssetHoldingUpdate(BaseModel):
     cost_price: Optional[Decimal] = None
     total_invested: Optional[Decimal] = None
     first_buy_date: Optional[date] = None
+
+
+class HoldingWithQuote(BaseModel):
+    """持仓 + 实时行情"""
+    ticker: str
+    name: str
+    market: str
+    asset_class: str
+    currency: str
+    quantity: Decimal
+    cost_price: Decimal
+    total_invested: Decimal
+    first_buy_date: date
+    # 以下为实时计算字段
+    current_price: Decimal = Decimal("0")
+    market_value: Decimal = Decimal("0")
+    pnl: Decimal = Decimal("0")
+    pnl_pct: float | None = None
+    annualized_return: float | None = None

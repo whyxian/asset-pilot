@@ -21,6 +21,7 @@ class AssetVarietyRecord(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     market: Mapped[str] = mapped_column(String(10), nullable=False)
     asset_class: Mapped[str] = mapped_column(String(10), nullable=False)
+    sub_category: Mapped[str | None] = mapped_column(String(20), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
