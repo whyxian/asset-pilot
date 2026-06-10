@@ -1,4 +1,4 @@
-"""按名称中是否含中文拆分 / 合并 JSON 数据"""
+"""JSON 工具集合：按语言拆分 / 合并 / 批量重命名 key"""
 
 import json
 import re
@@ -37,6 +37,69 @@ def split_by_language(
     return en, cn
 
 
+FUND_KEYWORDS = [
+    # 通用基金标识词（不会出现在股票公司名中）
+    "ETF", "Etf", "Fund", "Trust", "ETN",
+    "Bond", "Bonds", "Yield", "Dividend", "Income",
+    "Portfolio", "Strategy", "Leveraged", "Inverse",
+    "Treasury", "Corporate", "Municipal", "High Yield",
+    "Preferred", "Realty", "Real Estate",
+    # 纯基金品牌（无同名股票公司）
+    "iShares", "ProShares", "Direxion", "VanEck", "WisdomTree",
+    "Global X", "First Trust", "Amplify", "Innovator",
+    "Simplify", "Mirae", "ALPS", "AdvisorShares",
+    "Kurv", "NEOS", "Roundhill", "GraniteShares", "YieldMax",
+    "Tidal", "Rareview", "Defiance", "Merlyn.AI", "PIMCO",
+]
+
+
+def split_stock_vs_fund(
+    input_path: str | Path,
+    stock_output: str | Path | None = None,
+    fund_output: str | Path | None = None,
+    fund_keywords: list[str] | None = None,
+    set_asset_class: bool = True,
+) -> tuple[list, list]:
+    """按名称关键词区分股票和基金/ETF，可选更新 asset_class
+
+    Args:
+        input_path: 输入 JSON 文件路径（所有项 asset_class 均为 "STOCK"）
+        stock_output: 纯股票输出路径（默认覆盖原文件）
+        fund_output: 基金/ETF 输出路径（默认覆盖原文件）
+        fund_keywords: 自定义基金关键词列表，默认用 FUND_KEYWORDS
+        set_asset_class: 如为 True，将基金项的 asset_class 设为 "FUND"
+
+    Returns:
+        (股票列表, 基金列表)
+    """
+    kw = fund_keywords or FUND_KEYWORDS
+
+    with open(input_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    stocks, funds = [], []
+    for item in data:
+        name = item.get("name", "")
+        if any(k in name for k in kw):
+            if set_asset_class:
+                item["asset_class"] = "FUND"
+            funds.append(item)
+        else:
+            stocks.append(item)
+
+    if stock_output:
+        with open(stock_output, "w", encoding="utf-8") as f:
+            json.dump(stocks, f, ensure_ascii=False, indent=2)
+    if fund_output:
+        with open(fund_output, "w", encoding="utf-8") as f:
+            json.dump(funds, f, ensure_ascii=False, indent=2)
+
+    print(f"完成: 总 {len(data)} 条 → 股票 {len(stocks)} 条, 基金/ETF {len(funds)} 条")
+    if set_asset_class:
+        print(f"  (基金项 asset_class 已设为 FUND)")
+    return stocks, funds
+
+
 def merge_json(
     file_a: str | Path,
     file_b: str | Path,
@@ -68,13 +131,7 @@ def merge_json(
 
 if __name__ == "__main__":
     DATA = Path(__file__).resolve().parents[2] / "data"
-    # split_by_language(
-    #     DATA / "varieties_us_stocks_cn_fixed.json",
-    #     en_output=DATA / "varieties_us_stocks_cn_fixed_111.json",
-    #     cn_output=DATA / "varieties_us_stocks_cn_fixed_222.json",
-    # )
-    merge_json(
-        DATA / "",
-        DATA / "",
-        DATA / ""
-    )
+
+    # 用法示例：
+    # merge_json("a.json", "b.json", "merged.json")
+    # split_by_language("data.json", en_output="en.json", cn_output="cn.json")

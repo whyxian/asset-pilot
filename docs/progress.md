@@ -1,6 +1,6 @@
 # AssetPilot 开发进度
 
-> 最后更新：2026-06-07
+> 最后更新：2026-06-10
 > 记录所有模块的完成状态、任务拆分和开发规划
 
 ---
@@ -15,16 +15,16 @@
 | Pydantic 模型 | `backend/app/models/asset_quote.py` | AssetQuote 统一行情模型 |
 | ORM 模型 | `backend/app/models/asset_quote_orm.py` | AssetQuoteRecord，含审计字段 |
 
-### 行情获取（4 个市场，6 个数据源）
+### 行情获取（4 个市场，5 个数据源）
 
-| 市场 | 数据源 | Repo 方法 | 说明 |
-|------|--------|-----------|------|
-| A 股 | 腾讯财经 | `_fetch_from_tencent()` | httpx 异步 |
-| A 股 | 东方财富（备选） | `_fetch_from_east_money()` | 待实现 |
-| 美股 | 新浪 + Playwright | `_fetch_from_sina()` | 浏览器自动化 |
-| 加密货币 | CoinGlass | `_fetch_from_coinglass()` | httpx 异步 |
-| 基金 | 天天基金 pingzhongdata | `_fetch_from_pingzhong()` | httpx 异步，默认源 |
-| 基金 | akshare | `_fetch_from_akshare()` | 备选源 |
+| 市场 | 数据源 | 类名 | 说明 |
+|------|--------|------|------|
+| A 股 | 腾讯财经 | `TencentDataSource` | httpx 异步，默认 |
+| 美股 | 腾讯财经 | `TencentDataSource` | httpx 异步，默认（最快） |
+| 美股 | 新浪 + Playwright | `SinaDataSource` | 浏览器自动化，备选 |
+| 加密货币 | CoinGlass | `CoinGlassDataSource` | httpx 异步 |
+| 基金 | 天天基金 pingzhongdata | `EastMoneyFundDataSource` | httpx 异步，默认源 |
+| 基金 | akshare | `AkshareFundDataSource` | 备选源 |
 
 ### 行情 API
 
@@ -111,36 +111,36 @@ curl http://localhost:8000/api/v1/holdings
 
 ### 子任务
 
-| # | 任务 | 说明 | 优先级 |
-|---|------|------|--------|
-| 1b.1 | A 股批量导入脚本 | 用 akshare 获取 A 股列表（~5000 只），写入 asset_varieties | P0 |
-| 1b.2 | 基金批量导入脚本 | 用 akshare 获取基金列表（~10000 只），写入 asset_varieties | P0 |
-| 1b.3 | 美股 + 加密货币种子数据 | 手动维护一份常用代码 JSON，启动时自动导入 | P0 |
-| 1b.4 | 前端品种搜索组件 | 添加持仓时，搜索框支持输入 ticker/名称 自动补全 | P1 |
-| 1b.5 | 查询时自动注册 | 创建持仓时品种不存在 → 调用行情验证 → 有效则自动注册（替代报错） | 后续优化 |
-| 1b.6 | 定时任务更新品种 | 每周自动检查是否有新品种上市，更新 asset_varieties | P2 |
-| 1b.7 | 前端品种管理页 | 列表页展示已注册品种，支持搜索，不可删除 | P2 |
+| # | 任务 | 说明 | 优先级 | 状态 |
+|---|------|------|--------|------|
+| 1b.1 | A 股批量导入脚本 | 用 akshare 获取 A 股列表（~5000 只），写入 asset_varieties | P0 | ⏳ 待开始 |
+| 1b.2 | 基金批量导入脚本 | 用 akshare 获取基金列表（~10000 只），写入 asset_varieties | P0 | ⏳ 待开始 |
+| 1b.3 | 美股种子数据 | 东方财富 API 获取 13404 只，清洗去重后 13385 只 | P0 | ✅ 已完成 |
+| 1b.3a | 美股股/基分类 | 按名称关键词区分，7843 股票 + 5542 基金/ETF，基金 `asset_class` 标记为 `FUND` | P0 | ✅ 已完成 |
+| 1b.4 | 前端品种搜索组件 | 添加持仓时，搜索框支持输入 ticker/名称 自动补全 | P1 | 📋 规划中 |
+| 1b.5 | 查询时自动注册 | 创建持仓时品种不存在 → 调用行情验证 → 有效则自动注册（替代报错） | 后续优化 | 📋 规划中 |
+| 1b.6 | 定时任务更新品种 | 每周自动检查是否有新品种上市，更新 asset_varieties | P2 | 📋 规划中 |
+| 1b.7 | 前端品种管理页 | 列表页展示已注册品种，支持搜索，不可删除 | P2 | 📋 规划中 |
 
-### 批量导入脚本示例
+### 数据资产清单
 
-```python
-# A 股：用 akshare 拉取全部代码
-import akshare as ak
-df = ak.stock_zh_a_spot_em()
-# → ticker, name → 批量写入 asset_varieties
+| 文件 | 说明 | 条数 | 状态 |
+|------|------|------|------|
+| `data/varieties_us_stocks_99.json` | 美股全量数据（东方财富 105+106+107，去重合并） | 13385 | ✅ 已清洗 |
+| `data/varieties_us_stocks_only.json` | 美股纯股票（经 split_stock_vs_fund 分类） | 7843 | ✅ |
+| `data/varieties_us_funds.json` | 美股基金/ETF（asset_class 已改为 FUND） | 5542 | ✅ |
+| `data/source/varieties_stock_cn.json` | A 股（手动整理） | ~5000 | ⏳ 未入库 |
+| `data/source/varieties_funds_akshare.json` | 基金（akshare 获取） | ~10000 | ⏳ 未入库 |
+| `data/source/varieties_funds_etf.json` | ETF（手动整理） | ~1000 | ⏳ 未入库 |
 
-# 基金：用 akshare 拉取基金列表
-df = ak.fund_name_em()
-# → ticker, name → 批量写入 asset_varieties
-```
+### 相关脚本
 
-### 验证
-
-```bash
-# 运行批量导入脚本后
-curl http://localhost:8100/api/v1/varieties
-# 应返回数千条 A 股 + 基金数据
-```
+| 脚本 | 说明 |
+|------|------|
+| `backend/script/seed_varieties.py` | JSON → DB 导入（支持复合唯一键去重） |
+| `backend/script/json_tools.py` | JSON 工具集：`split_by_language()` / `rename_keys()` / `merge_json()` / `split_stock_vs_fund()` |
+| `backend/script/fetch_us_names.py` | 新浪源批量获取美股英文名 |
+| `backend/script/fetch_us_stocks.py` | 东方财富 API 获取美股列表 |
 
 ---
 
@@ -236,7 +236,9 @@ _当前正在进行的任务_
 |------|------|---------|
 | Phase 1 | 持仓 ORM + CRUD | 2026-06-07 ✅ |
 | Phase 1a | 品种验证（asset_varieties 表+API+持仓校验） | 2026-06-07 ✅ |
-| Phase 1b | 品种数据填充（批量导入脚本+前端搜索+自动注册） | 2026-06-07 ⏳ |
+| Phase 1b | 品种数据填充（美股 13385 只已入库+股基分类完成，A股/基金待导入） | 2026-06-07 ⏳ |
 | 架构改进 | 统一异常处理 + 统一返回 + CORS + 请求日志 | 2026-06-07 ✅ |
+| 架构改进 | 策略模式重构 DataSource 层 | 2026-06-07 ✅ |
+| 架构改进 | 数据脚本工具集（json_tools、seed_varieties） | 2026-06-07 ✅ |
 | Phase 2 | 持仓计算服务 | 待开始 |
 | Phase 3 | 概览汇总 API | 待开始 |

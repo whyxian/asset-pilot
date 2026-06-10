@@ -1,7 +1,7 @@
 # AssetPilot 需求文档
 
-> 版本：v2.0（按前端页面结构重新组织）
-> 最后更新：2026-06-07
+> 版本：v2.1
+> 最后更新：2026-06-10
 
 ---
 
@@ -105,10 +105,13 @@ date, ticker, type, quantity, unit_price, amount, notes
 
 | 市场 | 数据源 | 方式 |
 |------|--------|------|
-| A 股 | 腾讯财经 HTTP API | httpx 异步请求 |
-| 美股 | 新浪财经 + Playwright | 浏览器自动化 |
+| A 股 | 腾讯财经 HTTP API | httpx 异步请求（默认） |
+| 美股 | 腾讯财经 HTTP API | httpx 异步请求（默认，速度最快） |
+| 美股 | 新浪财经 + Playwright | 浏览器自动化（备选，获取英文名时使用） |
 | 加密货币 | CoinGlass API | httpx 异步请求 |
 | 基金 | 天天基金 pingzhongdata / akshare（备选） | httpx 异步请求 |
+
+> 美股数据源对比：腾讯源（HTTP API，~8 股/秒）显著快于新浪源（Playwright，~1 股/秒），默认使用腾讯源。新浪源仅作为备选或获取英文名时使用。
 
 ---
 

@@ -1,7 +1,7 @@
 # AssetPilot 数据库设计
 
-> 版本：v1.0
-> 最后更新：2026-06-06
+> 版本：v1.1
+> 最后更新：2026-06-10
 
 ---
 
@@ -26,17 +26,17 @@
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | INTEGER | PK, AUTOINCREMENT | 主键 |
-| code | VARCHAR(30) | NOT NULL, UNIQUE | 交易代码，如 "600519" / "AAPL" / "510050" |
+| ticker | VARCHAR(30) | NOT NULL, INDEX | 交易代码，如 "600519" / "AAPL" / "510050" |
 | name | VARCHAR(200) | NOT NULL | 名称，如 "贵州茅台" / "Apple Inc" |
 | market | VARCHAR(10) | NOT NULL | 市场，"A" / "US" / "CRYPTO" |
 | asset_class | VARCHAR(10) | NOT NULL | 资产类别，"STOCK" / "FUND" |
 | currency | VARCHAR(3) | NOT NULL DEFAULT 'USD' | 计价货币，"CNY" / "USD" |
 | is_active | BOOLEAN | DEFAULT 1 | 软删除标记 |
 
+约束：`UNIQUE(asset_class, market, ticker)` — 同一只标的可在不同市场/类别下出现（如 000001 同时是 A 股银行股和深交所基金）。
+
 索引：
-- `idx_instruments_code` ON (code)
-- `idx_instruments_market` ON (market)
-- `idx_instruments_asset_class` ON (asset_class)
+- `ix_asset_varieties_ticker` ON (ticker)
 
 ### 2.2 asset_holdings（持仓表）
 

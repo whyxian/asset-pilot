@@ -1,7 +1,7 @@
 # AssetPilot V2 架构设计
 
-> 版本：v2.1
-> 最后更新：2026-06-07
+> 版本：v2.2
+> 最后更新：2026-06-10
 
 ---
 
@@ -33,7 +33,8 @@
 AssetPilot/
 ├── backend/            # 后端服务（FastAPI + SQLite）
 │   ├── app/            #   应用代码
-│   ├── tests/          #   测试
+│   ├── script/         #   数据导入/处理脚本
+│   ├── test/           #   测试
 │   ├── pyproject.toml
 │   └── requirements.txt
 ├── frontend/           # 前端 SPA（规划中，React + Vite）
@@ -80,9 +81,17 @@ backend/
 │       ├── asset_quote_service.py # 行情业务逻辑
 │       ├── asset_holding_service.py# 持仓业务逻辑
 │       └── asset_variety_service.py# 品种目录业务逻辑
-├── tests/
-│   ├── test_stock_api.py
-│   └── test_fund_repo.py
+├── script/                   # 数据导入/处理脚本
+│   ├── json_tools.py          # JSON 工具（拆分/合并/重命名 key / 区分股基）
+│   ├── seed_varieties.py      # 导入 JSON 品种数据到 DB
+│   ├── fetch_us_names.py      # 批量获取美股英文名
+│   ├── fetch_cn_fund.py       # 天天基金数据采集
+│   └── fetch_us_stocks.py     # 东方财富美股数据采集
+├── test/                      # 测试
+│   ├── test_stock_api.py      # 行情接口测试
+│   ├── test_fund_repo.py      # 基金净值测试
+│   ├── test_us_quotes.py      # 美股行情测试（腾讯源+新浪源对比）
+│   └── test_xueqiu.py         # 雪球公司概况爬取测试
 └── Dockerfile
 ```
 
@@ -148,8 +157,8 @@ frontend/
 
 ### 5.2 异步并发
 
-- A 股 / 加密货币 / 基金：httpx async + `asyncio.gather` 并发
-- 美股：Playwright async API，浏览器单例复用
+- A 股 / 加密货币 / 基金 / 美股（腾讯源）：httpx async + `asyncio.gather` 并发
+- 美股（新浪源）：Playwright async API，浏览器单例复用
 
 ### 5.3 多数据源切换
 
@@ -193,3 +202,19 @@ quotes = await repo.fetch_realtime_quote(["166002"], source="akshare")  # ak sha
 | services | 抛出 `BusinessError`，不处理 HTTP 细节 |
 | repositories | 返回 `None` 表示未找到，向上抛异常 |
 | api | 调用 service，用 `success(data)` 包裹返回，不写 try/except |
+
+### 5.5 美股品种分类（STOCK vs FUND）
+
+美股来源（东方财富 m:105/m:106/m:107）混合了股票和 ETF/基金，入库前需区分：
+
+- **分类依据**：按名称关键词匹配（`FUND_KEYWORDS`），仅使用不会误伤公司名的基金标识词
+- **分类结果**：5542 基金/ETF（`asset_class` → `FUND`）+ 7843 纯股票
+- **工具函数**：`json_tools.split_stock_vs_fund()` 可复用
+
+### 5.6 JSON → DB 导入工具
+
+`seed_varieties.py` 负责将清洗后的 JSON 数据批量导入 `asset_varieties` 表：
+
+- 按 `(asset_class, market, ticker)` 复合键去重，已有记录自动跳过
+- 每 1000 条输出一次进度
+- 支持分文件逐个导入
