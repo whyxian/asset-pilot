@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.asset_holding_api import router as asset_holding_router
 from app.api.asset_quote_api import router as asset_quote_router
 from app.api.asset_variety_api import router as asset_variety_router
+from app.api.transaction_api import router as transaction_router
 from app.core.database import engine, init_db
 from app.core.exceptions import BusinessError
 from app.core.logger import logger
@@ -75,6 +76,7 @@ async def log_requests(request: Request, call_next):
 app.include_router(asset_quote_router)
 app.include_router(asset_holding_router)
 app.include_router(asset_variety_router)
+app.include_router(transaction_router)
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", reload=True)

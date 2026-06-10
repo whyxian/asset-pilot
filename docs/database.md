@@ -1,6 +1,6 @@
 # AssetPilot 数据库设计
 
-> 版本：v1.1
+> 版本：v1.2
 > 最后更新：2026-06-10
 
 ---
@@ -28,8 +28,9 @@
 | id | INTEGER | PK, AUTOINCREMENT | 主键 |
 | ticker | VARCHAR(30) | NOT NULL, INDEX | 交易代码，如 "600519" / "AAPL" / "510050" |
 | name | VARCHAR(200) | NOT NULL | 名称，如 "贵州茅台" / "Apple Inc" |
-| market | VARCHAR(10) | NOT NULL | 市场，"A" / "US" / "CRYPTO" |
+| market | VARCHAR(10) | NOT NULL | 市场，"CN" / "US" / "CRYPTO" |
 | asset_class | VARCHAR(10) | NOT NULL | 资产类别，"STOCK" / "FUND" |
+| sub_category | VARCHAR(20) | NULLABLE | 细分种类，"ETF" / "LOF" 等，默认为空 |
 | currency | VARCHAR(3) | NOT NULL DEFAULT 'USD' | 计价货币，"CNY" / "USD" |
 | is_active | BOOLEAN | DEFAULT 1 | 软删除标记 |
 
@@ -48,7 +49,7 @@
 | id | INTEGER | PK, AUTOINCREMENT | 主键 |
 | ticker | VARCHAR(30) | NOT NULL, UNIQUE | 标的代码，如 "600519" / "AAPL" / "166002" |
 | name | VARCHAR(200) | NOT NULL DEFAULT '' | 名称 |
-| market | VARCHAR(10) | NOT NULL | 市场，"A" / "US" / "CRYPTO" |
+| market | VARCHAR(10) | NOT NULL | 市场，"CN" / "US" / "CRYPTO" |
 | asset_class | VARCHAR(10) | NOT NULL | 资产类别，"STOCK" / "FUND" |
 | currency | VARCHAR(3) | NOT NULL DEFAULT 'CNY' | 计价货币 |
 | quantity | DECIMAL(18,4) | NOT NULL | 持仓量 |
@@ -90,7 +91,7 @@
 | total_pnl | DECIMAL(18,4) | NOT NULL | 总盈亏 |
 | annualized_return | DECIMAL(10,6) | | 简单年化回报率 |
 
-### 2.5 transactions（交易记录表）
+### 2.5 transactions（交易记录表）✅ 已创建
 
 每一笔买入/卖出操作，作为持仓变动的辅助记录。股票按数量+成交价录入，基金按金额录入。
 
@@ -121,7 +122,7 @@
 | change_ratio | DECIMAL(10,4) | | 涨跌幅（%） |
 | source | VARCHAR(30) | NOT NULL | 数据来源，"TENCENT" / "SINA" / "COINGLASS" |
 
-约束：UNIQUE(variety_id, timestamp)
+约束：UNIQUE(ticker, timestamp)（ORM 中暂未强制，已知技术债 #1）
 
 ## 3. E-R 关系
 

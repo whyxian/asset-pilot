@@ -1,6 +1,6 @@
 # AssetPilot V2 架构设计
 
-> 版本：v2.3
+> 版本：v2.4
 > 最后更新：2026-06-10
 
 ---
@@ -66,23 +66,28 @@ backend/
 │   ├── api/                       # HTTP 路由层
 │   │   ├── asset_quote_api.py     # 行情接口（A股/美股/加密货币/基金）
 │   │   ├── asset_holding_api.py   # 持仓 CRUD
-│   │   └── asset_variety_api.py   # 品种目录 CRUD
+│   │   ├── asset_variety_api.py   # 品种目录 CRUD
+│   │   └── transaction_api.py     # 交易记录 CRUD
 │   ├── models/                    # 数据模型
 │   │   ├── asset_quote.py         # AssetQuote (Pydantic)
-│   │   ├── asset_holding.py       # AssetHolding (Pydantic)
+│   │   ├── asset_holding.py       # AssetHolding / HoldingWithQuote (Pydantic)
 │   │   ├── asset_variety.py       # AssetVariety (Pydantic)
+│   │   ├── transaction.py         # Transaction / Create / Update (Pydantic)
 │   │   └── orm/                   # SQLAlchemy ORM 模型
 │   │       ├── asset_quote_orm.py
 │   │       ├── asset_holding_orm.py
-│   │       └── asset_variety_orm.py
+│   │       ├── asset_variety_orm.py
+│   │       └── transaction_orm.py
 │   ├── repositories/              # 数据访问层
 │   │   ├── asset_quote_repository.py  # 行情 Repo（调用 DataSource）
 │   │   ├── asset_holding_repository.py# 持仓 CRUD
-│   │   └── asset_variety_repository.py# 品种目录 CRUD
+│   │   ├── asset_variety_repository.py# 品种目录 CRUD
+│   │   └── transaction_repository.py  # 交易记录 CRUD
 │   └── services/                  # 业务逻辑层
 │       ├── asset_quote_service.py # 行情业务逻辑
-│       ├── asset_holding_service.py# 持仓业务逻辑
-│       └── asset_variety_service.py# 品种目录业务逻辑
+│       ├── asset_holding_service.py# 持仓业务逻辑（含计算）
+│       ├── asset_variety_service.py# 品种目录业务逻辑
+│       └── transaction_service.py # 交易记录业务逻辑
 ├── script/                   # 数据导入/处理脚本
 │   ├── json_tools.py          # JSON 工具（拆分/合并/重命名 key / 区分股基）
 │   ├── seed_varieties.py      # 导入 JSON 品种数据到 DB
@@ -97,41 +102,49 @@ backend/
 └── Dockerfile
 ```
 
-### 3.3 前端（已初始化）
+### 3.3 前端
 
-SPA 单页应用 + 侧边栏布局（后续可扩展顶部导航模式）。当前使用 JSON 数据展示，后端 API 完成后切换。
+SPA 单页应用 + 侧边栏布局。已对接后端 API，使用 TanStack Query + Axios。
 
 ```
 frontend/
 ├── src/
-│   ├── api/                       # API 客户端（待对接后端）
+│   ├── api/                       # API 客户端
+│   │   ├── client.ts              # Axios 实例 + 响应拦截器
+│   │   ├── endpoints.ts           # 所有端点函数
+│   │   └── types.ts               # ApiResponse / ApiError
+│   ├── hooks/                     # 数据 hooks
+│   │   ├── useHoldings.ts         # 持仓查询（共享缓存）
+│   │   ├── useHoldingMutations.ts # 持仓增删改
+│   │   ├── useQuote.ts            # 行情查询
+│   │   └── useTransactions.ts     # 交易查询
+│   ├── types/
+│   │   └── index.ts               # TS 类型定义
 │   ├── components/
 │   │   ├── layout/                # 侧边栏布局
-│   │   └── ui/                    # shadcn/ui 组件（button, card, table 等）
-│   ├── data/                      # JSON 示例数据（临时，后续替换）
+│   │   └── ui/                    # shadcn/ui 组件（badge/button/card/dialog/input/select/sheet/skeleton/table）
 │   ├── features/                  # 按功能域组织
-│   │   ├── overview/              # 概览：统计卡 + 净值走势 + 资产配比
-│   │   ├── holdings/              # 持仓：品种盈亏列表
-│   │   ├── transactions/          # 交易：增删改查
-│   │   └── quotes/                # 行情：输入代码查实时价
+│   │   ├── overview/              # 概览：统计卡 + 资产配比（从 holdings 计算）
+│   │   ├── holdings/              # 持仓表格 + 新增/编辑/删除
+│   │   ├── transactions/          # 交易记录列表
+│   │   └── quotes/                # 行情查询（输入+市场选择+结果卡片）
 │   ├── routes/
-│   ├── types/
 │   ├── App.tsx
 │   └── main.tsx
 ├── index.html
-├── vite.config.ts
+├── vite.config.ts                # 含 /api 代理到 localhost:8000
 ├── tsconfig.json
 └── package.json
 ```
 
 页面视图：
 
-| 视图 | 路由 | 内容 |
-|------|------|------|
-| 概览 | `/` | 总市值/成本/盈亏统计卡 + 净值走势 + 资产配比 |
-| 持仓 | `/holdings` | 各品种表格：代码、名称、市场、持仓量、成本、现价、市值、盈亏 |
-| 交易 | `/transactions` | 交易记录列表（按日期倒序） |
-| 行情 | `/quotes` | 输入代码查询实时行情 |
+| 视图 | 路由 | 内容 | 数据来源 |
+|------|------|------|---------|
+| 概览 | `/` | 总市值/成本/盈亏统计卡 + 资产配比条 | `GET /api/v1/holdings/with-quotes` |
+| 持仓 | `/holdings` | 品种表格 + 年化回报 + 增删改操作 | `GET /api/v1/holdings/with-quotes` |
+| 交易 | `/transactions` | 交易记录列表（按日期倒序） | `GET /api/v1/transactions` |
+| 行情 | `/quotes` | 输入代码 + 市场选择 → 查询实时行情 | `GET /api/v1/{stock,crypto,fund}/quotes` |
 
 ## 4. 分层架构
 
@@ -175,7 +188,7 @@ quotes = await repo.fetch_realtime_quote(["166002"], source="akshare")  # ak sha
 
 | DataSource | name | 覆盖范围 |
 |-----------|------|---------|
-| `TencentDataSource` | `tencent` | STOCK + A / STOCK + US |
+| `TencentDataSource` | `tencent` | STOCK+CN / STOCK+US / FUND+US |
 | `SinaDataSource` | `sina` | STOCK + US（Playwright 备选） |
 | `CoinGlassDataSource` | `coinglass` | CRYPTO |
 | `EastMoneyFundDataSource` | `pingzhong` | FUND（默认） |

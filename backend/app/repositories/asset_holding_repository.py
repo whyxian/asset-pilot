@@ -37,9 +37,9 @@ class AssetHoldingRepository:
             market=data.market,
             asset_class=data.asset_class,
             currency=data.currency,
-            quantity=float(data.quantity),
-            cost_price=float(data.cost_price),
-            total_invested=float(data.total_invested),
+            quantity=data.quantity,
+            cost_price=data.cost_price,
+            total_invested=data.total_invested,
             first_buy_date=data.first_buy_date,
         )
         async with async_session() as session:
@@ -60,7 +60,7 @@ class AssetHoldingRepository:
             update_data = data.model_dump(exclude_unset=True)
             for key, value in update_data.items():
                 if value is not None:
-                    setattr(record, key, float(value) if key in ("quantity", "cost_price", "total_invested") else value)
+                    setattr(record, key, value)
             await session.commit()
             await session.refresh(record)
             return _record_to_holding(record)

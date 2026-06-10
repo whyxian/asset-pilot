@@ -61,7 +61,7 @@ class AssetHoldingService:
         for (ac, market), tickers in groups.items():
             if ac == "STOCK":
                 quotes = await self._quote_svc.fetch_stock_quotes(market, tickers)
-            elif ac in ("FUND", "ETF"):
+            elif ac == "FUND":
                 quotes = await self._quote_svc.fetch_fund_quotes(market, tickers)
             else:
                 quotes = []

@@ -5,240 +5,105 @@
 
 ---
 
-## 一、已完成 ✅
+## 一、开发路线图
 
-### 后端基础设施
+```
+Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 4 ──→ 持仓 UI ──→ Phase 5
+ 持仓CRUD     品种验证      数据填充      持仓计算      前端对接     增删改      交易CRUD
+                                                                    ↓
+                                                               Bug 修复 ✅
+```
 
-| 模块 | 文件 | 说明 |
+| 阶段 | 内容 | 完成时间 | 状态 |
+|------|------|---------|------|
+| Phase 1 | 持仓 ORM + CRUD | 2026-06-07 | ✅ |
+| Phase 1a | 品种验证（asset_varieties 表+API） | 2026-06-07 | ✅ |
+| Phase 1b | 品种数据填充（45884 条，四市场全覆盖） | 2026-06-10 | ✅ |
+| Phase 2 | 持仓计算服务（with-quotes API） | 2026-06-07 | ✅ |
+| Phase 4 | 前后端对接（4 页切到真实 API） | 2026-06-10 | ✅ |
+| 持仓 UI | 增删改对话框 + 表单 | 2026-06-10 | ✅ |
+| Phase 5 | 交易记录 CRUD（后端+前端） | 2026-06-10 | ✅ |
+| Bug 修复 | 前后端 15 项 bug 修复 | 2026-06-10 | ✅ |
+| Phase 6 | 净值快照 | — | 📋 下一步 |
+| 图表 | 净值走势 + 资产配比饼图（Recharts） | — | 📋 规划中 |
+
+Phase 3（概览汇总 API）已跳过——概览数据由前端从 `holdings/with-quotes` 计算得出。
+
+---
+
+## 二、数据库
+
+### 表一览
+
+| 表 | 行数 | 说明 |
+|----|------|------|
+| `asset_varieties` | 45,884 | 品种目录（5525 A股 + 7837 美股 + 24931 基金 + 2049 ETF + 5542 美股基金） |
+| `asset_holdings` | 3 | 当前持仓 |
+| `asset_quote` | 54 | 行情记录 |
+| `transactions` | 0 | 交易记录（表已建，待录入） |
+
+---
+
+## 三、后端 API 端点
+
+### 行情
+
+| 方法 | 路径 | 说明 |
 |------|------|------|
-| 数据库引擎 | `backend/app/core/database.py` | SQLAlchemy async + init_db，SQLite |
-| Pydantic 模型 | `backend/app/models/asset_quote.py` | AssetQuote 统一行情模型 |
-| ORM 模型 | `backend/app/models/asset_quote_orm.py` | AssetQuoteRecord，含审计字段 |
+| `GET` | `/api/v1/stock/quotes/{CN,US}?codes=` | A 股/美股实时行情 |
+| `GET` | `/api/v1/crypto/quotes?coins=` | 加密货币行情 |
+| `GET` | `/api/v1/fund/quotes/{CN,US}?codes=` | 基金/ETF 净值 |
+| `GET` | `/api/v1/varieties` | 品种目录 |
+| `POST` | `/api/v1/varieties` | 添加品种 |
+| `DELETE` | `/api/v1/varieties/{ticker}` | 删除品种（软删除） |
 
-### 行情获取（4 个市场，5 个数据源）
+### 持仓
 
-| 市场 | 数据源 | 类名 | 说明 |
-|------|--------|------|------|
-| A 股 | 腾讯财经 | `TencentDataSource` | httpx 异步，默认 |
-| 美股 | 腾讯财经 | `TencentDataSource` | httpx 异步，默认（最快） |
-| 美股 | 新浪 + Playwright | `SinaDataSource` | 浏览器自动化，备选 |
-| 加密货币 | CoinGlass | `CoinGlassDataSource` | httpx 异步 |
-| 基金 | 天天基金 pingzhongdata | `EastMoneyFundDataSource` | httpx 异步，默认源 |
-| 基金 | akshare | `AkshareFundDataSource` | 备选源 |
-
-### 行情 API
-
-| 端点 | 文件 | 说明 |
+| 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET /api/v1/stock/quotes/{market}` | `asset_quote_api.py` | A 股/美股 |
-| `GET /api/v1/crypto/quotes` | `asset_quote_api.py` | 加密货币 |
-| `GET /api/v1/fund/quotes` | `asset_quote_api.py` | 基金净值 |
+| `GET` | `/api/v1/holdings` | 持仓列表（无实时行情） |
+| `GET` | `/api/v1/holdings/with-quotes` | 持仓 + 实时行情 + 市值/盈亏/年化 |
+| `GET` | `/api/v1/holdings/{ticker}` | 单个持仓 |
+| `POST` | `/api/v1/holdings` | 新增持仓 |
+| `PUT` | `/api/v1/holdings/{ticker}` | 更新持仓 |
+| `DELETE` | `/api/v1/holdings/{ticker}` | 删除持仓 |
 
-### 前端框架
+### 交易
 
-| 模块 | 说明 |
-|------|------|
-| Vite + React + TS | 项目初始化 |
-| Tailwind CSS v4 + shadcn/ui | 样式 + 组件库 |
-| lucide-react + recharts | 图标 + 图表 |
-| react-router-dom | 4 个路由 |
-| 侧边栏布局 | 概览/持仓/交易/行情 导航 |
-| JSON 数据文件 | `src/data/overview.json`、`holdings.json`、`transactions.json` |
-| 文档对齐 | requirements.md v2.0 + architecture.md v2.1 | 按前端页面重写需求，更新架构文档与实际一致 |
-
----
-
-## 二、开发路线图 🗺️
-
-依赖关系：Phase 1 → Phase 2 → Phase 3 → (Phase 4) → (Phase 5)
-
-```
-Phase 1 (P0) ──→ Phase 1b (P0) ──→ Phase 2 (P0) ──→ Phase 3 (P0)
-   持仓 ORM+CRUD    品种数据填充      持仓计算服务      概览汇总 API
-       │
-       └──→ Phase 4 (P1) ──→ Phase 5 (P2)
-              交易记录 CRUD      净值快照
-```
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/v1/transactions` | 交易列表（支持 `?ticker=` 筛选 + `?limit=`） |
+| `GET` | `/api/v1/transactions/{id}` | 单条交易 |
+| `POST` | `/api/v1/transactions` | 新增交易（校验品种存在 + quantity×price 和 amount 至少填一组） |
+| `PUT` | `/api/v1/transactions/{id}` | 更新交易 |
+| `DELETE` | `/api/v1/transactions/{id}` | 删除交易 |
 
 ---
 
-## 三、Phase 1：持仓 ORM + CRUD（P0）
+## 四、项目文件
 
-### 子任务
+→ 详见 [architecture.md](architecture.md) 第 3 节「目录结构」
 
-| # | 任务 | 涉及文件 | 说明 |
-|---|------|---------|------|
-| 1.1 | ORM 模型 | `backend/app/models/asset_holding_orm.py` | 建表 `asset_holdings`（ticker, name, market, asset_class, currency, quantity, cost_price, total_invested, first_buy_date） |
-| 1.2 | init_db 注册 | `backend/app/core/database.py` | 新增 ORM 模型导入 |
-| 1.3 | Repository | `backend/app/repositories/asset_holding_repository.py` | CRUD 方法（create / get / update / delete / list） |
-| 1.4 | Service | `backend/app/services/asset_holding_service.py` | 调用 repository |
-| 1.5 | API 路由 | `backend/app/api/asset_quote_api.py` | 追加 `POST/GET/PUT/DELETE /api/v1/holdings` |
 
-### 验证
 
-```bash
-# 启动服务，验证表已创建
-sqlite3 data/database/assetpilot.db ".tables"  # 应有 asset_holdings
-# 测试新增持仓
-curl -X POST http://localhost:8000/api/v1/holdings \
-  -H 'Content-Type: application/json' \
-  -d '{"ticker":"600519","name":"贵州茅台","market":"A","asset_class":"STOCK","currency":"CNY","quantity":100,"cost_price":1650,"total_invested":165000,"first_buy_date":"2025-01-15"}'
-# 测试查询持仓
-curl http://localhost:8000/api/v1/holdings
-```
+## 五、已知问题 / 技术债
+
+| # | 说明 | 严重度 | 状态 |
+|----|------|--------|------|
+| 1 | `asset_quote` 表缺少 UNIQUE(ticker, timestamp) 约束，可能产生重复行情数据 | 中 | 未修 |
+| 2 | `SinaDataSource.close()` 缺少 try/finally，`_browser.close()` 异常时 Playwright 泄漏 | 低 | 未修 |
+| 3 | ORM `currency` 字段缺默认值，与文档不一致 | 低 | 未修 |
+| 4 | 前端 chunks > 500KB，可按页面 code-split | 低 | 未修 |
+| 5 | 无品种搜索/自动补全，新增持仓时需手动输入 ticker | 低 | 📋 规划 |
 
 ---
 
-## 四、Phase 1a：品种验证（P0 ✅）
+## 六、后续规划
 
-**描述：** 建 asset_varieties 表，创建持仓时校验品种存在。已全部完成。
-
-| 文件 | 说明 |
-|------|------|
-| `backend/app/models/asset_variety_orm.py` | ORM 模型 |
-| `backend/app/models/asset_variety.py` | Pydantic 模型 |
-| `backend/app/repositories/asset_variety_repository.py` | CRUD + 软删除 |
-| `backend/app/services/asset_variety_service.py` | 业务逻辑 |
-| `backend/app/api/asset_variety_api.py` | `GET/POST/DELETE /api/v1/varieties` |
-| `backend/app/services/asset_holding_service.py` | 创建持仓时校验 ticker 是否已注册 |
-| `docs/database.md` | 更新说明，移除"未使用"标注 |
-
----
-
-## 五、Phase 1b：品种数据填充（P0）
-
-**描述：** 为 asset_varieties 填充真实数据，让用户不用手动一个个添加品种。
-
-### 子任务
-
-| # | 任务 | 说明 | 优先级 | 状态 |
-|---|------|------|--------|------|
-| 1b.1 | A 股批量导入脚本 | 用 akshare 获取 A 股列表（~5000 只），写入 asset_varieties | P0 | ⏳ 待开始 |
-| 1b.2 | 基金批量导入脚本 | 用 akshare 获取基金列表（~10000 只），写入 asset_varieties | P0 | ⏳ 待开始 |
-| 1b.3 | 美股种子数据 | 东方财富 API 获取 13404 只，清洗去重后 13385 只 | P0 | ✅ 已完成 |
-| 1b.3a | 美股股/基分类 | 按名称关键词区分，7843 股票 + 5542 基金/ETF，基金 `asset_class` 标记为 `FUND` | P0 | ✅ 已完成 |
-| 1b.4 | 前端品种搜索组件 | 添加持仓时，搜索框支持输入 ticker/名称 自动补全 | P1 | 📋 规划中 |
-| 1b.5 | 查询时自动注册 | 创建持仓时品种不存在 → 调用行情验证 → 有效则自动注册（替代报错） | 后续优化 | 📋 规划中 |
-| 1b.6 | 定时任务更新品种 | 每周自动检查是否有新品种上市，更新 asset_varieties | P2 | 📋 规划中 |
-| 1b.7 | 前端品种管理页 | 列表页展示已注册品种，支持搜索，不可删除 | P2 | 📋 规划中 |
-
-### 数据资产清单
-
-| 文件 | 说明 | 条数 | 状态 |
-|------|------|------|------|
-| `data/varieties_us_stocks_99.json` | 美股全量数据（东方财富 105+106+107，去重合并） | 13385 | ✅ 已清洗 |
-| `data/varieties_us_stocks_only.json` | 美股纯股票（经 split_stock_vs_fund 分类） | 7843 | ✅ |
-| `data/varieties_us_funds.json` | 美股基金/ETF（asset_class 已改为 FUND） | 5542 | ✅ |
-| `data/source/varieties_stock_cn.json` | A 股（手动整理） | ~5000 | ⏳ 未入库 |
-| `data/source/varieties_funds_akshare.json` | 基金（akshare 获取） | ~10000 | ⏳ 未入库 |
-| `data/source/varieties_funds_etf.json` | ETF（手动整理） | ~1000 | ⏳ 未入库 |
-
-### 相关脚本
-
-| 脚本 | 说明 |
-|------|------|
-| `backend/script/seed_varieties.py` | JSON → DB 导入（支持复合唯一键去重） |
-| `backend/script/json_tools.py` | JSON 工具集：`split_by_language()` / `rename_keys()` / `merge_json()` / `split_stock_vs_fund()` |
-| `backend/script/fetch_us_names.py` | 新浪源批量获取美股英文名 |
-| `backend/script/fetch_us_stocks.py` | 东方财富 API 获取美股列表 |
-
----
-
-## 六、Phase 2：持仓计算服务（P0）
-
-### 子任务
-
-| # | 任务 | 涉及文件 | 说明 |
-|---|------|---------|------|
-| 2.1 | 持仓计算 | `asset_holding_service.py` | 读取持仓 → 获取行情 → 计算市值/盈亏/年化 |
-| 2.2 | 年化回报率 | `asset_holding_service.py` | (现价/成本价)^(1/持有年数)-1 |
-| 2.3 | 计算 API | `asset_quote_api.py` | `GET /api/v1/holdings/with-quotes` 返回带实时行的持仓 |
-
-### 计算公式
-
-```
-市值 = quantity × current_price
-盈亏额 = market_value - total_invested
-盈亏% = (market_value / total_invested - 1) × 100
-持有年数 = (today - first_buy_date).days / 365
-年化回报率 = (current_price / cost_price) ^ (1 / holding_years) - 1
-```
-
-### 验证
-
-```bash
-curl http://localhost:8000/api/v1/holdings/with-quotes
-# 应返回持仓数据 + 实时价 + 市值 + 盈亏 + 年化
-```
-
----
-
-## 七、Phase 3：概览汇总 API（P0）
-
-### 子任务
-
-| # | 任务 | 涉及文件 | 说明 |
-|---|------|---------|------|
-| 3.1 | 概览服务 | `asset_holding_service.py` | 聚合持仓：总市值/成本/盈亏/年化 |
-| 3.2 | 资产配比 | `asset_holding_service.py` | 按 market 分组统计市值占比 |
-| 3.3 | 概览 API | `asset_quote_api.py` | `GET /api/v1/overview` |
-
-### 验证
-
-```bash
-curl http://localhost:8000/api/v1/overview
-# 应返回 { total_value, total_cost, total_pnl, annualized_return, allocation[] }
-```
-
----
-
-## 八、Phase 4：交易记录 CRUD（P1）
-
-### 子任务
-
-| # | 任务 | 涉及文件 | 说明 |
-|---|------|---------|------|
-| 4.1 | ORM 模型 | `backend/app/models/transaction_orm.py` | 建表 `transactions` |
-| 4.2 | Repository | `backend/app/repositories/transaction_repository.py` | CRUD 方法 |
-| 4.3 | Service | `backend/app/services/transaction_service.py` | 业务逻辑 |
-| 4.4 | API | `backend/app/api/transaction_api.py` | `GET/POST/PUT/DELETE /api/v1/transactions` |
-
----
-
-## 九、Phase 5：净值快照（P2）
-
-### 子任务
-
-| # | 任务 | 涉及文件 | 说明 |
-|---|------|---------|------|
-| 5.1 | ORM 模型 | `backend/app/models/networth_snapshot_orm.py` | 建表 `networth_snapshots` |
-| 5.2 | Repository + Service | 对应文件 | 快照生成与查询 |
-| 5.3 | API | | `POST /api/v1/networth/snapshot` 生成当日快照 |
-| 5.4 | API | | `GET /api/v1/networth/history` 查询历史净值 |
-
----
-
-## 十、后续规划
-
-| 项目 | 说明 |
-|------|------|
-| 前端对接后端 | Phase 1-3 完成后，前端从 JSON 切换到后端 API |
-| 定投计划 | 按周期自动生成交易记录并更新持仓 |
-| 定时任务 | 每日自动抓取行情 + 生成净值快照 |
-
----
-
-## 十一、开发中 ⏳
-
-_当前正在进行的任务_
-
-| 阶段 | 任务 | 开始时间 |
-|------|------|---------|
-| Phase 1 | 持仓 ORM + CRUD | 2026-06-07 ✅ |
-| Phase 1a | 品种验证（asset_varieties 表+API+持仓校验） | 2026-06-07 ✅ |
-| Phase 1b | 品种数据填充（美股 13385 只已入库+股基分类完成，A股/基金待导入） | 2026-06-07 ⏳ |
-| 架构改进 | 统一异常处理 + 统一返回 + CORS + 请求日志 | 2026-06-07 ✅ |
-| 架构改进 | 策略模式重构 DataSource 层 | 2026-06-07 ✅ |
-| 架构改进 | 数据脚本工具集（json_tools、seed_varieties） | 2026-06-07 ✅ |
-| Phase 2 | 持仓计算服务 | 待开始 |
-| Phase 3 | 概览汇总 API | 待开始 |
+| 优先级 | 项目 | 说明 |
+|--------|------|------|
+| P1 | Phase 6：净值快照 | `asset_snapshots` + `networth_snapshots` 表 + 定时快照 API |
+| P2 | 前端图表 | 净值走势用 Recharts 折线图，资产配比用饼图（替代当前进度条） |
+| P2 | 品种搜索组件 | 新增持仓时 ticker 自动补全 |
+| P3 | 定时任务 | 每日自动抓取行情 + 生成净值快照 |
+| P4 | 定投计划 | 按周期自动生成交易记录并更新持仓 |

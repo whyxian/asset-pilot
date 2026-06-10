@@ -2,11 +2,12 @@
 
 import abc
 
+from sqlalchemy import select
+
 from app.core.data_sources import (
     AkshareFundDataSource,
     CoinGlassDataSource,
     EastMoneyFundDataSource,
-    QuoteDataSource,
     SinaDataSource,
     TencentDataSource,
 )
@@ -47,9 +48,9 @@ class AssetQuoteRepository(abc.ABC):
                 ticker=q.ticker,
                 market=q.market,
                 name=q.name,
-                price=float(q.price),
+                price=q.price,
                 currency=q.currency,
-                change_price=float(q.change_price) if q.change_price else None,
+                change_price=q.change_price if q.change_price is not None else None,
                 change_ratio=q.change_ratio,
                 timestamp=q.updated_at,
                 source=q.source,
@@ -86,7 +87,7 @@ class StockQuoteRepository(AssetQuoteRepository):
                 return await self._tencent.fetch(codes, market="US")
             if source == "sina":
                 return await self._sina.fetch(codes, market="US")
-        raise BusinessError(400, f"不支持的市场/数据源: market={market}, source={source}")
+        raise BusinessError(40001, f"不支持的市场/数据源: market={market}, source={source}")
 
     async def close(self):
         """释放资源"""
@@ -104,7 +105,7 @@ class CryptoQuoteRepository(AssetQuoteRepository):
     ) -> list[AssetQuote]:
         if source == "coinglass":
             return await self._source.fetch(codes, market="CRYPTO")
-        raise BusinessError(400, f"不支持的数据源: {source}")
+        raise BusinessError(40001, f"不支持的数据源: {source}")
 
     async def close(self):
         pass
@@ -138,13 +139,11 @@ class FundQuoteRepository(AssetQuoteRepository):
             elif source == "akshare":
                 results.extend(await self._akshare.fetch(fund_codes, market="CN"))
             else:
-                raise BusinessError(400, f"不支持的数据源: {source}")
+                raise BusinessError(40001, f"不支持的数据源: {source}")
         return results
 
     async def _get_etf_tickers(self, codes: list[str]) -> set[str]:
         """查询哪些代码属于 ETF（CN 市场）"""
-        from sqlalchemy import select
-
         async with async_session() as session:
             rows = (await session.execute(
                 select(AssetVarietyRecord.ticker).where(
