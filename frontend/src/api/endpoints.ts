@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AssetQuote, HoldingCreate, HoldingUpdate, HoldingWithQuote, Transaction, TransactionCreate } from '@/types'
+import type { AssetQuote, AssetVariety, HoldingCreate, HoldingUpdate, HoldingWithQuote, OverviewStats, Transaction, TransactionCreate } from '@/types'
 
 // ═══════════════════════════════════════════
 // 持仓
@@ -20,6 +20,24 @@ export const updateHolding = (ticker: string, data: HoldingUpdate) =>
 /** 删除持仓 */
 export const deleteHolding = (ticker: string) =>
   apiClient.delete(`/api/v1/holdings/${ticker}`) as Promise<void>
+
+// ═══════════════════════════════════════════
+// 概览
+// ═══════════════════════════════════════════
+
+/** 获取概览统计（CNY 统一换算） */
+export const fetchOverview = () =>
+  apiClient.get('/api/v1/overview') as Promise<OverviewStats>
+
+// ═══════════════════════════════════════════
+// 品种目录
+// ═══════════════════════════════════════════
+
+/** 搜索品种（按 ticker 或名称模糊匹配） */
+export const searchVarieties = (q: string, limit = 10) =>
+  apiClient.get('/api/v1/varieties/search', {
+    params: { q, limit },
+  }) as Promise<AssetVariety[]>
 
 // ═══════════════════════════════════════════
 // 股票行情

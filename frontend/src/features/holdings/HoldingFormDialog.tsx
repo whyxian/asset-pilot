@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { HoldingWithQuote } from '@/types'
+import { searchVarieties } from '@/api/endpoints'
+import type { AssetVariety, HoldingWithQuote } from '@/types'
 
 interface HoldingFormData {
   ticker: string
@@ -58,6 +59,24 @@ function holdingToForm(h: HoldingWithQuote): HoldingFormData {
   }
 }
 
+/** 选中搜索结果时填充表单 */
+function applyVariety(form: HoldingFormData, v: AssetVariety): HoldingFormData {
+  return {
+    ...form,
+    ticker: v.ticker,
+    name: v.name,
+    market: v.market,
+    asset_class: v.asset_class,
+    currency: v.currency,
+  }
+}
+
+const marketOptionLabel: Record<string, string> = {
+  CN: 'A 股',
+  US: '美股',
+  CRYPTO: '加密货币',
+}
+
 interface HoldingFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -81,19 +100,63 @@ export function HoldingFormDialog({
   const isEdit = !!holding
   const [form, setForm] = useState<HoldingFormData>(emptyForm())
 
-  // 当对话框打开/关闭时重置表单
+  // ---- 品种搜索下拉 ----
+  const [searchResults, setSearchResults] = useState<AssetVariety[]>([])
+  const [searching, setSearching] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  // 点击外部关闭下拉
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // 对话框打开/关闭时重置
   useEffect(() => {
     if (open) {
       setForm(holding ? holdingToForm(holding) : emptyForm())
+      setSearchResults([])
+      setShowDropdown(false)
     }
   }, [open, holding])
+
+  const doSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setSearchResults([])
+      setShowDropdown(false)
+      return
+    }
+    setSearching(true)
+    try {
+      const results = await searchVarieties(q)
+      setSearchResults(results)
+      setShowDropdown(results.length > 0)
+    } catch {
+      setSearchResults([])
+    } finally {
+      setSearching(false)
+    }
+  }, [])
 
   const updateField = useCallback(
     (key: keyof HoldingFormData, value: string) => {
       setForm((prev) => {
-        const next = { ...prev, [key]: value }
+        let next = { ...prev, [key]: value }
 
-        // 市场 → 货币 自动联动
+        // ticker 变更 → debounce 搜索品种
+        if (key === 'ticker' && !isEdit) {
+          if (debounceRef.current) clearTimeout(debounceRef.current)
+          debounceRef.current = setTimeout(() => doSearch(value), 300)
+        }
+
+        // 市场 → 货币 联动
         if (key === 'market') {
           next.currency = value === 'CN' ? 'CNY' : 'USD'
         }
@@ -110,11 +173,37 @@ export function HoldingFormDialog({
         return next
       })
     },
-    [],
+    [isEdit, doSearch],
   )
 
+  /** 选中搜索结果 */
+  const handleSelect = useCallback((v: AssetVariety) => {
+    setForm((prev) => applyVariety(prev, v))
+    setShowDropdown(false)
+  }, [])
+
+  /** ticker 失焦时：如果 name 为空，尝试精确匹配补填 */
+  const handleTickerBlur = useCallback(() => {
+    // 延迟关闭下拉，让点击选项先触发
+    setTimeout(() => {
+      setShowDropdown(false)
+    }, 200)
+
+    setForm((prev) => {
+      if (prev.name || !prev.ticker.trim()) return prev
+
+      // 搜索结果中精确匹配
+      if (searchResults.length > 0) {
+        const exact = searchResults.find(
+          (r) => r.ticker.toUpperCase() === prev.ticker.toUpperCase(),
+        )
+        if (exact) return applyVariety(prev, exact)
+      }
+      return prev
+    })
+  }, [searchResults])
+
   const handleSubmit = () => {
-    // 基本校验
     if (!form.ticker.trim()) return
     if (!form.quantity || parseFloat(form.quantity) <= 0) return
     onSubmit(form)
@@ -131,15 +220,39 @@ export function HoldingFormDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* 代码 */}
-          <div>
+          {/* 代码 + 搜索下拉 */}
+          <div ref={wrapperRef} className="relative">
             <label className="text-xs font-medium text-muted-foreground">代码</label>
             <Input
-              placeholder="600519 / AAPL"
+              placeholder="600519 / AAPL / BTC"
               value={form.ticker}
               onChange={(e) => updateField('ticker', e.target.value.toUpperCase())}
+              onBlur={handleTickerBlur}
               disabled={isEdit}
             />
+            {searching && (
+              <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover p-2 text-sm text-muted-foreground shadow-md">
+                搜索中...
+              </div>
+            )}
+            {showDropdown && searchResults.length > 0 && !searching && (
+              <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
+                {searchResults.map((v) => (
+                  <button
+                    key={`${v.ticker}-${v.asset_class}-${v.market}`}
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                    onMouseDown={() => handleSelect(v)}
+                  >
+                    <span className="font-medium">{v.ticker}</span>
+                    <span className="truncate text-muted-foreground">{v.name}</span>
+                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                      {marketOptionLabel[v.market] || v.market} · {v.asset_class}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* 名称 */}
@@ -214,17 +327,17 @@ export function HoldingFormDialog({
             </div>
           </div>
 
-          {/* 总投入（自动计算，只读） */}
+          {/* 总投入（自动计算，可手动改） */}
           <div>
             <label className="text-xs font-medium text-muted-foreground">
-              总投入（自动计算）
+              总投入
             </label>
             <Input
               type="number"
               step="any"
               value={form.total_invested}
               onChange={(e) => updateField('total_invested', e.target.value)}
-              placeholder="quantity × cost_price"
+              placeholder="自动计算: quantity × cost_price"
             />
           </div>
 

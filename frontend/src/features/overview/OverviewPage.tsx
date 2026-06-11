@@ -1,71 +1,13 @@
-import { useMemo } from 'react'
-import { useHoldings } from '@/hooks/useHoldings'
+import { useOverview } from '@/hooks/useOverview'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
-import type { OverviewStats, AssetAllocation } from '@/types'
-
-const marketLabel: Record<string, string> = {
-  CN: 'A 股/基金',
-  US: '美股',
-  CRYPTO: '加密货币',
-}
+import { formatPrice, formatPct } from '@/lib/utils'
+import type { OverviewStats } from '@/types'
 
 export function OverviewPage() {
-  const { data: holdings, isLoading, isError, error, refetch } = useHoldings()
-
-  // 从持仓数据计算概览统计
-  const stats = useMemo<OverviewStats | null>(() => {
-    if (!holdings || holdings.length === 0) return null
-    // toNum 处理后端 Decimal 序列化为字符串的情况
-    const toNum = (v: number | string): number => typeof v === 'string' ? parseFloat(v) : v
-    const totalValue = holdings.reduce((s, h) => s + toNum(h.market_value), 0)
-    const totalCost = holdings.reduce((s, h) => s + toNum(h.total_invested), 0)
-    const totalPnl = totalValue - totalCost
-    const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : null
-    // 市值加权年化回报率
-    let weightedReturn = 0
-    let totalWeight = 0
-    for (const h of holdings) {
-      const mv = toNum(h.market_value)
-      if (h.annualized_return != null && mv > 0) {
-        weightedReturn += h.annualized_return * mv
-        totalWeight += mv
-      }
-    }
-    const avgAnnualized = totalWeight > 0 ? weightedReturn / totalWeight : null
-    return {
-      total_value: totalValue,
-      total_cost: totalCost,
-      total_pnl: totalPnl,
-      total_pnl_pct: totalPnlPct,
-      annualized_return: avgAnnualized,
-    }
-  }, [holdings])
-
-  // 从持仓数据计算资产配比（按 market 分组）
-  const allocation = useMemo<AssetAllocation[]>(() => {
-    if (!holdings || holdings.length === 0) return []
-    const toNum = (v: number | string): number => typeof v === 'string' ? parseFloat(v) : v
-    const groups = new Map<string, { market: string; value: number }>()
-    const total = holdings.reduce((s, h) => s + toNum(h.market_value), 0)
-    for (const h of holdings) {
-      const mv = toNum(h.market_value)
-      const existing = groups.get(h.market)
-      if (existing) {
-        existing.value += mv
-      } else {
-        groups.set(h.market, { market: h.market, value: mv })
-      }
-    }
-    return Array.from(groups.values()).map((g) => ({
-      market: g.market,
-      label: marketLabel[g.market] || g.market,
-      value: g.value,
-      pct: total > 0 ? (g.value / total) * 100 : 0,
-    }))
-  }, [holdings])
+  const { data: stats, isLoading, isError, error, refetch } = useOverview()
 
   // ---- 加载态 ----
   if (isLoading) {
@@ -111,7 +53,7 @@ export function OverviewPage() {
   }
 
   // ---- 空持仓 ----
-  if (!stats) {
+  if (!stats || stats.total_value_cny === 0 && stats.allocation.length === 0) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold">概览</h1>
@@ -124,7 +66,7 @@ export function OverviewPage() {
     )
   }
 
-  const isPositive = stats.total_pnl >= 0
+  const isPositive = stats.total_pnl_cny >= 0
 
   // ---- 正常渲染 ----
   return (
@@ -140,7 +82,7 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ¥{stats.total_value.toLocaleString()}
+              {formatPrice(stats.total_value_cny, 'CNY')}
             </div>
           </CardContent>
         </Card>
@@ -152,7 +94,7 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ¥{stats.total_cost.toLocaleString()}
+              {formatPrice(stats.total_cost_cny, 'CNY')}
             </div>
           </CardContent>
         </Card>
@@ -167,12 +109,10 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-              {stats.total_pnl_pct != null
-                ? `${isPositive ? '+' : ''}${stats.total_pnl_pct.toFixed(2)}%`
-                : 'N/A'}
+              {formatPct(stats.total_pnl_pct)}
             </div>
             <p className="text-xs text-muted-foreground">
-              ¥{isPositive ? '+' : ''}{stats.total_pnl.toLocaleString()}
+              {formatPrice(stats.total_pnl_cny, 'CNY')}
             </p>
           </CardContent>
         </Card>
@@ -184,15 +124,13 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {stats.annualized_return != null
-                ? `${stats.annualized_return >= 0 ? '+' : ''}${stats.annualized_return.toFixed(2)}%`
-                : 'N/A'}
+              {formatPct(stats.annualized_return)}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* 净值走势 — Phase 5 快照功能完成后启用 */}
+      {/* 净值走势 — Phase 6 快照功能完成后启用 */}
       <Card>
         <CardHeader>
           <CardTitle>净值走势</CardTitle>
@@ -205,14 +143,14 @@ export function OverviewPage() {
       </Card>
 
       {/* 资产配比 */}
-      {allocation.length > 0 && (
+      {stats.allocation.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>资产配比</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {allocation.map((item) => (
+              {stats.allocation.map((item) => (
                 <div key={item.market} className="flex items-center gap-4">
                   <span className="w-20 text-sm">{item.label}</span>
                   <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden">
@@ -232,7 +170,7 @@ export function OverviewPage() {
       )}
 
       <p className="text-sm text-muted-foreground">
-        共 {holdings!.length} 个品种
+        汇率数据由 exchangerates 提供 · 每小时更新
       </p>
     </div>
   )

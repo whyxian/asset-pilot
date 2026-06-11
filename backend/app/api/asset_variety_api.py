@@ -1,6 +1,6 @@
 """品种目录接口 — CRUD"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.core.exceptions import BusinessError
 from app.core.response import success
@@ -15,6 +15,16 @@ service = AssetVarietyService()
 async def list_varieties():
     """获取全部品种"""
     data = await service.list_varieties()
+    return success(data)
+
+
+@router.get("/varieties/search")
+async def search_varieties(
+    q: str = Query(..., min_length=1, description="搜索关键词"),
+    limit: int = Query(10, ge=1, le=50, description="返回条数上限"),
+):
+    """搜索品种（按 ticker 或名称模糊匹配）"""
+    data = await service.search_varieties(q, limit)
     return success(data)
 
 

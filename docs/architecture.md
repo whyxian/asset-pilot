@@ -1,7 +1,7 @@
 # AssetPilot V2 架构设计
 
-> 版本：v2.4
-> 最后更新：2026-06-10
+> 版本：v2.5
+> 最后更新：2026-06-11
 
 ---
 
@@ -67,6 +67,7 @@ backend/
 │   │   ├── asset_quote_api.py     # 行情接口（A股/美股/加密货币/基金）
 │   │   ├── asset_holding_api.py   # 持仓 CRUD
 │   │   ├── asset_variety_api.py   # 品种目录 CRUD
+│   │   ├── overview_api.py        # 概览统计
 │   │   └── transaction_api.py     # 交易记录 CRUD
 │   ├── models/                    # 数据模型
 │   │   ├── asset_quote.py         # AssetQuote (Pydantic)
@@ -87,7 +88,10 @@ backend/
 │       ├── asset_quote_service.py # 行情业务逻辑
 │       ├── asset_holding_service.py# 持仓业务逻辑（含计算）
 │       ├── asset_variety_service.py# 品种目录业务逻辑
+│       ├── overview_service.py    # 概览统计（汇率换算 + 聚合）
 │       └── transaction_service.py # 交易记录业务逻辑
+├── utils/                     # 工具模块
+│   └── exchange_rate.py       # 汇率获取（GitHub 源 + 内存缓存 1h）
 ├── script/                   # 数据导入/处理脚本
 │   ├── json_tools.py          # JSON 工具（拆分/合并/重命名 key / 区分股基）
 │   ├── seed_varieties.py      # 导入 JSON 品种数据到 DB

@@ -28,10 +28,13 @@ class AssetHoldingService:
         return await self._repo.get_holding(ticker)
 
     async def create_holding(self, data: AssetHoldingCreate) -> AssetHolding:
-        """新增持仓（先校验品种是否存在）"""
+        """新增持仓（校验品种是否存在，名称空时从品种记录自动补填）"""
         variety = await self._variety_repo.get_variety(data.ticker, data.asset_class, data.market)
         if not variety:
             raise BusinessError(40001, f"未识别的品种代码 '{data.ticker}'，请先通过 /api/v1/varieties 添加该品种")
+        # 前端可能未传 name，从品种记录补填
+        if not data.name:
+            data = data.model_copy(update={"name": variety.name})
         return await self._repo.create_holding(data)
 
     async def update_holding(self, ticker: str, data: AssetHoldingUpdate) -> AssetHolding | None:
@@ -81,14 +84,14 @@ class AssetHoldingService:
             if h.total_invested > 0:
                 pnl_pct = float((pnl / h.total_invested) * 100)
 
-            # 简单年化回报率
+            # 简单年化回报率 = 总收益率 × (365 / 持有天数)
+            # 持有天数 = (今日 - 首次买入日) + 1，当天买入也算持有 1 天
             annualized = None
             if h.cost_price > 0 and h.first_buy_date:
-                holding_days = (today - h.first_buy_date).days
-                if holding_days > 0:
-                    holding_years = holding_days / 365
-                    ratio = float(current_price / h.cost_price)
-                    annualized = round((ratio ** (1 / holding_years) - 1) * 100, 4)
+                holding_days = (today - h.first_buy_date).days + 1
+                if holding_days >= 1:
+                    total_return_pct = float((current_price - h.cost_price) / h.cost_price) * 100
+                    annualized = round(total_return_pct * (365 / holding_days), 4)
 
             results.append(HoldingWithQuote(
                 ticker=h.ticker,

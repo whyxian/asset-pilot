@@ -18,6 +18,26 @@ class AssetVarietyRepository:
             )).scalars().all()
             return [_record_to_variety(r) for r in records]
 
+    async def search_varieties(self, query: str, limit: int = 10) -> list[AssetVariety]:
+        """搜索品种（按 ticker 或名称模糊匹配）
+
+        Args:
+            query: 搜索关键词
+            limit: 返回条数上限
+        """
+        pattern = f"%{query}%"
+        async with async_session() as session:
+            records = (await session.execute(
+                select(AssetVarietyRecord)
+                .where(
+                    AssetVarietyRecord.is_active == True,
+                    (AssetVarietyRecord.ticker.like(pattern)) |
+                    (AssetVarietyRecord.name.like(pattern)),
+                )
+                .limit(limit)
+            )).scalars().all()
+            return [_record_to_variety(r) for r in records]
+
     async def get_variety(self, ticker: str, asset_class: str | None = None, market: str | None = None) -> AssetVariety | None:
         """按代码查询品种（可指定 asset_class + market 精确匹配）
 

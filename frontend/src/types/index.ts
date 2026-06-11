@@ -19,6 +19,17 @@ export interface AssetQuote {
 // 持仓
 // ═══════════════════════════════════════════
 
+/** 对接后端 AssetVariety 模型 — 品种目录 */
+export interface AssetVariety {
+  ticker: string
+  name: string
+  market: string
+  asset_class: string
+  sub_category: string | null
+  currency: string
+  is_active: boolean
+}
+
 /** 对接后端 HoldingWithQuote 模型 — 持仓 + 实时行情 + 计算字段 */
 export interface HoldingWithQuote {
   ticker: string
@@ -39,22 +50,23 @@ export interface HoldingWithQuote {
 }
 
 // ═══════════════════════════════════════════
-// 概览（前端派生，非后端直接返回）
+// 概览（来自后端 API）
 // ═══════════════════════════════════════════
 
-export interface OverviewStats {
-  total_value: number
-  total_cost: number
-  total_pnl: number
-  total_pnl_pct: number | null
-  annualized_return: number | null // 市值加权平均
-}
-
-export interface AssetAllocation {
+export interface AllocationItem {
   market: string
   label: string
-  value: number // 市值
-  pct: number // 占比%
+  value_cny: number
+  pct: number
+}
+
+export interface OverviewStats {
+  total_value_cny: number
+  total_cost_cny: number
+  total_pnl_cny: number
+  total_pnl_pct: number | null
+  annualized_return: number | null
+  allocation: AllocationItem[]
 }
 
 /** 新增持仓请求体 */

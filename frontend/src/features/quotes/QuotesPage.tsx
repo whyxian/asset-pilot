@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useQuoteSearch } from '@/hooks/useQuote'
-import { cn } from '@/lib/utils'
+import { cn, formatPrice } from '@/lib/utils'
 import type { AssetQuote } from '@/types'
 
 // 已知加密货币符号
@@ -95,14 +95,14 @@ function QuoteCard({ quote }: { quote: AssetQuote }) {
         <div>
           <span className="text-muted-foreground">最新价</span>
           <div className="text-2xl font-bold">
-            {price > 0 ? price.toFixed(price < 1 ? 4 : 2) : 'N/A'}
+            {price > 0 ? formatPrice(price) : 'N/A'}
           </div>
         </div>
         <div>
           <span className="text-muted-foreground">涨跌</span>
           <div className={cn('text-lg font-semibold', changeColor)}>
             {changePrice != null
-              ? `${changePrice >= 0 ? '+' : ''}${changePrice}`
+              ? `${changePrice >= 0 ? '+' : ''}${formatPrice(changePrice)}`
               : '-'}
             {quote.change_ratio != null &&
               ` (${quote.change_ratio >= 0 ? '+' : ''}${quote.change_ratio.toFixed(2)}%)`}

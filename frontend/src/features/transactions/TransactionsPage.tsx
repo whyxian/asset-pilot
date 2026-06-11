@@ -2,12 +2,7 @@ import { useTransactions } from '@/hooks/useTransactions'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-
-/** 处理后端 Decimal 序列化为字符串的情况 */
-function toNum(v: number | string | null): number {
-  if (v == null) return 0
-  return typeof v === 'string' ? parseFloat(v) : v
-}
+import { toNum, formatPrice } from '@/lib/utils'
 
 const typeLabel: Record<string, string> = {
   buy: '买入',
@@ -113,10 +108,10 @@ export function TransactionsPage() {
                   {t.quantity != null ? toNum(t.quantity).toLocaleString() : '-'}
                 </td>
                 <td className="p-3 text-right">
-                  {t.unit_price != null ? `¥${toNum(t.unit_price).toFixed(2)}` : '-'}
+                  {t.unit_price != null ? formatPrice(t.unit_price) : '-'}
                 </td>
                 <td className="p-3 text-right">
-                  {t.amount != null ? `¥${toNum(t.amount).toLocaleString()}` : '-'}
+                  {t.amount != null ? formatPrice(t.amount) : '-'}
                 </td>
                 <td className="p-3 text-muted-foreground">{t.notes || '-'}</td>
               </tr>

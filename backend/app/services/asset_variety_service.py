@@ -13,6 +13,10 @@ class AssetVarietyService:
     async def list_varieties(self) -> list[AssetVariety]:
         return await self._repo.list_varieties()
 
+    async def search_varieties(self, query: str, limit: int = 10) -> list[AssetVariety]:
+        """搜索品种"""
+        return await self._repo.search_varieties(query, limit)
+
     async def create_variety(self, data: AssetVarietyCreate) -> AssetVariety:
         return await self._repo.create_variety(data)
 
