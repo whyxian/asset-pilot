@@ -1,6 +1,6 @@
 """归档持仓接口 — 只读"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.core.exceptions import BusinessError
 from app.core.response import success
@@ -24,3 +24,12 @@ async def get_closed_holding(holding_id: int):
     if not holding:
         raise BusinessError(40401, "归档持仓不存在")
     return success(holding)
+
+
+@router.get("/closed-transactions")
+async def list_closed_transactions(
+    limit: int = Query(500, ge=1, le=2000, description="返回条数上限"),
+):
+    """获取全部归档交易（按交易日倒序，统一历史交易查询）"""
+    data = await service.list_closed_transactions(limit=limit)
+    return success(data)

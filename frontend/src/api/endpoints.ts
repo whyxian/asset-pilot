@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AssetQuote, AssetVariety, ClosedHolding, ClosedHoldingDetail, HoldingCreate, HoldingUpdate, HoldingWithQuote, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
+import type { AssetQuote, AssetVariety, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingUpdate, HoldingWithQuote, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
 
 // ═══════════════════════════════════════════
 // 持仓
@@ -102,3 +102,7 @@ export const fetchClosedHoldings = () =>
 /** 获取单条归档持仓详情（含全部关联交易） */
 export const fetchClosedHolding = (id: number) =>
   apiClient.get(`/api/v1/closed-holdings/${id}`) as Promise<ClosedHoldingDetail>
+
+/** 获取全部归档交易（按交易日倒序，统一历史交易查询） */
+export const fetchClosedTransactions = (limit = 500) =>
+  apiClient.get('/api/v1/closed-transactions', { params: { limit } }) as Promise<ClosedTransaction[]>

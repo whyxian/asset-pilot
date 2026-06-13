@@ -50,6 +50,19 @@ class ClosedHoldingRepository:
                 transactions=[_record_to_closed_transaction(t) for t in txn_records],
             )
 
+    async def list_closed_transactions(self, limit: int = 500) -> list[ClosedTransaction]:
+        """获取全部归档交易（按交易日倒序，便于"近期归档先看到"）"""
+        async with async_session() as session:
+            records = (await session.execute(
+                select(ClosedTransactionRecord)
+                .order_by(
+                    ClosedTransactionRecord.transaction_date.desc(),
+                    ClosedTransactionRecord.id.desc(),
+                )
+                .limit(limit)
+            )).scalars().all()
+            return [_record_to_closed_transaction(r) for r in records]
+
 
 def _record_to_closed_holding(r: ClosedHoldingRecord) -> ClosedHolding:
     return ClosedHolding(

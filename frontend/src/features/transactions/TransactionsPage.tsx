@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { TransactionFormDialog } from './TransactionFormDialog'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Archive } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { toNum, formatPrice } from '@/lib/utils'
 import type {
   Transaction,
@@ -34,6 +35,7 @@ export function TransactionsPage() {
   const createMut = useCreateTransaction()
   const updateMut = useUpdateTransaction()
   const deleteMut = useDeleteTransaction()
+  const navigate = useNavigate()
 
   // 对话框状态
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -116,7 +118,10 @@ export function TransactionsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">交易记录</h1>
-          <Skeleton className="h-9 w-28" />
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-28" />
+          </div>
         </div>
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
@@ -166,7 +171,12 @@ export function TransactionsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">交易记录</h1>
-          <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增交易</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/transactions/history')}>
+              <Archive className="w-4 h-4 mr-2" />历史记录
+            </Button>
+            <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增交易</Button>
+          </div>
         </div>
         <div className="flex flex-col items-center justify-center h-64 border rounded-md bg-muted/20 gap-4">
           <p className="text-muted-foreground text-lg">暂无交易记录</p>
@@ -188,7 +198,12 @@ export function TransactionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">交易记录</h1>
-        <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增交易</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate('/transactions/history')}>
+            <Archive className="w-4 h-4 mr-2" />历史记录
+          </Button>
+          <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增交易</Button>
+        </div>
       </div>
 
       {deleteConfirm && (

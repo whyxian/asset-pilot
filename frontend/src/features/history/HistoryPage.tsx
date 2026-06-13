@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useClosedHoldings } from '@/hooks/useClosedHoldings'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ClosedHoldingDetailDialog } from './ClosedHoldingDetailDialog'
-import { Eye } from 'lucide-react'
+import { Eye, ArrowLeft } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { formatPrice, formatPct } from '@/lib/utils'
 import type { ClosedHolding } from '@/types'
@@ -26,6 +27,19 @@ function pnlPct(h: ClosedHolding): number | null {
   return (toNum(h.realized_pnl) / total) * 100
 }
 
+/** 公共头部：返回按钮 + 标题 */
+function PageHeader() {
+  const navigate = useNavigate()
+  return (
+    <div className="flex items-center gap-3">
+      <Button variant="ghost" size="icon-sm" onClick={() => navigate('/holdings')}>
+        <ArrowLeft className="w-4 h-4" />
+      </Button>
+      <h1 className="text-2xl font-bold">历史持仓</h1>
+    </div>
+  )
+}
+
 export function HistoryPage() {
   const { data, isLoading, isError, error, refetch } = useClosedHoldings()
   const [detailId, setDetailId] = useState<number | null>(null)
@@ -34,7 +48,7 @@ export function HistoryPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">历史持仓</h1>
+        <PageHeader />
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
             <thead>
@@ -63,7 +77,7 @@ export function HistoryPage() {
   if (isError) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">历史持仓</h1>
+        <PageHeader />
         <div className="flex flex-col items-center justify-center h-64 gap-4">
           <p className="text-destructive font-medium">加载失败</p>
           <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : '未知错误'}</p>
@@ -77,7 +91,7 @@ export function HistoryPage() {
   if (!data || data.length === 0) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">历史持仓</h1>
+        <PageHeader />
         <div className="flex flex-col items-center justify-center h-64 border rounded-md bg-muted/20 gap-4">
           <p className="text-muted-foreground text-lg">暂无历史持仓</p>
           <p className="text-sm text-muted-foreground">完成一笔从建仓到清仓的完整周期后将在此显示</p>
@@ -88,7 +102,7 @@ export function HistoryPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">历史持仓</h1>
+      <PageHeader />
 
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">

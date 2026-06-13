@@ -3,12 +3,13 @@ import { createTransaction, updateTransaction, deleteTransaction } from '@/api/e
 import { ApiError } from '@/api/types'
 import type { Transaction, TransactionCreate, TransactionUpdate } from '@/types'
 
-/** 交易变更后需要联动失效的缓存：交易列表 + 持仓（重算了）+ 概览（依赖持仓）+ 历史持仓（可能触发归档） */
+/** 交易变更后需要联动失效的缓存：交易列表 + 持仓（重算了）+ 概览（依赖持仓）+ 归档表（可能触发归档） */
 function invalidateTransactionRelated(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: ['transactions'] })
   qc.invalidateQueries({ queryKey: ['holdings'] })
   qc.invalidateQueries({ queryKey: ['overview'] })
   qc.invalidateQueries({ queryKey: ['closed-holdings'] })
+  qc.invalidateQueries({ queryKey: ['closed-transactions'] })
 }
 
 /** 新增交易记录 — 成功后失效交易/持仓/概览缓存 */

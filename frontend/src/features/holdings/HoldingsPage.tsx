@@ -11,8 +11,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { HoldingFormDialog } from './HoldingFormDialog'
 import { HoldingDetailDialog } from './HoldingDetailDialog'
 import { TransactionFormDialog } from '@/features/transactions/TransactionFormDialog'
-import { Plus, Pencil, Eye, HandCoins } from 'lucide-react'
+import { Plus, Pencil, Eye, HandCoins, Archive } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
+import { useNavigate } from 'react-router-dom'
 import { formatPrice, formatPct } from '@/lib/utils'
 import type { HoldingCreate, HoldingUpdate, HoldingWithQuote, TransactionCreate } from '@/types'
 
@@ -63,6 +64,7 @@ export function HoldingsPage() {
   const createMut = useCreateHolding()
   const updateMut = useUpdateHolding()
   const createTxnMut = useCreateTransaction()
+  const navigate = useNavigate()
 
   // 持仓增改对话框
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -211,11 +213,16 @@ export function HoldingsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">持仓</h1>
-          <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增持仓</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/holdings/history')}>
+              <Archive className="w-4 h-4 mr-2" />历史持仓
+            </Button>
+            <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增持仓</Button>
+          </div>
         </div>
         <div className="flex flex-col items-center justify-center h-64 border rounded-md bg-muted/20 gap-4">
           <p className="text-muted-foreground text-lg">暂无持仓</p>
-          <p className="text-sm text-muted-foreground">点击「新增持仓」添加第一个品种；已清仓品种见侧边栏「历史持仓」</p>
+          <p className="text-sm text-muted-foreground">点击「新增持仓」添加第一个品种；已清仓品种见上方「历史持仓」</p>
         </div>
         <HoldingFormDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleFormSubmit} error={dialogError} isPending={createMut.isPending} />
         <HoldingDetailDialog open={detailOpen} onOpenChange={setDetailOpen} holding={detailHolding} />
@@ -228,7 +235,12 @@ export function HoldingsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">持仓</h1>
-        <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增持仓</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate('/holdings/history')}>
+            <Archive className="w-4 h-4 mr-2" />历史持仓
+          </Button>
+          <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增持仓</Button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-md border">

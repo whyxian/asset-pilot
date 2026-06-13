@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wallet, ArrowLeftRight, Search, Archive } from 'lucide-react'
+import { LayoutDashboard, Wallet, ArrowLeftRight, Search } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
@@ -6,7 +6,6 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: '概览' },
   { to: '/holdings', icon: Wallet, label: '持仓' },
   { to: '/transactions', icon: ArrowLeftRight, label: '交易' },
-  { to: '/history', icon: Archive, label: '历史持仓' },
   { to: '/quotes', icon: Search, label: '行情' },
 ]
 

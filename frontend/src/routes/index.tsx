@@ -13,6 +13,9 @@ const HoldingsPage = lazy(() =>
 const TransactionsPage = lazy(() =>
   import('@/features/transactions/TransactionsPage').then((m) => ({ default: m.TransactionsPage })),
 )
+const ClosedTransactionsPage = lazy(() =>
+  import('@/features/transactions/ClosedTransactionsPage').then((m) => ({ default: m.ClosedTransactionsPage })),
+)
 const QuotesPage = lazy(() =>
   import('@/features/quotes/QuotesPage').then((m) => ({ default: m.QuotesPage })),
 )
@@ -37,8 +40,9 @@ export function AppRouter() {
           <Routes>
             <Route path="/" element={<OverviewPage />} />
             <Route path="/holdings" element={<HoldingsPage />} />
+            <Route path="/holdings/history" element={<HistoryPage />} />
             <Route path="/transactions" element={<TransactionsPage />} />
-            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/transactions/history" element={<ClosedTransactionsPage />} />
             <Route path="/quotes" element={<QuotesPage />} />
           </Routes>
         </Suspense>
