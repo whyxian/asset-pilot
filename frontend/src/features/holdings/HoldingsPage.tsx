@@ -3,7 +3,6 @@ import { useHoldings } from '@/hooks/useHoldings'
 import {
   useCreateHolding,
   useUpdateHolding,
-  useDeleteHolding,
 } from '@/hooks/useHoldingMutations'
 import { useCreateTransaction } from '@/hooks/useTransactionMutations'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { HoldingFormDialog } from './HoldingFormDialog'
 import { HoldingDetailDialog } from './HoldingDetailDialog'
 import { TransactionFormDialog } from '@/features/transactions/TransactionFormDialog'
-import { Plus, Pencil, Trash2, Eye, TrendingDown } from 'lucide-react'
+import { Plus, Pencil, Eye, HandCoins } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { formatPrice, formatPct } from '@/lib/utils'
 import type { HoldingCreate, HoldingUpdate, HoldingWithQuote, TransactionCreate } from '@/types'
@@ -60,20 +59,16 @@ function AnnualizedCell({ holding }: { holding: HoldingWithQuote }) {
 }
 
 export function HoldingsPage() {
-  const { data: rawHoldings, isLoading, isError, error, refetch } = useHoldings()
+  const { data: holdings, isLoading, isError, error, refetch } = useHoldings()
   const createMut = useCreateHolding()
   const updateMut = useUpdateHolding()
-  const deleteMut = useDeleteHolding()
   const createTxnMut = useCreateTransaction()
 
-  // 持仓增删改对话框
+  // 持仓增改对话框
   const [dialogOpen, setDialogOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailHolding, setDetailHolding] = useState<HoldingWithQuote | null>(null)
   const [editingHolding, setEditingHolding] = useState<HoldingWithQuote | undefined>(undefined)
-
-  // 已清仓段的"彻底删除"确认 banner
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   // 主表"清仓"对话框 — 复用 TransactionFormDialog，传入预填数据
   const [liquidating, setLiquidating] = useState<HoldingWithQuote | null>(null)
@@ -96,17 +91,6 @@ export function HoldingsPage() {
   function handleLiquidateClick(h: HoldingWithQuote) {
     createTxnMut.reset()
     setLiquidating(h)
-  }
-
-  function handleDeleteClick(ticker: string) {
-    setDeleteConfirm(ticker)
-  }
-
-  function confirmDelete() {
-    if (deleteConfirm) {
-      deleteMut.mutate(deleteConfirm)
-      setDeleteConfirm(null)
-    }
   }
 
   function handleLiquidateSubmit(data: {
@@ -161,10 +145,6 @@ export function HoldingsPage() {
   }
 
   const dialogError = editingHolding ? updateMut.error?.message : createMut.error?.message
-
-  // 拆分活跃 vs 已清仓两段
-  const activeHoldings = rawHoldings?.filter((h) => Number(h.quantity) > 0) ?? []
-  const liquidatedHoldings = rawHoldings?.filter((h) => Number(h.quantity) === 0) ?? []
 
   // 清仓对话框预填：ticker / type=sell / 全量数量 / 现价 / 自动算金额
   const liquidatePreset = liquidating
@@ -226,8 +206,7 @@ export function HoldingsPage() {
   }
 
   // ---- 空持仓 ----
-  if (!rawHoldings || activeHoldings.length === 0) {
-    const onlyLiquidated = liquidatedHoldings.length > 0
+  if (!holdings || holdings.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -235,31 +214,9 @@ export function HoldingsPage() {
           <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增持仓</Button>
         </div>
         <div className="flex flex-col items-center justify-center h-64 border rounded-md bg-muted/20 gap-4">
-          {onlyLiquidated ? (
-            <>
-              <p className="text-muted-foreground text-lg">所有品种均已清仓</p>
-              <p className="text-sm text-muted-foreground">
-                历史已清仓品种 {liquidatedHoldings.length} 条见下方折叠区
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-muted-foreground text-lg">暂无持仓</p>
-              <p className="text-sm text-muted-foreground">点击「新增持仓」添加第一个品种</p>
-            </>
-          )}
+          <p className="text-muted-foreground text-lg">暂无持仓</p>
+          <p className="text-sm text-muted-foreground">点击「新增持仓」添加第一个品种；已清仓品种见侧边栏「历史持仓」</p>
         </div>
-        {liquidatedHoldings.length > 0 && (
-          <LiquidatedSection
-            items={liquidatedHoldings}
-            onView={handleView}
-            onDelete={handleDeleteClick}
-            deleteConfirm={deleteConfirm}
-            confirmDelete={confirmDelete}
-            cancelDelete={() => setDeleteConfirm(null)}
-            isDeleting={deleteMut.isPending}
-          />
-        )}
         <HoldingFormDialog open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleFormSubmit} error={dialogError} isPending={createMut.isPending} />
         <HoldingDetailDialog open={detailOpen} onOpenChange={setDetailOpen} holding={detailHolding} />
       </div>
@@ -293,7 +250,7 @@ export function HoldingsPage() {
             </tr>
           </thead>
           <tbody>
-            {activeHoldings.map((h) =>
+            {holdings.map((h) =>
               <tr key={h.ticker} className="border-t hover:bg-muted/30">
                 <td className="p-3 font-medium whitespace-nowrap">{h.ticker}</td>
                 <td className="p-3">
@@ -318,9 +275,9 @@ export function HoldingsPage() {
                     <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(h)}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
-                    <Tooltip content="清仓（以现价全部卖出）">
+                    <Tooltip content="清仓（以现价全部卖出，自动归档到历史持仓）">
                       <Button variant="ghost" size="icon-sm" onClick={() => handleLiquidateClick(h)}>
-                        <TrendingDown className="w-3.5 h-3.5 text-orange-600" />
+                        <HandCoins className="w-3.5 h-3.5 text-orange-600" />
                       </Button>
                     </Tooltip>
                   </div>
@@ -331,19 +288,7 @@ export function HoldingsPage() {
         </table>
       </div>
 
-      <p className="text-sm text-muted-foreground">共 {activeHoldings.length} 个品种</p>
-
-      {liquidatedHoldings.length > 0 && (
-        <LiquidatedSection
-          items={liquidatedHoldings}
-          onView={handleView}
-          onDelete={handleDeleteClick}
-          deleteConfirm={deleteConfirm}
-          confirmDelete={confirmDelete}
-          cancelDelete={() => setDeleteConfirm(null)}
-          isDeleting={deleteMut.isPending}
-        />
-      )}
+      <p className="text-sm text-muted-foreground">共 {holdings.length} 个品种</p>
 
       <HoldingFormDialog
         open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleFormSubmit}
@@ -364,110 +309,5 @@ export function HoldingsPage() {
         isPending={createTxnMut.isPending}
       />
     </div>
-  )
-}
-
-// ════════════════════════════════════════════════════════════════
-// 已清仓段：默认折叠，点击展开后显示精简表格 + 删除按钮
-// 列：代码 / 名称 / 市场 / 首次买入 / 清仓日期 / 操作
-// 删除即"彻底删除"（级联删除全部交易记录）
-// ════════════════════════════════════════════════════════════════
-
-interface LiquidatedSectionProps {
-  items: HoldingWithQuote[]
-  onView: (h: HoldingWithQuote) => void
-  onDelete: (ticker: string) => void
-  deleteConfirm: string | null
-  confirmDelete: () => void
-  cancelDelete: () => void
-  isDeleting: boolean
-}
-
-function LiquidatedSection({
-  items,
-  onView,
-  onDelete,
-  deleteConfirm,
-  confirmDelete,
-  cancelDelete,
-  isDeleting,
-}: LiquidatedSectionProps) {
-  const [expanded, setExpanded] = useState(false)
-
-  // 当前确认删除的 ticker 是否属于本段（避免误把活跃段的删除 banner 串进来）
-  const ourDeleteConfirm =
-    deleteConfirm && items.some((h) => h.ticker === deleteConfirm) ? deleteConfirm : null
-
-  return (
-    <details
-      className="rounded-md border bg-muted/10"
-      open={expanded}
-      onToggle={(e) => setExpanded((e.currentTarget as HTMLDetailsElement).open)}
-    >
-      <summary className="cursor-pointer select-none px-4 py-2 text-sm text-muted-foreground hover:text-foreground">
-        已清仓品种 ({items.length})
-      </summary>
-
-      <div className="border-t">
-        {ourDeleteConfirm && (
-          <div className="m-3 flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 p-3">
-            <p className="text-sm">
-              确定彻底删除 <span className="font-medium">{ourDeleteConfirm}</span> 的持仓？
-              <span className="text-muted-foreground">该品种的全部交易记录将一并删除，此操作不可撤销。</span>
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={cancelDelete}>取消</Button>
-              <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={isDeleting}>
-                {isDeleting ? '删除中...' : '确认删除'}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/30">
-                <th className="text-left p-3 whitespace-nowrap">代码</th>
-                <th className="text-left p-3">名称</th>
-                <th className="text-left p-3 whitespace-nowrap">市场</th>
-                <th className="text-left p-3 whitespace-nowrap">首次买入</th>
-                <th className="text-left p-3 whitespace-nowrap">清仓日期</th>
-                <th className="p-3 w-20 whitespace-nowrap">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((h) => (
-                <tr key={h.ticker} className="border-t hover:bg-muted/30">
-                  <td className="p-3 font-medium whitespace-nowrap">{h.ticker}</td>
-                  <td className="p-3">
-                    <Tooltip content={h.name}>
-                      <span className="block max-w-40 truncate">{h.name}</span>
-                    </Tooltip>
-                  </td>
-                  <td className="p-3 whitespace-nowrap">
-                    <Badge variant="outline">{marketLabel[h.market] || h.market}</Badge>
-                  </td>
-                  <td className="p-3 whitespace-nowrap text-muted-foreground">{h.first_buy_date}</td>
-                  <td className="p-3 whitespace-nowrap text-muted-foreground">{h.liquidated_at ?? '-'}</td>
-                  <td className="p-3">
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon-sm" onClick={() => onView(h)}>
-                        <Eye className="w-3.5 h-3.5" />
-                      </Button>
-                      <Tooltip content="彻底删除（一并删除全部历史交易）">
-                        <Button variant="ghost" size="icon-sm" onClick={() => onDelete(h.ticker)}>
-                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                        </Button>
-                      </Tooltip>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </details>
   )
 }

@@ -129,3 +129,43 @@ export interface TransactionUpdate {
   amount?: number | null
   notes?: string | null
 }
+
+// ═══════════════════════════════════════════
+// 历史持仓（已归档的完整持仓周期）
+// ═══════════════════════════════════════════
+
+/** 对接后端 ClosedTransaction 模型 */
+export interface ClosedTransaction {
+  id: number
+  closed_holding_id: number
+  ticker: string
+  transaction_date: string
+  type: 'buy' | 'sell'
+  quantity: number | null
+  unit_price: number | null
+  amount: number | null
+  notes: string | null
+  original_id: number | null
+}
+
+/** 对接后端 ClosedHolding 模型 */
+export interface ClosedHolding {
+  id: number
+  ticker: string
+  name: string
+  market: string
+  asset_class: string
+  currency: string
+  initial_quantity: number
+  initial_cost_price: number
+  initial_total_invested: number
+  first_buy_date: string
+  closed_at: string
+  holding_days: number
+  realized_pnl: number
+}
+
+/** 归档持仓详情 — 含该周期全部交易 */
+export interface ClosedHoldingDetail extends ClosedHolding {
+  transactions: ClosedTransaction[]
+}

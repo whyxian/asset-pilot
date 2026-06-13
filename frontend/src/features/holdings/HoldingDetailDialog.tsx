@@ -86,12 +86,6 @@ export function HoldingDetailDialog({ open, onOpenChange, holding }: HoldingDeta
               </div>
               <div><span className="text-muted-foreground">首次买入</span></div>
               <div className="text-right">{holding.first_buy_date}</div>
-              {holding.liquidated_at && (
-                <>
-                  <div><span className="text-muted-foreground">清仓日期</span></div>
-                  <div className="text-right text-orange-600">{holding.liquidated_at}</div>
-                </>
-              )}
               <div><span className="text-muted-foreground">持有天数</span></div>
               <div className="text-right">{holdingDays} 天</div>
               <div><span className="text-muted-foreground">年化回报率</span></div>
