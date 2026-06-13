@@ -62,12 +62,7 @@ class AssetHoldingService:
 
         quote_map = {}
         for (ac, market), tickers in groups.items():
-            if ac == "STOCK":
-                quotes = await self._quote_svc.fetch_stock_quotes(market, tickers)
-            elif ac == "FUND":
-                quotes = await self._quote_svc.fetch_fund_quotes(market, tickers)
-            else:
-                quotes = []
+            quotes = await self._quote_svc.fetch_quotes_by_asset_class(ac, market, tickers)
             for q in quotes:
                 quote_map[q.ticker] = q
 

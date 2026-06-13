@@ -82,7 +82,7 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatPrice(stats.total_value_cny, 'CNY')}
+              {formatPrice(stats.total_value_cny, 'CNY', 2)}
             </div>
           </CardContent>
         </Card>
@@ -94,7 +94,7 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatPrice(stats.total_cost_cny, 'CNY')}
+              {formatPrice(stats.total_cost_cny, 'CNY', 2)}
             </div>
           </CardContent>
         </Card>
@@ -112,7 +112,7 @@ export function OverviewPage() {
               {formatPct(stats.total_pnl_pct)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {formatPrice(stats.total_pnl_cny, 'CNY')}
+              {formatPrice(stats.total_pnl_cny, 'CNY', 2)}
             </p>
           </CardContent>
         </Card>
@@ -161,6 +161,9 @@ export function OverviewPage() {
                   </div>
                   <span className="w-20 text-right text-sm text-muted-foreground">
                     {item.pct.toFixed(1)}%
+                  </span>
+                  <span className="w-28 text-right text-xs text-muted-foreground">
+                    {formatPrice(item.value_cny, 'CNY', 2)}
                   </span>
                 </div>
               ))}

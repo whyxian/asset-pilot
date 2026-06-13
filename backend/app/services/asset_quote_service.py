@@ -65,3 +65,22 @@ class AssetQuoteService:
             saved = await self._fund_repo.save_asset_quotes(quotes)
             logger.info(f"已保存 {saved} 条 FUND({market}) 行情")
         return quotes
+
+    async def fetch_quotes_by_asset_class(
+        self, asset_class: str, market: str, tickers: list[str]
+    ) -> list[AssetQuote]:
+        """按资产类别批量获取行情（统一路由入口）
+
+        Args:
+            asset_class: "STOCK" / "FUND" / "CRYPTO"
+            market: "CN" / "US" / "CRYPTO"
+            tickers: 标的代码列表
+        """
+        if asset_class == "STOCK":
+            return await self.fetch_stock_quotes(market, tickers)
+        if asset_class == "FUND":
+            return await self.fetch_fund_quotes(market, tickers)
+        if asset_class == "CRYPTO":
+            return await self.fetch_crypto_quotes(tickers)
+        logger.warning(f"不支持的资产类别: {asset_class}")
+        return []

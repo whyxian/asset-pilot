@@ -32,12 +32,7 @@ class OverviewService:
 
         quote_map = {}
         for (ac, market), tickers in groups.items():
-            if ac == "STOCK":
-                quotes = await self._quote_svc.fetch_stock_quotes(market, tickers)
-            elif ac == "FUND":
-                quotes = await self._quote_svc.fetch_fund_quotes(market, tickers)
-            else:
-                quotes = []
+            quotes = await self._quote_svc.fetch_quotes_by_asset_class(ac, market, tickers)
             for q in quotes:
                 quote_map[q.ticker] = q
 
@@ -80,7 +75,7 @@ class OverviewService:
         avg_annualized = float(weighted_return / total_weight) if total_weight > 0 else None
 
         # 资产配比
-        market_label = {"CN": "A 股/基金", "US": "美股", "CRYPTO": "加密货币"}
+        market_label = {"CN": "A 股", "US": "美股", "CRYPTO": "加密货币"}
         total = total_value_cny
         allocation = [
             AllocationItem(

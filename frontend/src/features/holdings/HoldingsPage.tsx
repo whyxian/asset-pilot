@@ -9,12 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { HoldingFormDialog } from './HoldingFormDialog'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { HoldingDetailDialog } from './HoldingDetailDialog'
+import { Plus, Pencil, Trash2, Eye } from 'lucide-react'
+import { Tooltip } from '@/components/ui/tooltip'
 import { formatPrice, formatPct } from '@/lib/utils'
 import type { HoldingCreate, HoldingUpdate, HoldingWithQuote } from '@/types'
 
 const marketLabel: Record<string, string> = {
-  CN: 'A 股/基金',
+  CN: 'A 股',
   US: '美股',
   CRYPTO: '加密货币',
 }
@@ -48,12 +50,19 @@ export function HoldingsPage() {
 
   // 对话框状态
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailHolding, setDetailHolding] = useState<HoldingWithQuote | null>(null)
   const [editingHolding, setEditingHolding] = useState<HoldingWithQuote | undefined>(undefined)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   function handleCreate() {
     setEditingHolding(undefined)
     setDialogOpen(true)
+  }
+
+  function handleView(h: HoldingWithQuote) {
+    setDetailHolding(h)
+    setDetailOpen(true)
   }
 
   function handleEdit(h: HoldingWithQuote) {
@@ -115,15 +124,15 @@ export function HoldingsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/50">
-                {['代码','名称','市场','持仓量','成本价','现价','市值','盈亏','年化回报','操作'].map((h) => (
-                  <th key={h} className={`text-${h==='操作'?'center':'left'} p-3`}>{h}</th>
+                {['代码','名称','市场','持仓量','成本价','现价','市值','盈亏','年化回报','持仓天数','操作'].map((h) => (
+                  <th key={h} className={`text-${h==='操作'?'center':'left'} p-3 whitespace-nowrap`}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {[...Array(5)].map((_, i) => (
                 <tr key={i} className="border-t">
-                  {[...Array(10)].map((_, j) => (
+                  {[...Array(11)].map((_, j) => (
                     <td key={j} className="p-3"><Skeleton className="h-4 w-full" /></td>
                   ))}
                 </tr>
@@ -190,38 +199,45 @@ export function HoldingsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/50">
-              <th className="text-left p-3">代码</th>
+              <th className="text-left p-3 whitespace-nowrap">代码</th>
               <th className="text-left p-3">名称</th>
-              <th className="text-left p-3">市场</th>
-              <th className="text-right p-3">持仓量</th>
-              <th className="text-right p-3">成本价</th>
-              <th className="text-right p-3">现价</th>
-              <th className="text-right p-3">市值</th>
-              <th className="text-right p-3">盈亏</th>
-              <th className="text-right p-3">年化回报</th>
-              <th className="p-3 w-20">操作</th>
+              <th className="text-left p-3 whitespace-nowrap">市场</th>
+              <th className="text-right p-3 whitespace-nowrap">持仓量</th>
+              <th className="text-right p-3 whitespace-nowrap">成本价</th>
+              <th className="text-right p-3 whitespace-nowrap">现价</th>
+              <th className="text-right p-3 whitespace-nowrap">市值</th>
+              <th className="text-right p-3 whitespace-nowrap">盈亏</th>
+              <th className="text-right p-3 whitespace-nowrap">年化回报</th>
+              <th className="text-right p-3 whitespace-nowrap">持仓天数</th>
+              <th className="p-3 w-20 whitespace-nowrap sticky right-0 bg-muted/50">操作</th>
             </tr>
           </thead>
           <tbody>
-            {holdings.map((h) => (
+            {holdings.map((h) =>
               <tr key={h.ticker} className="border-t hover:bg-muted/30">
-                <td className="p-3 font-medium">{h.ticker}</td>
-                <td className="p-3">{h.name}</td>
-                <td className="p-3"><Badge variant="outline">{marketLabel[h.market] || h.market}</Badge></td>
-                <td className="p-3 text-right">{h.quantity.toLocaleString()}</td>
-                <td className="p-3 text-right">{formatPrice(h.cost_price, h.currency)}</td>
-                <td className="p-3 text-right">{formatPrice(h.current_price, h.currency)}</td>
-                <td className="p-3 text-right">{formatPrice(h.market_value, h.currency)}</td>
-                <td className="p-3 text-right"><PnlCell holding={h} /></td>
-                <td className="p-3 text-right"><AnnualizedCell holding={h} /></td>
+                <td className="p-3 font-medium whitespace-nowrap">{h.ticker}</td>
                 <td className="p-3">
+                  <Tooltip content={h.name}>
+                    <span className="block max-w-40 truncate">{h.name}</span>
+                  </Tooltip>
+                </td>
+                <td className="p-3 whitespace-nowrap"><Badge variant="outline">{marketLabel[h.market] || h.market}</Badge></td>
+                <td className="p-3 text-right whitespace-nowrap">{h.quantity.toLocaleString()}</td>
+                <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.cost_price, h.currency)}</td>
+                <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.current_price, h.currency)}</td>
+                <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.market_value, h.currency, 2)}</td>
+                <td className="p-3 text-right whitespace-nowrap"><PnlCell holding={h} /></td>
+                <td className="p-3 text-right whitespace-nowrap"><AnnualizedCell holding={h} /></td>
+                <td className="p-3 text-right">{Math.floor((Date.now() - new Date(h.first_buy_date).getTime()) / 86400000) + 1}天</td>
+                <td className="p-3 sticky right-0 bg-background">
                   <div className="flex gap-1">
+                    <Button variant="ghost" size="icon-sm" onClick={() => handleView(h)}><Eye className="w-3.5 h-3.5" /></Button>
                     <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(h)}><Pencil className="w-3.5 h-3.5" /></Button>
                     <Button variant="ghost" size="icon-sm" onClick={() => handleDeleteClick(h.ticker)}><Trash2 className="w-3.5 h-3.5 text-destructive" /></Button>
                   </div>
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -231,6 +247,10 @@ export function HoldingsPage() {
       <HoldingFormDialog
         open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleFormSubmit}
         holding={editingHolding} error={dialogError} isPending={createMut.isPending || updateMut.isPending}
+      />
+      <HoldingDetailDialog
+        open={detailOpen} onOpenChange={setDetailOpen}
+        holding={detailHolding}
       />
     </div>
   )

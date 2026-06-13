@@ -1,6 +1,6 @@
 """品种目录数据访问 — asset_varieties 表 CRUD"""
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 
 from app.core.database import async_session
 from app.models.asset_variety import AssetVariety, AssetVarietyCreate
@@ -26,6 +26,14 @@ class AssetVarietyRepository:
             limit: 返回条数上限
         """
         pattern = f"%{query}%"
+        prefix_pattern = f"{query}%"
+        # 排序：精确匹配 > ticker 前缀匹配 > name 前缀匹配 > 其他
+        relevance = case(
+            (AssetVarietyRecord.ticker == query, 0),
+            (AssetVarietyRecord.ticker.like(prefix_pattern), 1),
+            (AssetVarietyRecord.name.like(prefix_pattern), 2),
+            else_=3,
+        )
         async with async_session() as session:
             records = (await session.execute(
                 select(AssetVarietyRecord)
@@ -34,6 +42,7 @@ class AssetVarietyRepository:
                     (AssetVarietyRecord.ticker.like(pattern)) |
                     (AssetVarietyRecord.name.like(pattern)),
                 )
+                .order_by(relevance, AssetVarietyRecord.ticker)
                 .limit(limit)
             )).scalars().all()
             return [_record_to_variety(r) for r in records]

@@ -261,7 +261,7 @@ export function HoldingFormDialog({
             <Input
               placeholder="贵州茅台"
               value={form.name}
-              onChange={(e) => updateField('name', e.target.value)}
+              disabled
             />
           </div>
 

@@ -16,8 +16,9 @@ export function toNum(v: number | string | null | undefined): number {
  *  核心原则：后端传什么精度就显什么精度。
  *  - 字符串输入（后端 Decimal 序列化）：保留原有小数位数，仅去掉尾随零
  *  - 数字输入（前端计算值）：用最多 10 位有效数字格式化
+ *  - 传 decimals 参数可强制固定小数位（用于概览总金额等）
  */
-export function formatPrice(value: number | string | null | undefined, currency = ''): string {
+export function formatPrice(value: number | string | null | undefined, currency = '', decimals?: number): string {
   const prefix: Record<string, string> = { CNY: '¥', USD: '$' }
   const sym = prefix[currency] || ''
 
@@ -28,17 +29,21 @@ export function formatPrice(value: number | string | null | undefined, currency 
     const m = value.match(/^(-?\d+)(?:\.(\d+))?$/)
     if (!m) return `${sym}${value}` // fallback
     const intPart = m[1]
-    // 保留全部小数位（去掉尾随零以免显示 1603.000000）
-    let decPart = (m[2] ?? '').replace(/0+$/, '')
     const num = parseFloat(value)
     if (num === 0) return `${sym}0`
-    // 直接拼接，不带千分位逗号
+    // 指定 decimals 时按固定小数位截取
+    if (decimals !== undefined) {
+      return `${sym}${num.toFixed(decimals)}`
+    }
+    // 不指定 decimals：保留全部小数位，仅去掉尾随零
+    let decPart = (m[2] ?? '').replace(/0+$/, '')
     if (!decPart) return `${sym}${intPart}`
     return `${sym}${intPart}.${decPart}`
   }
 
-  // ── 数字输入：前端计算值（总市值等），用有效数字 ──
+  // ── 数字输入：前端计算值（总市值等） ──
   if (value === 0) return `${sym}0`
+  if (decimals !== undefined) return `${sym}${value.toFixed(decimals)}`
   return `${sym}${value.toLocaleString(undefined, {
     maximumSignificantDigits: 10,
     useGrouping: false,
