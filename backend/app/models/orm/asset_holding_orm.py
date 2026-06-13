@@ -23,6 +23,11 @@ class AssetHoldingRecord(Base):
     quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     cost_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     total_invested: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    # 建仓基线：建仓时填入的初始状态，不随交易自动变化
+    # 派生字段（quantity / cost_price / total_invested）= initial_* + 全部 transactions 回放
+    initial_quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
+    initial_cost_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
+    initial_total_invested: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
     first_buy_date: Mapped[datetime] = mapped_column(Date, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now(), nullable=True)
