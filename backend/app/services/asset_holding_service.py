@@ -159,7 +159,7 @@ class AssetHoldingService:
 
 
 async def recompute_holding(session: AsyncSession, ticker: str) -> None:
-    """全量重算指定 ticker 的派生持仓字段（quantity / cost_price / total_invested / liquidated_at / first_buy_date）
+    """全量重算指定 ticker 的派生持仓字段（quantity / cost_price / total_invested / liquidated_at）
 
     算法：
         1. 以 holdings 行的 initial_* 三列作为起点 (q, p, t)
@@ -168,17 +168,19 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
                    new_q = q + qty
                    new_t = t + amt
                    new_p = new_t / new_q
-                   如果回放前 q == 0（清仓 / 建仓为 0）→ 这是一笔"复活"buy，记下日期
-           - sell: 加权平均法 — cost_price 不变，total_invested 按比例减
+           - sell: 降低成本法 — sell 的"成交金额"冲减 total_invested
                    if qty > q: 抛出 BusinessError "卖超"
                    new_q = q - qty
-                   new_t = t - p * qty
-                   new_p = p (清仓时归零)
-        3. 写回 holdings 的派生字段。
-        4. 维护 liquidated_at / first_buy_date：
-           - 最终 q == 0：liquidated_at = 最后一笔 sell 的日期
-           - 最终 q > 0：liquidated_at = None；若回放过程中发生过"复活"
-             （某笔 buy 前 q==0），first_buy_date 重置为最后一次复活 buy 的日期
+                   new_t = max(t - sell_price × qty, 0)   # 下限 0
+                   new_p = new_t / new_q (清仓时归零)
+        3. 写回 holdings 派生字段。
+        4. 最终 q == 0：liquidated_at = 最后一笔 sell 的日期（短暂中间态，
+           调用方在事务内调用 archive_holding 后该行就会被搬走）；
+           最终 q > 0：liquidated_at = None。
+
+    注：自从引入 closed_holdings 归档机制后，"清仓后再 buy 复活"的场景
+    不会再发生（清仓 → 立即归档 → holdings 中无此 ticker → 再交易会被
+    "必须先建仓"校验拦下）。所以本函数不再处理复活逻辑。
 
     Args:
         session: 外部传入的 session（必须由调用方控制 commit/rollback）
@@ -207,8 +209,6 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
         .order_by(TransactionRecord.transaction_date.asc(), TransactionRecord.id.asc())
     )).scalars().all()
 
-    last_revival_buy_date = None  # 最后一次"复活"buy 的日期（之前 q==0 → 这笔 buy 后 q>0）
-
     for txn in txns:
         if txn.type == "buy":
             qty = Decimal(str(txn.quantity)) if txn.quantity is not None else Decimal("0")
@@ -219,9 +219,6 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
                 amt = Decimal(str(txn.quantity)) * Decimal(str(txn.unit_price))
             else:
                 amt = Decimal("0")
-            # 检测复活：本笔 buy 之前 q == 0，之后将变成 > 0
-            if q == 0 and qty > 0:
-                last_revival_buy_date = txn.transaction_date
             q = q + qty
             t = t + amt
             p = (t / q) if q > 0 else Decimal("0")
@@ -235,12 +232,26 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
                     40001,
                     f"卖出 {qty} 超过当前持仓 {q}（交易 #{txn.id}，{txn.transaction_date}）",
                 )
-            # 加权平均法：成本价不变，总投入按比例减
-            t = t - p * qty
+            # 降低成本法（适配做 T）：sell 的"成交金额"直接冲减总成本
+            # 推导 sell_price：unit_price 优先；否则 amount / quantity；都无则退化为 cost_price（差额=0）
+            if txn.unit_price is not None:
+                sell_price = Decimal(str(txn.unit_price))
+            elif txn.amount is not None and qty > 0:
+                sell_price = Decimal(str(txn.amount)) / qty
+            else:
+                sell_price = p
+
             q = q - qty
+            t = t - sell_price * qty
+            # 下限 0："白拿股票"上限 — 做 T 累计赚到比总投入还多时不允许成本为负
+            if t < 0:
+                t = Decimal("0")
+
             if q == 0:
                 p = Decimal("0")
                 t = Decimal("0")  # 清仓后总投入归零
+            else:
+                p = t / q  # 重算成本价
         else:
             raise BusinessError(40001, f"未知交易类型 '{txn.type}'（交易 #{txn.id}）")
 
@@ -249,15 +260,114 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
     holding.cost_price = p
     holding.total_invested = t
 
-    # 维护清仓日期 / 首次买入日期
+    # 标记清仓日期（短暂中间态，下一步 archive_holding 会把整行搬走）
     if q == 0:
-        # 清仓：取最后一笔 sell 的日期
         last_sell = next((x for x in reversed(txns) if x.type == "sell"), None)
         holding.liquidated_at = last_sell.transaction_date if last_sell else None
     else:
         holding.liquidated_at = None
-        # 复活：first_buy_date 重置为最后一次复活 buy 的日期
-        if last_revival_buy_date is not None:
-            holding.first_buy_date = last_revival_buy_date
 
     # session.commit() 由调用方负责
+
+
+async def archive_holding(session: AsyncSession, ticker: str) -> int:
+    """把 quantity=0 的持仓归档到 closed_holdings + closed_transactions，并删除原表对应记录。
+
+    调用方负责 commit / rollback。
+
+    Args:
+        session: 外部 session
+        ticker: 持仓代码
+
+    Returns:
+        新建的 closed_holding.id
+
+    Raises:
+        BusinessError: 持仓不存在 / quantity != 0
+    """
+    from app.models.orm.closed_holding_orm import ClosedHoldingRecord, ClosedTransactionRecord
+    from app.repositories.asset_holding_repository import AssetHoldingRepository
+    repo = AssetHoldingRepository()
+
+    holding = await repo.get_record_in_session(session, ticker)
+    if holding is None:
+        raise BusinessError(40401, f"持仓 '{ticker}' 不存在，无法归档")
+    if Decimal(str(holding.quantity)) != Decimal("0"):
+        raise BusinessError(40001, f"持仓 '{ticker}' quantity={holding.quantity} 非 0，不能归档")
+
+    txns = (await session.execute(
+        select(TransactionRecord)
+        .where(TransactionRecord.ticker == ticker)
+        .order_by(TransactionRecord.transaction_date.asc(), TransactionRecord.id.asc())
+    )).scalars().all()
+
+    # 计算 realized_pnl：sum(sell.amount) - sum(buy.amount) - initial_total_invested
+    # 含义：交易期间的净现金流 - 建仓时假设已投入的初始资金 = 该周期净盈亏
+    sum_buy = Decimal("0")
+    sum_sell = Decimal("0")
+    for txn in txns:
+        # 取金额：amount 优先，其次 quantity * unit_price
+        if txn.amount is not None:
+            amt = Decimal(str(txn.amount))
+        elif txn.quantity is not None and txn.unit_price is not None:
+            amt = Decimal(str(txn.quantity)) * Decimal(str(txn.unit_price))
+        else:
+            amt = Decimal("0")
+        if txn.type == "buy":
+            sum_buy += amt
+        elif txn.type == "sell":
+            sum_sell += amt
+
+    initial_t = Decimal(str(holding.initial_total_invested))
+    realized_pnl = sum_sell - sum_buy - initial_t
+
+    # 清仓日期：取 holdings 当前 liquidated_at（recompute 刚写好）；兜底用最后一笔 sell 日期
+    closed_at = holding.liquidated_at
+    if closed_at is None:
+        last_sell = next((x for x in reversed(txns) if x.type == "sell"), None)
+        if last_sell is None:
+            # 极端：quantity=0 但没有 sell（建仓基线 q=0？）— 拒绝归档
+            raise BusinessError(40001, f"持仓 '{ticker}' 没有清仓日期，无法归档")
+        closed_at = last_sell.transaction_date
+
+    holding_days = (closed_at - holding.first_buy_date).days + 1
+
+    # INSERT closed_holdings
+    closed = ClosedHoldingRecord(
+        ticker=holding.ticker,
+        name=holding.name,
+        market=holding.market,
+        asset_class=holding.asset_class,
+        currency=holding.currency,
+        initial_quantity=holding.initial_quantity,
+        initial_cost_price=holding.initial_cost_price,
+        initial_total_invested=holding.initial_total_invested,
+        first_buy_date=holding.first_buy_date,
+        closed_at=closed_at,
+        holding_days=holding_days,
+        realized_pnl=realized_pnl,
+    )
+    session.add(closed)
+    await session.flush()  # 拿 closed.id
+
+    # INSERT closed_transactions（关联到 closed.id）
+    for txn in txns:
+        session.add(ClosedTransactionRecord(
+            closed_holding_id=closed.id,
+            ticker=txn.ticker,
+            transaction_date=txn.transaction_date,
+            type=txn.type,
+            quantity=txn.quantity,
+            unit_price=txn.unit_price,
+            amount=txn.amount,
+            notes=txn.notes,
+            original_id=txn.id,
+        ))
+
+    # DELETE 原 transactions + holdings
+    for txn in txns:
+        await session.delete(txn)
+    await session.delete(holding)
+    await session.flush()
+
+    return closed.id

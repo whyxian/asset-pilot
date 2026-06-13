@@ -8,7 +8,7 @@ from app.models.orm.asset_holding_orm import AssetHoldingRecord
 from app.models.orm.transaction_orm import TransactionRecord
 from app.models.transaction import Transaction, TransactionCreate, TransactionUpdate
 from app.repositories.transaction_repository import TransactionRepository
-from app.services.asset_holding_service import recompute_holding
+from app.services.asset_holding_service import archive_holding, recompute_holding
 
 
 class TransactionService:
@@ -28,7 +28,7 @@ class TransactionService:
         return await self._repo.get_transaction(transaction_id)
 
     async def create_transaction(self, data: TransactionCreate) -> Transaction:
-        """新增交易记录（事务内：写入 + 重算持仓，原子操作）
+        """新增交易记录（事务内：写入 + 重算持仓 + 必要时归档，原子操作）
 
         校验链：
         1. 品种存在性
@@ -54,12 +54,27 @@ class TransactionService:
                 # 在同一事务内回放重算持仓
                 await recompute_holding(session, data.ticker)
 
+                # 提前快照（归档会删除 record，refresh 会失败）
+                snapshot = _orm_to_transaction(record)
+
+                # 如果重算后持仓为 0，立即归档（持仓 + 全部交易搬到 closed_*，原表删除）
+                await self._archive_if_zero(session, data.ticker)
+
                 await session.commit()
-                await session.refresh(record)
-                return _orm_to_transaction(record)
+                return snapshot
             except Exception:
                 await session.rollback()
                 raise
+
+    async def _archive_if_zero(self, session, ticker: str) -> None:
+        """重算后如果该 ticker 持仓为 0，触发归档"""
+        from app.models.orm.asset_holding_orm import AssetHoldingRecord
+        from decimal import Decimal as _D
+        holding = (await session.execute(
+            select(AssetHoldingRecord).where(AssetHoldingRecord.ticker == ticker)
+        )).scalar_one_or_none()
+        if holding is not None and _D(str(holding.quantity)) == _D("0"):
+            await archive_holding(session, ticker)
 
     async def update_transaction(
         self, transaction_id: int, data: TransactionUpdate
@@ -101,9 +116,15 @@ class TransactionService:
                 for t in tickers_to_recompute:
                     await recompute_holding(session, t)
 
+                # 提前快照（归档会删除 record）
+                snapshot = _orm_to_transaction(record)
+
+                # 任一 ticker 持仓为 0 都要归档
+                for t in tickers_to_recompute:
+                    await self._archive_if_zero(session, t)
+
                 await session.commit()
-                await session.refresh(record)
-                return _orm_to_transaction(record)
+                return snapshot
             except Exception:
                 await session.rollback()
                 raise
@@ -122,8 +143,9 @@ class TransactionService:
                 await session.delete(record)
                 await session.flush()
 
-                # 重算原 ticker（少了这笔交易）
+                # 重算原 ticker（少了这笔交易）— 注意：可能恰好让持仓为 0 触发归档
                 await recompute_holding(session, ticker)
+                await self._archive_if_zero(session, ticker)
 
                 await session.commit()
                 return True
