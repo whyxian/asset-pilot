@@ -84,11 +84,12 @@ export function TransactionFormDialog({
 }: TransactionFormDialogProps) {
   const isEdit = !!transaction
   const [form, setForm] = useState<TransactionFormData>(emptyForm())
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   // 持仓清单作为 ticker 下拉来源（含已清仓品种，便于补录历史交易）
   const { data: holdings } = useHoldings()
 
-  // 对话框打开/关闭时重置表单内容
+  // 对话框打开/关闭时重置表单内容 + 清空错误
   useEffect(() => {
     if (open) {
       if (transaction) {
@@ -98,6 +99,7 @@ export function TransactionFormDialog({
       } else {
         setForm(emptyForm())
       }
+      setErrors({})
     }
   }, [open, transaction, presetData])
 
@@ -117,14 +119,44 @@ export function TransactionFormDialog({
 
         return next
       })
+      // 用户开始编辑某字段就清掉它的错误（避免红字一直挂着）
+      // 金额组合错误挂在 amount 上，但用户改 quantity/unit_price 也应清掉
+      setErrors((prev) => {
+        if (!prev[key] && !(key !== 'notes' && prev.amount)) return prev
+        const next = { ...prev }
+        delete next[key]
+        if (key === 'quantity' || key === 'unit_price' || key === 'amount') {
+          delete next.amount
+        }
+        return next
+      })
     },
     [],
   )
 
+  /** 必填校验：返回错误 map（空表示通过） */
+  function validate(): Record<string, string> {
+    const e: Record<string, string> = {}
+    if (!form.ticker.trim()) e.ticker = '请选择代码'
+    if (!form.transaction_date) e.transaction_date = '请选择交易日'
+    if (form.type !== 'buy' && form.type !== 'sell') e.type = '请选择方向'
+
+    // 后端硬性约束：(quantity > 0 && unit_price > 0) 或 amount > 0 至少一组
+    const qty = parseFloat(form.quantity)
+    const price = parseFloat(form.unit_price)
+    const amt = parseFloat(form.amount)
+    const hasQtyPrice = !isNaN(qty) && qty > 0 && !isNaN(price) && price > 0
+    const hasAmount = !isNaN(amt) && amt > 0
+    if (!hasQtyPrice && !hasAmount) {
+      e.amount = '请填写"数量+成交价"或"总金额"，且都需 > 0'
+    }
+    return e
+  }
+
   const handleSubmit = () => {
-    if (!form.ticker.trim()) return
-    if (!form.transaction_date) return
-    // 后端硬性约束：(quantity + unit_price) 或 amount 至少一组；不在前端硬挡，让后端报错展示在底部
+    const e = validate()
+    setErrors(e)
+    if (Object.keys(e).length > 0) return
     onSubmit(form)
   }
 
@@ -144,6 +176,10 @@ export function TransactionFormDialog({
     })
   }
 
+  /** label 在有错误时变红 */
+  const labelClass = (key: string) =>
+    `text-xs font-medium ${errors[key] ? 'text-destructive' : 'text-muted-foreground'}`
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -157,7 +193,7 @@ export function TransactionFormDialog({
         <div className="space-y-3">
           {/* 持仓品种下拉 */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground">代码</label>
+            <label className={labelClass('ticker')}>代码</label>
             <Select
               value={form.ticker}
               onValueChange={(v) => updateField('ticker', v)}
@@ -179,20 +215,22 @@ export function TransactionFormDialog({
                 ))}
               </SelectContent>
             </Select>
+            {errors.ticker && <p className="mt-1 text-xs text-destructive">{errors.ticker}</p>}
           </div>
 
           {/* 交易日 + 方向 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">交易日</label>
+              <label className={labelClass('transaction_date')}>交易日</label>
               <Input
                 type="date"
                 value={form.transaction_date}
                 onChange={(e) => updateField('transaction_date', e.target.value)}
               />
+              {errors.transaction_date && <p className="mt-1 text-xs text-destructive">{errors.transaction_date}</p>}
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">方向</label>
+              <label className={labelClass('type')}>方向</label>
               <Select
                 value={form.type}
                 onValueChange={(v) => updateField('type', v as 'buy' | 'sell')}
@@ -205,13 +243,14 @@ export function TransactionFormDialog({
                   <SelectItem value="sell">卖出</SelectItem>
                 </SelectContent>
               </Select>
+              {errors.type && <p className="mt-1 text-xs text-destructive">{errors.type}</p>}
             </div>
           </div>
 
           {/* 数量 + 成交价 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">数量</label>
+              <label className={labelClass('quantity')}>数量</label>
               <Input
                 type="number"
                 step="any"
@@ -221,7 +260,7 @@ export function TransactionFormDialog({
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">成交价</label>
+              <label className={labelClass('unit_price')}>成交价</label>
               <Input
                 type="number"
                 step="any"
@@ -234,7 +273,7 @@ export function TransactionFormDialog({
 
           {/* 金额（默认 = quantity × unit_price，可手改用于含手续费场景） */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground">交易金额</label>
+            <label className={labelClass('amount')}>交易金额</label>
             <Input
               type="number"
               step="any"
@@ -242,6 +281,7 @@ export function TransactionFormDialog({
               value={form.amount}
               onChange={(e) => updateField('amount', e.target.value)}
             />
+            {errors.amount && <p className="mt-1 text-xs text-destructive">{errors.amount}</p>}
           </div>
 
           {/* 备注 */}

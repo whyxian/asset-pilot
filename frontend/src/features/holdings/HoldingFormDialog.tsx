@@ -99,6 +99,7 @@ export function HoldingFormDialog({
 }: HoldingFormDialogProps) {
   const isEdit = !!holding
   const [form, setForm] = useState<HoldingFormData>(emptyForm())
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   // ---- 品种搜索下拉 ----
   const [searchResults, setSearchResults] = useState<AssetVariety[]>([])
@@ -118,12 +119,13 @@ export function HoldingFormDialog({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // 对话框打开/关闭时重置
+  // 对话框打开/关闭时重置 + 清空错误
   useEffect(() => {
     if (open) {
       setForm(holding ? holdingToForm(holding) : emptyForm())
       setSearchResults([])
       setShowDropdown(false)
+      setErrors({})
     }
   }, [open, holding])
 
@@ -172,6 +174,19 @@ export function HoldingFormDialog({
 
         return next
       })
+      // 用户开始编辑某字段就清掉它的错误
+      // quantity / cost_price 改动会联动 total_invested，也清掉它的错误
+      setErrors((prev) => {
+        if (!prev[key] && !((key === 'quantity' || key === 'cost_price') && prev.total_invested)) {
+          return prev
+        }
+        const next = { ...prev }
+        delete next[key]
+        if (key === 'quantity' || key === 'cost_price') {
+          delete next.total_invested
+        }
+        return next
+      })
     },
     [isEdit, doSearch],
   )
@@ -180,6 +195,13 @@ export function HoldingFormDialog({
   const handleSelect = useCallback((v: AssetVariety) => {
     setForm((prev) => applyVariety(prev, v))
     setShowDropdown(false)
+    // 选中品种后清掉 ticker 错误
+    setErrors((prev) => {
+      if (!prev.ticker) return prev
+      const next = { ...prev }
+      delete next.ticker
+      return next
+    })
   }, [])
 
   /** ticker 失焦时：如果 name 为空，尝试精确匹配补填 */
@@ -203,11 +225,30 @@ export function HoldingFormDialog({
     })
   }, [searchResults])
 
+  /** 必填校验：返回错误 map（空表示通过） */
+  function validate(): Record<string, string> {
+    const e: Record<string, string> = {}
+    if (!form.ticker.trim()) e.ticker = '请输入或搜索代码'
+    const qty = parseFloat(form.quantity)
+    if (!form.quantity || isNaN(qty) || qty <= 0) e.quantity = '持仓量必须大于 0'
+    const cost = parseFloat(form.cost_price)
+    if (!form.cost_price || isNaN(cost) || cost <= 0) e.cost_price = '成本价必须大于 0'
+    const total = parseFloat(form.total_invested)
+    if (!form.total_invested || isNaN(total) || total <= 0) e.total_invested = '总投入必须大于 0'
+    if (!form.first_buy_date) e.first_buy_date = '请选择首次买入日期'
+    return e
+  }
+
   const handleSubmit = () => {
-    if (!form.ticker.trim()) return
-    if (!form.quantity || parseFloat(form.quantity) <= 0) return
+    const e = validate()
+    setErrors(e)
+    if (Object.keys(e).length > 0) return
     onSubmit(form)
   }
+
+  /** label 在有错误时变红 */
+  const labelClass = (key: string) =>
+    `text-xs font-medium ${errors[key] ? 'text-destructive' : 'text-muted-foreground'}`
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -222,7 +263,7 @@ export function HoldingFormDialog({
         <div className="space-y-3">
           {/* 代码 + 搜索下拉 */}
           <div ref={wrapperRef} className="relative">
-            <label className="text-xs font-medium text-muted-foreground">代码</label>
+            <label className={labelClass('ticker')}>代码</label>
             <Input
               placeholder="600519 / AAPL / BTC"
               value={form.ticker}
@@ -253,6 +294,7 @@ export function HoldingFormDialog({
                 ))}
               </div>
             )}
+            {errors.ticker && <p className="mt-1 text-xs text-destructive">{errors.ticker}</p>}
           </div>
 
           {/* 名称 */}
@@ -306,7 +348,7 @@ export function HoldingFormDialog({
           {/* 数量 + 成本价 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">持仓量</label>
+              <label className={labelClass('quantity')}>持仓量</label>
               <Input
                 type="number"
                 step="any"
@@ -314,9 +356,10 @@ export function HoldingFormDialog({
                 value={form.quantity}
                 onChange={(e) => updateField('quantity', e.target.value)}
               />
+              {errors.quantity && <p className="mt-1 text-xs text-destructive">{errors.quantity}</p>}
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">成本价</label>
+              <label className={labelClass('cost_price')}>成本价</label>
               <Input
                 type="number"
                 step="any"
@@ -324,12 +367,13 @@ export function HoldingFormDialog({
                 value={form.cost_price}
                 onChange={(e) => updateField('cost_price', e.target.value)}
               />
+              {errors.cost_price && <p className="mt-1 text-xs text-destructive">{errors.cost_price}</p>}
             </div>
           </div>
 
           {/* 总投入（自动计算，可手动改） */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground">
+            <label className={labelClass('total_invested')}>
               总投入
             </label>
             <Input
@@ -339,16 +383,18 @@ export function HoldingFormDialog({
               onChange={(e) => updateField('total_invested', e.target.value)}
               placeholder="自动计算: quantity × cost_price"
             />
+            {errors.total_invested && <p className="mt-1 text-xs text-destructive">{errors.total_invested}</p>}
           </div>
 
           {/* 首次买入日期 */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground">首次买入日期</label>
+            <label className={labelClass('first_buy_date')}>首次买入日期</label>
             <Input
               type="date"
               value={form.first_buy_date}
               onChange={(e) => updateField('first_buy_date', e.target.value)}
             />
+            {errors.first_buy_date && <p className="mt-1 text-xs text-destructive">{errors.first_buy_date}</p>}
           </div>
 
           {/* 货币（自动联动，只读） */}
