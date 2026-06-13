@@ -156,12 +156,18 @@ class SinaDataSource(QuoteDataSource):
         return self._browser
 
     async def close(self):
-        if self._browser:
-            await self._browser.close()
+        # 即使 browser.close() 抛错，也必须保证 playwright.stop() 被执行，
+        # 否则 Playwright 进程会泄漏，且对象处于半初始化状态导致后续重试失败
+        try:
+            if self._browser:
+                await self._browser.close()
+        finally:
             self._browser = None
-        if self._playwright:
-            await self._playwright.stop()
-            self._playwright = None
+            if self._playwright:
+                try:
+                    await self._playwright.stop()
+                finally:
+                    self._playwright = None
 
     async def fetch(self, codes: list[str], market: str) -> list[AssetQuote]:
         try:

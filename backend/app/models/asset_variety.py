@@ -12,7 +12,7 @@ class AssetVariety(BaseModel):
     market: str           # CN / US / CRYPTO
     asset_class: str      # STOCK / FUND / CRYPTO
     sub_category: Optional[str] = None  # ETF / LOF / None
-    currency: str         # CNY / USD
+    currency: str = "USD"  # CNY / USD
     is_active: bool = True
 
 

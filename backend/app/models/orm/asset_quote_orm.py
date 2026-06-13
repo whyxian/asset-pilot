@@ -3,7 +3,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Float, Integer, Numeric, String, func
+from sqlalchemy import DateTime, Float, Integer, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -13,6 +13,10 @@ class AssetQuoteRecord(Base):
     """资产报价记录表"""
 
     __tablename__ = "asset_quote"
+    __table_args__ = (
+        # 同一标的同一时间戳只允许一条行情，避免重复写入
+        UniqueConstraint("ticker", "timestamp", name="uq_quote_ticker_timestamp"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ticker: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
