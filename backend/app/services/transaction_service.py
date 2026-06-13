@@ -7,7 +7,6 @@ from app.core.exceptions import BusinessError
 from app.models.orm.asset_holding_orm import AssetHoldingRecord
 from app.models.orm.transaction_orm import TransactionRecord
 from app.models.transaction import Transaction, TransactionCreate, TransactionUpdate
-from app.repositories.asset_variety_repository import AssetVarietyRepository
 from app.repositories.transaction_repository import TransactionRepository
 from app.services.asset_holding_service import recompute_holding
 
@@ -17,7 +16,6 @@ class TransactionService:
 
     def __init__(self):
         self._repo = TransactionRepository()
-        self._variety_repo = AssetVarietyRepository()
 
     async def list_transactions(
         self, ticker: str | None = None, limit: int = 100
@@ -134,12 +132,13 @@ class TransactionService:
                 raise
 
     async def _validate_create_payload(self, data: TransactionCreate) -> None:
-        """create 的前置业务校验：品种存在 / 字段组合 / 必须先建仓"""
-        # 校验品种是否存在
-        variety = await self._variety_repo.get_variety(data.ticker)
-        if not variety:
-            raise BusinessError(40001, f"未识别的品种代码 '{data.ticker}'，请先通过 /api/v1/varieties 添加该品种")
+        """create 的前置业务校验：字段组合 / 必须先建仓
 
+        说明：不再校验 asset_varieties — 因为 (ticker) 在该表非唯一
+        （UNIQUE 是 (asset_class, market, ticker) 组合），单 ticker 可能命中多行。
+        持仓表的 ticker 是唯一的，且建仓时已校验过品种存在，
+        所以"必须先建仓"这一步就足够了。
+        """
         # 至少填 quantity+unit_price 或 amount 之一
         has_qty_price = data.quantity is not None and data.unit_price is not None
         has_amount = data.amount is not None
