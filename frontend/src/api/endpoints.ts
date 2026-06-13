@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AssetQuote, AssetVariety, HoldingCreate, HoldingUpdate, HoldingWithQuote, OverviewStats, Transaction, TransactionCreate } from '@/types'
+import type { AssetQuote, AssetVariety, HoldingCreate, HoldingUpdate, HoldingWithQuote, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
 
 // ═══════════════════════════════════════════
 // 持仓
@@ -84,7 +84,7 @@ export const createTransaction = (data: TransactionCreate) =>
   apiClient.post('/api/v1/transactions', data) as Promise<Transaction>
 
 /** 更新交易记录 */
-export const updateTransaction = (id: number, data: Partial<TransactionCreate>) =>
+export const updateTransaction = (id: number, data: TransactionUpdate) =>
   apiClient.put(`/api/v1/transactions/${id}`, data) as Promise<Transaction>
 
 /** 删除交易记录 */

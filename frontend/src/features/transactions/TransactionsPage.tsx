@@ -1,39 +1,136 @@
+import { useState } from 'react'
 import { useTransactions } from '@/hooks/useTransactions'
+import {
+  useCreateTransaction,
+  useUpdateTransaction,
+  useDeleteTransaction,
+} from '@/hooks/useTransactionMutations'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
+import { TransactionFormDialog } from './TransactionFormDialog'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { toNum, formatPrice } from '@/lib/utils'
+import type {
+  Transaction,
+  TransactionCreate,
+  TransactionUpdate,
+} from '@/types'
 
 const typeLabel: Record<string, string> = {
   buy: '买入',
   sell: '卖出',
 }
 
+/** 把表单字符串转成 number 或 null */
+function toNumOrNull(v: string): number | null {
+  if (!v.trim()) return null
+  const n = parseFloat(v)
+  return Number.isNaN(n) ? null : n
+}
+
 export function TransactionsPage() {
   const { data: transactions, isLoading, isError, error, refetch } = useTransactions()
+  const createMut = useCreateTransaction()
+  const updateMut = useUpdateTransaction()
+  const deleteMut = useDeleteTransaction()
+
+  // 对话框状态
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingTxn, setEditingTxn] = useState<Transaction | undefined>(undefined)
+  const [deleteConfirm, setDeleteConfirm] = useState<Transaction | null>(null)
+
+  function handleCreate() {
+    setEditingTxn(undefined)
+    createMut.reset()
+    setDialogOpen(true)
+  }
+
+  function handleEdit(t: Transaction) {
+    setEditingTxn(t)
+    updateMut.reset()
+    setDialogOpen(true)
+  }
+
+  function handleDeleteClick(t: Transaction) {
+    setDeleteConfirm(t)
+  }
+
+  function confirmDelete() {
+    if (deleteConfirm) {
+      deleteMut.mutate(deleteConfirm.id, {
+        onSuccess: () => setDeleteConfirm(null),
+      })
+    }
+  }
+
+  function handleFormSubmit(data: {
+    ticker: string
+    transaction_date: string
+    type: 'buy' | 'sell'
+    quantity: string
+    unit_price: string
+    amount: string
+    notes: string
+  }) {
+    if (editingTxn) {
+      // 仅提交变更字段（与持仓页 update 风格一致）
+      const payload: TransactionUpdate = {}
+      if (data.ticker !== editingTxn.ticker) payload.ticker = data.ticker
+      if (data.transaction_date !== editingTxn.transaction_date)
+        payload.transaction_date = data.transaction_date
+      if (data.type !== editingTxn.type) payload.type = data.type
+      const newQty = toNumOrNull(data.quantity)
+      const newPrice = toNumOrNull(data.unit_price)
+      const newAmount = toNumOrNull(data.amount)
+      if (newQty !== editingTxn.quantity) payload.quantity = newQty
+      if (newPrice !== editingTxn.unit_price) payload.unit_price = newPrice
+      if (newAmount !== editingTxn.amount) payload.amount = newAmount
+      const newNotes = data.notes.trim() || null
+      if (newNotes !== editingTxn.notes) payload.notes = newNotes
+
+      updateMut.mutate(
+        { id: editingTxn.id, data: payload },
+        { onSuccess: () => setDialogOpen(false) },
+      )
+    } else {
+      const payload: TransactionCreate = {
+        ticker: data.ticker,
+        transaction_date: data.transaction_date,
+        type: data.type,
+        quantity: toNumOrNull(data.quantity),
+        unit_price: toNumOrNull(data.unit_price),
+        amount: toNumOrNull(data.amount),
+        notes: data.notes.trim() || null,
+      }
+      createMut.mutate(payload, { onSuccess: () => setDialogOpen(false) })
+    }
+  }
+
+  const dialogError = editingTxn ? updateMut.error?.message : createMut.error?.message
+  const dialogPending = createMut.isPending || updateMut.isPending
 
   // ---- 加载态 ----
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">交易记录</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">交易记录</h1>
+          <Skeleton className="h-9 w-28" />
+        </div>
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/50">
-                <th className="text-left p-3">日期</th>
-                <th className="text-left p-3">代码</th>
-                <th className="text-left p-3">方向</th>
-                <th className="text-right p-3">数量</th>
-                <th className="text-right p-3">成交价</th>
-                <th className="text-right p-3">金额</th>
-                <th className="text-left p-3">备注</th>
+                {['日期', '代码', '方向', '数量', '成交价', '金额', '备注', '操作'].map((h) => (
+                  <th key={h} className="text-left p-3">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {[...Array(5)].map((_, i) => (
                 <tr key={i} className="border-t">
-                  {[...Array(7)].map((_, j) => (
+                  {[...Array(8)].map((_, j) => (
                     <td key={j} className="p-3">
                       <Skeleton className="h-4 w-full" />
                     </td>
@@ -67,11 +164,21 @@ export function TransactionsPage() {
   if (!transactions || transactions.length === 0) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">交易记录</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">交易记录</h1>
+          <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增交易</Button>
+        </div>
         <div className="flex flex-col items-center justify-center h-64 border rounded-md bg-muted/20 gap-4">
           <p className="text-muted-foreground text-lg">暂无交易记录</p>
-          <p className="text-sm text-muted-foreground">添加交易记录后将在此显示</p>
+          <p className="text-sm text-muted-foreground">先在持仓页建仓，再点「新增交易」录入流水</p>
         </div>
+        <TransactionFormDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onSubmit={handleFormSubmit}
+          error={dialogError}
+          isPending={dialogPending}
+        />
       </div>
     )
   }
@@ -79,7 +186,36 @@ export function TransactionsPage() {
   // ---- 正常渲染 ----
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">交易记录</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">交易记录</h1>
+        <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增交易</Button>
+      </div>
+
+      {deleteConfirm && (
+        <div className="flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 p-3">
+          <p className="text-sm">
+            确定删除 <span className="font-medium">{deleteConfirm.ticker}</span> 在{' '}
+            <span className="font-medium">{deleteConfirm.transaction_date}</span> 的{' '}
+            <span className="font-medium">{typeLabel[deleteConfirm.type] || deleteConfirm.type}</span>{' '}
+            交易？删除后该 ticker 持仓会自动重算。
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteConfirm(null)}>取消</Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={confirmDelete}
+              disabled={deleteMut.isPending}
+            >
+              {deleteMut.isPending ? '删除中...' : '确认删除'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {deleteMut.error && !deleteConfirm && (
+        <p className="text-sm text-destructive">删除失败：{deleteMut.error.message}</p>
+      )}
 
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
@@ -92,6 +228,7 @@ export function TransactionsPage() {
               <th className="text-right p-3">成交价</th>
               <th className="text-right p-3">金额</th>
               <th className="text-left p-3">备注</th>
+              <th className="p-3 w-20 sticky right-0 bg-muted/50">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -114,15 +251,32 @@ export function TransactionsPage() {
                   {t.amount != null ? formatPrice(t.amount) : '-'}
                 </td>
                 <td className="p-3 text-muted-foreground">{t.notes || '-'}</td>
+                <td className="p-3 sticky right-0 bg-background">
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(t)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" onClick={() => handleDeleteClick(t)}>
+                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        共 {transactions.length} 条记录
-      </p>
+      <p className="text-sm text-muted-foreground">共 {transactions.length} 条记录</p>
+
+      <TransactionFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSubmit={handleFormSubmit}
+        transaction={editingTxn}
+        error={dialogError}
+        isPending={dialogPending}
+      />
     </div>
   )
 }

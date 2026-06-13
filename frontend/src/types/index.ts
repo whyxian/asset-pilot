@@ -117,3 +117,14 @@ export interface TransactionCreate {
   amount?: number | null
   notes?: string | null
 }
+
+/** 更新交易记录请求体（所有字段可选） */
+export interface TransactionUpdate {
+  ticker?: string
+  transaction_date?: string
+  type?: 'buy' | 'sell'
+  quantity?: number | null
+  unit_price?: number | null
+  amount?: number | null
+  notes?: string | null
+}

@@ -1,6 +1,6 @@
 # AssetPilot 开发进度
 
-> 最后更新：2026-06-11
+> 最后更新：2026-06-13
 > 记录所有模块的完成状态、任务拆分和开发规划
 
 ---
@@ -8,10 +8,8 @@
 ## 一、开发路线图
 
 ```
-Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 4 ──→ 持仓 UI ──→ Phase 5
- 持仓CRUD     品种验证      数据填充      持仓计算      前端对接     增删改      交易CRUD
-                                                                    ↓
-                                                             概览 API + 汇率 + 精度修复
+Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 4 ──→ 持仓 UI ──→ Phase 5 ──→ 交易→持仓自动反推
+ 持仓CRUD     品种验证      数据填充      持仓计算      前端对接     增删改      交易CRUD       建仓基线 + 全量重算
 ```
 
 | 阶段 | 内容 | 完成时间 | 状态 |
@@ -26,6 +24,8 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | 概览 API | GET /api/v1/overview（后端聚合 + 汇率换算） | 2026-06-11 | ✅ |
 | 汇率工具 | exchange_rate.py（GitHub 源 + 1h 缓存） | 2026-06-11 | ✅ |
 | 精度修复 | 前端数字格式化 T0 级重写 | 2026-06-11 | ✅ |
+| 数据自动刷新 | 概览/持仓页 60s 轮询 + 持仓变更联动失效概览缓存 | 2026-06-13 | ✅ |
+| 交易→持仓自动反推 | 建仓基线 + 全量重算（加权平均/卖超拒绝/事务原子）+ 交易页 CRUD UI | 2026-06-13 | ✅ |
 | Phase 6 | 净值快照 | — | 📋 下一步 |
 | 图表 | Recharts 折线图/饼图 | — | 📋 规划中 |
 
@@ -95,10 +95,10 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 
 | # | 说明 | 严重度 | 状态 |
 |----|------|--------|------|
-| 1 | `asset_quote` 表缺少 UNIQUE(ticker, timestamp) 约束 | 中 | 未修 |
-| 2 | `SinaDataSource.close()` 缺少 try/finally | 低 | 未修 |
-| 3 | ORM `currency` 字段缺默认值 | 低 | 未修 |
-| 4 | 前端 chunks > 500KB，可按页面 code-split | 低 | 未修 |
+| 1 | `asset_quote` 表缺少 UNIQUE(ticker, timestamp) 约束 | 中 | ✅ 已修（2026-06-13）<br>ORM 已加约束 + 提供迁移脚本 `backend/script/migrate_asset_quote_unique.py` |
+| 2 | `SinaDataSource.close()` 缺少 try/finally | 低 | ✅ 已修（2026-06-13） |
+| 3 | ORM `currency` 字段缺默认值 | 低 | ✅ 已修（2026-06-13）<br>`AssetVariety` ORM/Pydantic 均补 `USD` 默认值 |
+| 4 | 前端 chunks > 500KB，可按页面 code-split | 低 | ✅ 已修（2026-06-13）<br>路由改 `React.lazy`，最大 chunk 从 >500KB 降至 245KB |
 
 ---
 
