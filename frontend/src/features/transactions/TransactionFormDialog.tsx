@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -16,8 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { searchVarieties } from '@/api/endpoints'
-import type { AssetVariety, Transaction } from '@/types'
+import { useHoldings } from '@/hooks/useHoldings'
+import type { Transaction } from '@/types'
 
 interface TransactionFormData {
   ticker: string
@@ -65,6 +65,8 @@ interface TransactionFormDialogProps {
   onSubmit: (data: TransactionFormData) => void
   /** 编辑模式：传入已有交易数据 */
   transaction?: Transaction
+  /** 预填数据 — 持仓页"清仓"按钮打开时传入，覆盖默认 emptyForm */
+  presetData?: Partial<TransactionFormData>
   /** 后端返回的错误信息 */
   error?: string | null
   /** 是否正在提交 */
@@ -76,67 +78,33 @@ export function TransactionFormDialog({
   onOpenChange,
   onSubmit,
   transaction,
+  presetData,
   error,
   isPending,
 }: TransactionFormDialogProps) {
   const isEdit = !!transaction
   const [form, setForm] = useState<TransactionFormData>(emptyForm())
 
-  // ---- 品种搜索下拉（与 HoldingFormDialog 同款逻辑） ----
-  const [searchResults, setSearchResults] = useState<AssetVariety[]>([])
-  const [searching, setSearching] = useState(false)
-  const [showDropdown, setShowDropdown] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
-  const wrapperRef = useRef<HTMLDivElement>(null)
+  // 持仓清单作为 ticker 下拉来源（含已清仓品种，便于补录历史交易）
+  const { data: holdings } = useHoldings()
 
-  // 点击外部关闭下拉
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setShowDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // 对话框打开/关闭时重置
+  // 对话框打开/关闭时重置表单内容
   useEffect(() => {
     if (open) {
-      setForm(transaction ? transactionToForm(transaction) : emptyForm())
-      setSearchResults([])
-      setShowDropdown(false)
+      if (transaction) {
+        setForm(transactionToForm(transaction))
+      } else if (presetData) {
+        setForm({ ...emptyForm(), ...presetData })
+      } else {
+        setForm(emptyForm())
+      }
     }
-  }, [open, transaction])
-
-  const doSearch = useCallback(async (q: string) => {
-    if (!q.trim()) {
-      setSearchResults([])
-      setShowDropdown(false)
-      return
-    }
-    setSearching(true)
-    try {
-      const results = await searchVarieties(q)
-      setSearchResults(results)
-      setShowDropdown(results.length > 0)
-    } catch {
-      setSearchResults([])
-    } finally {
-      setSearching(false)
-    }
-  }, [])
+  }, [open, transaction, presetData])
 
   const updateField = useCallback(
     (key: keyof TransactionFormData, value: string) => {
       setForm((prev) => {
         const next = { ...prev, [key]: value }
-
-        // ticker 变更 → debounce 搜索（编辑模式也允许改）
-        if (key === 'ticker') {
-          if (debounceRef.current) clearTimeout(debounceRef.current)
-          debounceRef.current = setTimeout(() => doSearch(value), 300)
-        }
 
         // quantity × unit_price → amount 自动联动（用户可后续手改 amount 覆盖）
         if (key === 'quantity' || key === 'unit_price') {
@@ -150,19 +118,8 @@ export function TransactionFormDialog({
         return next
       })
     },
-    [doSearch],
+    [],
   )
-
-  /** 选中搜索结果 → 仅填 ticker（交易表单不需要其他品种字段） */
-  const handleSelect = useCallback((v: AssetVariety) => {
-    setForm((prev) => ({ ...prev, ticker: v.ticker }))
-    setShowDropdown(false)
-  }, [])
-
-  /** ticker 失焦：延迟关下拉，让点击选项先触发 */
-  const handleTickerBlur = useCallback(() => {
-    setTimeout(() => setShowDropdown(false), 200)
-  }, [])
 
   const handleSubmit = () => {
     if (!form.ticker.trim()) return
@@ -171,49 +128,57 @@ export function TransactionFormDialog({
     onSubmit(form)
   }
 
+  // 编辑模式下当前 ticker 不在持仓中（理论上不应发生），添加 disabled 占位避免 select 显示空
+  const tickerOptions = (holdings ?? []).map((h) => ({
+    ticker: h.ticker,
+    name: h.name,
+    market: h.market,
+    isOrphan: false,
+  }))
+  if (form.ticker && !tickerOptions.some((o) => o.ticker === form.ticker)) {
+    tickerOptions.unshift({
+      ticker: form.ticker,
+      name: '(持仓中找不到该 ticker)',
+      market: '',
+      isOrphan: true,
+    })
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? '编辑交易' : '新增交易'}</DialogTitle>
           <DialogDescription>
-            {isEdit ? '修改交易记录' : '录入一笔买入或卖出交易（需先在持仓页建仓）'}
+            {isEdit ? '修改交易记录' : '录入一笔买入或卖出交易（仅可选当前持仓品种）'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* 代码 + 搜索下拉 */}
-          <div ref={wrapperRef} className="relative">
+          {/* 持仓品种下拉 */}
+          <div>
             <label className="text-xs font-medium text-muted-foreground">代码</label>
-            <Input
-              placeholder="600519 / AAPL / BTC"
+            <Select
               value={form.ticker}
-              onChange={(e) => updateField('ticker', e.target.value.toUpperCase())}
-              onBlur={handleTickerBlur}
-            />
-            {searching && (
-              <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover p-2 text-sm text-muted-foreground shadow-md">
-                搜索中...
-              </div>
-            )}
-            {showDropdown && searchResults.length > 0 && !searching && (
-              <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
-                {searchResults.map((v) => (
-                  <button
-                    key={`${v.ticker}-${v.asset_class}-${v.market}`}
-                    type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-                    onMouseDown={() => handleSelect(v)}
-                  >
-                    <span className="font-medium">{v.ticker}</span>
-                    <span className="truncate text-muted-foreground">{v.name}</span>
-                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                      {marketOptionLabel[v.market] || v.market} · {v.asset_class}
-                    </span>
-                  </button>
+              onValueChange={(v) => updateField('ticker', v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={tickerOptions.length === 0 ? '尚无持仓 — 请先在持仓页建仓' : '选择持仓品种'} />
+              </SelectTrigger>
+              <SelectContent>
+                {tickerOptions.map((o) => (
+                  <SelectItem key={o.ticker} value={o.ticker} disabled={o.isOrphan}>
+                    <span className="font-medium">{o.ticker}</span>
+                    <span className="ml-2 text-muted-foreground">{o.name}</span>
+                    {o.market && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {marketOptionLabel[o.market] || o.market}
+                      </span>
+                    )}
+                  </SelectItem>
                 ))}
-              </div>
-            )}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* 交易日 + 方向 */}

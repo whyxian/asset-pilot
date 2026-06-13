@@ -41,6 +41,7 @@ export interface HoldingWithQuote {
   cost_price: number
   total_invested: number
   first_buy_date: string // "YYYY-MM-DD"
+  liquidated_at: string | null // 清仓日期，未清仓为 null
   // 以下为实时计算字段
   current_price: number
   market_value: number
