@@ -104,7 +104,7 @@ class AssetHoldingService:
         if not holdings:
             return []
 
-        # 按 (asset_class, market) 分组，批量获取行情
+        # 按 (asset_class, market) 分组，批量获取行情（已清仓品种 quantity=0 也参与，便于前端展示历史价格）
         groups = defaultdict(list)
         for h in holdings:
             groups[(h.asset_class, h.market)].append(h.ticker)
@@ -147,6 +147,7 @@ class AssetHoldingService:
                 cost_price=h.cost_price,
                 total_invested=h.total_invested,
                 first_buy_date=h.first_buy_date,
+                liquidated_at=h.liquidated_at,
                 current_price=current_price,
                 market_value=market_value,
                 pnl=pnl,
@@ -158,7 +159,7 @@ class AssetHoldingService:
 
 
 async def recompute_holding(session: AsyncSession, ticker: str) -> None:
-    """全量重算指定 ticker 的派生持仓字段（quantity / cost_price / total_invested）
+    """全量重算指定 ticker 的派生持仓字段（quantity / cost_price / total_invested / liquidated_at / first_buy_date）
 
     算法：
         1. 以 holdings 行的 initial_* 三列作为起点 (q, p, t)
@@ -167,12 +168,17 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
                    new_q = q + qty
                    new_t = t + amt
                    new_p = new_t / new_q
+                   如果回放前 q == 0（清仓 / 建仓为 0）→ 这是一笔"复活"buy，记下日期
            - sell: 加权平均法 — cost_price 不变，total_invested 按比例减
                    if qty > q: 抛出 BusinessError "卖超"
                    new_q = q - qty
                    new_t = t - p * qty
                    new_p = p (清仓时归零)
-        3. 写回 holdings 的派生字段；first_buy_date 不动
+        3. 写回 holdings 的派生字段。
+        4. 维护 liquidated_at / first_buy_date：
+           - 最终 q == 0：liquidated_at = 最后一笔 sell 的日期
+           - 最终 q > 0：liquidated_at = None；若回放过程中发生过"复活"
+             （某笔 buy 前 q==0），first_buy_date 重置为最后一次复活 buy 的日期
 
     Args:
         session: 外部传入的 session（必须由调用方控制 commit/rollback）
@@ -201,6 +207,8 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
         .order_by(TransactionRecord.transaction_date.asc(), TransactionRecord.id.asc())
     )).scalars().all()
 
+    last_revival_buy_date = None  # 最后一次"复活"buy 的日期（之前 q==0 → 这笔 buy 后 q>0）
+
     for txn in txns:
         if txn.type == "buy":
             qty = Decimal(str(txn.quantity)) if txn.quantity is not None else Decimal("0")
@@ -211,6 +219,9 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
                 amt = Decimal(str(txn.quantity)) * Decimal(str(txn.unit_price))
             else:
                 amt = Decimal("0")
+            # 检测复活：本笔 buy 之前 q == 0，之后将变成 > 0
+            if q == 0 and qty > 0:
+                last_revival_buy_date = txn.transaction_date
             q = q + qty
             t = t + amt
             p = (t / q) if q > 0 else Decimal("0")
@@ -237,66 +248,16 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
     holding.quantity = q
     holding.cost_price = p
     holding.total_invested = t
+
+    # 维护清仓日期 / 首次买入日期
+    if q == 0:
+        # 清仓：取最后一笔 sell 的日期
+        last_sell = next((x for x in reversed(txns) if x.type == "sell"), None)
+        holding.liquidated_at = last_sell.transaction_date if last_sell else None
+    else:
+        holding.liquidated_at = None
+        # 复活：first_buy_date 重置为最后一次复活 buy 的日期
+        if last_revival_buy_date is not None:
+            holding.first_buy_date = last_revival_buy_date
+
     # session.commit() 由调用方负责
-
-    async def list_holdings_with_quotes(self) -> list[HoldingWithQuote]:
-        """获取持仓列表，合并实时行情并计算市值/盈亏/年化
-
-        Returns:
-            带实时行情的持仓列表
-        """
-        holdings = await self._repo.list_holdings()
-        if not holdings:
-            return []
-
-        # 按 (asset_class, market) 分组，批量获取行情
-        groups = defaultdict(list)
-        for h in holdings:
-            groups[(h.asset_class, h.market)].append(h.ticker)
-
-        quote_map = {}
-        for (ac, market), tickers in groups.items():
-            quotes = await self._quote_svc.fetch_quotes_by_asset_class(ac, market, tickers)
-            for q in quotes:
-                quote_map[q.ticker] = q
-
-        today = date.today()
-        results = []
-        for h in holdings:
-            q = quote_map.get(h.ticker)
-            current_price = q.price if q else Decimal("0")
-            market_value = h.quantity * current_price
-            pnl = market_value - h.total_invested
-
-            # 盈亏百分比
-            pnl_pct = None
-            if h.total_invested > 0:
-                pnl_pct = float((pnl / h.total_invested) * 100)
-
-            # 简单年化回报率 = 总收益率 × (365 / 持有天数)
-            # 持有天数 = (今日 - 首次买入日) + 1，当天买入也算持有 1 天
-            annualized = None
-            if h.cost_price > 0 and h.first_buy_date:
-                holding_days = (today - h.first_buy_date).days + 1
-                if holding_days >= 1:
-                    total_return_pct = float((current_price - h.cost_price) / h.cost_price) * 100
-                    annualized = round(total_return_pct * (365 / holding_days), 4)
-
-            results.append(HoldingWithQuote(
-                ticker=h.ticker,
-                name=h.name,
-                market=h.market,
-                asset_class=h.asset_class,
-                currency=h.currency,
-                quantity=h.quantity,
-                cost_price=h.cost_price,
-                total_invested=h.total_invested,
-                first_buy_date=h.first_buy_date,
-                current_price=current_price,
-                market_value=market_value,
-                pnl=pnl,
-                pnl_pct=pnl_pct,
-                annualized_return=annualized,
-            ))
-
-        return results

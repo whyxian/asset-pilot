@@ -18,6 +18,7 @@ class AssetHolding(BaseModel):
     cost_price: Decimal               # 加权平均成本价
     total_invested: Decimal           # 总投入金额
     first_buy_date: date              # 首次买入日期
+    liquidated_at: Optional[date] = None  # 清仓日期，未清仓为 None
 
 
 class AssetHoldingCreate(BaseModel):
@@ -53,6 +54,7 @@ class HoldingWithQuote(BaseModel):
     cost_price: Decimal
     total_invested: Decimal
     first_buy_date: date
+    liquidated_at: Optional[date] = None  # 清仓日期，未清仓为 None
     # 以下为实时计算字段
     current_price: Decimal = Decimal("0")
     market_value: Decimal = Decimal("0")

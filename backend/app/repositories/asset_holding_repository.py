@@ -116,4 +116,8 @@ def _record_to_holding(r: AssetHoldingRecord) -> AssetHolding:
         cost_price=Decimal(str(r.cost_price)),
         total_invested=Decimal(str(r.total_invested)),
         first_buy_date=r.first_buy_date if isinstance(r.first_buy_date, date) else r.first_buy_date.date(),
+        liquidated_at=(
+            r.liquidated_at if r.liquidated_at is None or isinstance(r.liquidated_at, date)
+            else r.liquidated_at.date()
+        ),
     )

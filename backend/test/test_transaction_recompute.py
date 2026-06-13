@@ -202,20 +202,20 @@ async def test_oversell_raises():
 
 
 # ════════════════════════════════════════════════════
-# 测试 5：清仓 → quantity=0, cost_price=0, total=0
+# 测试 5：清仓 → quantity=0, cost_price=0, total=0, liquidated_at = 最后 sell 日期
 # ════════════════════════════════════════════════════
 async def test_full_liquidation():
-    print("\n[5/5] 100@10 → 卖出 100 → 清仓后 quantity=0 cost_price=0 total=0")
+    print("\n[5/7] 100@10 → 卖出 100 → 清仓后 q=0 + liquidated_at=sell 日期")
     engine, HoldingRecord, TxnRecord = await _make_engine()
     Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     import app.core.database as db_mod
     db_mod.async_session = Session
     from app.services.asset_holding_service import recompute_holding
 
+    sell_date = date(2024, 2, 1)
     async with Session() as session:
         await _seed_holding(session, HoldingRecord, "TEST", "100", "10", "1000")
-        await _add_txn(session, TxnRecord, "TEST", "sell", date(2024, 2, 1),
-                        qty="100", price="15")
+        await _add_txn(session, TxnRecord, "TEST", "sell", sell_date, qty="100", price="15")
 
     async with Session() as session:
         await recompute_holding(session, "TEST")
@@ -226,7 +226,72 @@ async def test_full_liquidation():
         assert _approx(h.quantity, "0"), f"quantity={h.quantity}"
         assert _approx(h.cost_price, "0"), f"cost_price={h.cost_price}"
         assert _approx(h.total_invested, "0"), f"total_invested={h.total_invested}"
-    print(f"    ✅ quantity={h.quantity} cost_price={h.cost_price} total_invested={h.total_invested}")
+        assert h.liquidated_at == sell_date, f"liquidated_at={h.liquidated_at} expected={sell_date}"
+    print(f"    ✅ q=0 cost=0 total=0 liquidated_at={h.liquidated_at}")
+    await engine.dispose()
+
+
+# ════════════════════════════════════════════════════
+# 测试 6：清仓后再 buy (复活) → liquidated_at 清空 + first_buy_date 重置
+# ════════════════════════════════════════════════════
+async def test_revival_after_liquidation():
+    print("\n[6/7] 清仓后再 buy 20@12 → liquidated_at=None + first_buy_date=复活买入日")
+    engine, HoldingRecord, TxnRecord = await _make_engine()
+    Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    import app.core.database as db_mod
+    db_mod.async_session = Session
+    from app.services.asset_holding_service import recompute_holding
+
+    initial_date = date(2024, 1, 1)
+    sell_date = date(2024, 2, 1)
+    revival_date = date(2024, 5, 1)
+    async with Session() as session:
+        await _seed_holding(session, HoldingRecord, "TEST", "100", "10", "1000", dt=initial_date)
+        await _add_txn(session, TxnRecord, "TEST", "sell", sell_date, qty="100", price="15")
+        await _add_txn(session, TxnRecord, "TEST", "buy", revival_date,
+                        qty="20", price="12", amount="240")
+
+    async with Session() as session:
+        await recompute_holding(session, "TEST")
+        await session.commit()
+
+    async with Session() as session:
+        h = await _read_holding(session, HoldingRecord, "TEST")
+        assert _approx(h.quantity, "20"), f"quantity={h.quantity}"
+        assert _approx(h.cost_price, "12"), f"cost_price={h.cost_price}"
+        assert _approx(h.total_invested, "240"), f"total_invested={h.total_invested}"
+        assert h.liquidated_at is None, f"liquidated_at 应为 None，实际={h.liquidated_at}"
+        assert h.first_buy_date == revival_date, f"first_buy_date={h.first_buy_date} expected={revival_date}"
+    print(f"    ✅ q=20 cost=12 liquidated_at=None first_buy_date={h.first_buy_date}")
+    await engine.dispose()
+
+
+# ════════════════════════════════════════════════════
+# 测试 7：从未清仓 → liquidated_at 始终 None + first_buy_date 不变
+# ════════════════════════════════════════════════════
+async def test_no_liquidation_keeps_first_buy_date():
+    print("\n[7/7] 100@10 + buy 50@12 (持续持仓) → first_buy_date 保持初始值")
+    engine, HoldingRecord, TxnRecord = await _make_engine()
+    Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    import app.core.database as db_mod
+    db_mod.async_session = Session
+    from app.services.asset_holding_service import recompute_holding
+
+    initial_date = date(2024, 1, 1)
+    async with Session() as session:
+        await _seed_holding(session, HoldingRecord, "TEST", "100", "10", "1000", dt=initial_date)
+        await _add_txn(session, TxnRecord, "TEST", "buy", date(2024, 3, 1),
+                        qty="50", price="12", amount="600")
+
+    async with Session() as session:
+        await recompute_holding(session, "TEST")
+        await session.commit()
+
+    async with Session() as session:
+        h = await _read_holding(session, HoldingRecord, "TEST")
+        assert h.liquidated_at is None
+        assert h.first_buy_date == initial_date, f"first_buy_date={h.first_buy_date} expected={initial_date}"
+    print(f"    ✅ liquidated_at=None first_buy_date={h.first_buy_date}（保持建仓日期）")
     await engine.dispose()
 
 
@@ -239,8 +304,10 @@ async def main():
     await test_sell_weighted_average()
     await test_oversell_raises()
     await test_full_liquidation()
+    await test_revival_after_liquidation()
+    await test_no_liquidation_keeps_first_buy_date()
     print("\n" + "=" * 60)
-    print("✅ 全部 5 个测试通过")
+    print("✅ 全部 7 个测试通过")
     print("=" * 60)
 
 

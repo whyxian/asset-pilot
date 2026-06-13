@@ -29,6 +29,9 @@ class AssetHoldingRecord(Base):
     initial_cost_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
     initial_total_invested: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
     first_buy_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    # 清仓日期：quantity 回到 0 时由 recompute_holding 写入最后一笔 sell 的日期，
+    # 后续若复活（再次 buy）则清空。NULL 表示从未清仓或建仓时即为 0
+    liquidated_at: Mapped[datetime | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now(), nullable=True)
     created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
