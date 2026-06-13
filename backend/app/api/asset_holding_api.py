@@ -52,8 +52,9 @@ async def update_holding(ticker: str, data: AssetHoldingUpdate):
 
 @router.delete("/holdings/{ticker}", status_code=200)
 async def delete_holding(ticker: str):
-    """删除持仓"""
-    deleted = await service.delete_holding(ticker)
-    if not deleted:
+    """删除持仓 — 级联删除该 ticker 的全部交易记录"""
+    txn_count = await service.delete_holding(ticker)
+    if txn_count == -1:
         raise BusinessError(40401, "持仓不存在")
-    return success(message="持仓删除成功")
+    msg = f"持仓删除成功，同时删除 {txn_count} 条关联交易记录" if txn_count > 0 else "持仓删除成功"
+    return success(message=msg)

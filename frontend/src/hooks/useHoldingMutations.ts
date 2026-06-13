@@ -35,6 +35,7 @@ export function useDeleteHolding() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['holdings'] })
       qc.invalidateQueries({ queryKey: ['overview'] }) // 概览依赖持仓数据，联动失效
+      qc.invalidateQueries({ queryKey: ['transactions'] }) // 级联删了交易，需联动失效
     },
   })
 }

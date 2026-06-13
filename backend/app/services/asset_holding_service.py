@@ -64,19 +64,35 @@ class AssetHoldingService:
             return await self._repo.get_holding(ticker)
         return result
 
-    async def delete_holding(self, ticker: str) -> bool:
-        """删除持仓 — 拒绝删除有关联交易记录的持仓，防止孤儿数据"""
+    async def delete_holding(self, ticker: str) -> int:
+        """删除持仓 — 级联删除该 ticker 的全部关联交易记录（事务原子）
+
+        Returns:
+            一并删除的关联交易记录条数；持仓本身不存在时返回 -1
+        """
         from app.core.database import async_session
         async with async_session() as session:
-            txn_count = (await session.execute(
-                select(TransactionRecord).where(TransactionRecord.ticker == ticker).limit(1)
-            )).scalar_one_or_none()
-            if txn_count is not None:
-                raise BusinessError(
-                    40001,
-                    f"持仓 '{ticker}' 仍有关联的交易记录，请先在交易页删除全部相关交易后再删除持仓",
-                )
-        return await self._repo.delete_holding(ticker)
+            try:
+                # 先确认持仓存在
+                holding = await self._repo.get_record_in_session(session, ticker)
+                if holding is None:
+                    return -1
+
+                # 删除该 ticker 的全部交易（重算逻辑此时已无意义，跳过）
+                txn_records = (await session.execute(
+                    select(TransactionRecord).where(TransactionRecord.ticker == ticker)
+                )).scalars().all()
+                txn_count = len(txn_records)
+                for t in txn_records:
+                    await session.delete(t)
+
+                # 再删持仓
+                await session.delete(holding)
+                await session.commit()
+                return txn_count
+            except Exception:
+                await session.rollback()
+                raise
 
     async def list_holdings_with_quotes(self) -> list[HoldingWithQuote]:
         """获取持仓列表，合并实时行情并计算市值/盈亏/年化
