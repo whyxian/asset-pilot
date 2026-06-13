@@ -6,5 +6,7 @@ export function useHoldings() {
   return useQuery({
     queryKey: ['holdings', 'with-quotes'],
     queryFn: fetchHoldingsWithQuotes,
+    refetchInterval: 60_000, // 每 60 秒自动轮询行情
+    refetchIntervalInBackground: false, // 标签页隐藏时暂停轮询
   })
 }

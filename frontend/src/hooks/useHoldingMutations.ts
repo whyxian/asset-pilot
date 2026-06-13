@@ -10,6 +10,7 @@ export function useCreateHolding() {
     mutationFn: createHolding,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['holdings'] })
+      qc.invalidateQueries({ queryKey: ['overview'] }) // 概览依赖持仓数据，联动失效
     },
   })
 }
@@ -21,6 +22,7 @@ export function useUpdateHolding() {
     mutationFn: ({ ticker, data }) => updateHolding(ticker, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['holdings'] })
+      qc.invalidateQueries({ queryKey: ['overview'] }) // 概览依赖持仓数据，联动失效
     },
   })
 }
@@ -32,6 +34,7 @@ export function useDeleteHolding() {
     mutationFn: deleteHolding,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['holdings'] })
+      qc.invalidateQueries({ queryKey: ['overview'] }) // 概览依赖持仓数据，联动失效
     },
   })
 }
