@@ -7,6 +7,7 @@
 ```
 fetch_us_stocks.py        → 东方财富 API 抓美股全量列表 → JSON
 fetch_us_names.py         → 新浪源批量补英文名 → JSON
+xueqiu_company_info.py    → 雪球公司概况抓取（被 ../seed_us_variety.py 复用）
 convert_ticker_dot.py     → ticker 中 _ 替换为 . → JSON
 fetch_cn_fund.py          → akshare 抓基金全量列表 → JSON
 merge_etf_fund.py         → 合并 ETF + 普通基金 → JSON

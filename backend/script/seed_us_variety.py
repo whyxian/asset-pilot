@@ -7,7 +7,7 @@
     .venv/bin/python backend/script/seed_us_variety.py SPCX CRCL    # 一次多个
 
 抓取流程：
-1. 调用 test_xueqiu.fetch_company_info(ticker) 获取雪球公司概况表
+1. 调用 archive/xueqiu_company_info.fetch_company_info(ticker) 获取雪球公司概况表
 2. 取 "英文名称" 作为 name（项目美股目录统一用英文名）
 3. INSERT 或 UPDATE asset_varieties；is_active=True
 
@@ -18,7 +18,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-# 把项目根加到 sys.path 让 backend.test.test_xueqiu 可被 import
+# 把项目根加到 sys.path 让 backend.script.archive.xueqiu_company_info 可被 import
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -26,7 +26,7 @@ from sqlalchemy import select  # noqa: E402
 
 from app.core.database import async_session  # noqa: E402
 from app.models.orm.asset_variety_orm import AssetVarietyRecord  # noqa: E402
-from backend.test.test_xueqiu import fetch_company_info  # noqa: E402
+from backend.script.archive.xueqiu_company_info import fetch_company_info  # noqa: E402
 
 
 def _row_value(rows: list[dict], key: str) -> str:
