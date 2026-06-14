@@ -12,6 +12,8 @@ class ClosedTransaction(BaseModel):
     id: int
     closed_holding_id: int
     ticker: str
+    asset_class: str
+    market: str
     transaction_date: date
     type: str  # "buy" / "sell"
     quantity: Optional[Decimal] = None

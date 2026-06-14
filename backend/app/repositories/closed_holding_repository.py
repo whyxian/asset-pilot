@@ -87,6 +87,8 @@ def _record_to_closed_transaction(r: ClosedTransactionRecord) -> ClosedTransacti
         id=r.id,
         closed_holding_id=r.closed_holding_id,
         ticker=r.ticker,
+        asset_class=r.asset_class,
+        market=r.market,
         transaction_date=r.transaction_date if isinstance(r.transaction_date, date) else r.transaction_date.date(),
         type=r.type,
         quantity=Decimal(str(r.quantity)) if r.quantity is not None else None,

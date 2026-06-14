@@ -12,7 +12,11 @@ from app.models.orm.asset_holding_orm import AssetHoldingRecord
 
 
 class AssetHoldingRepository:
-    """持仓数据访问"""
+    """持仓数据访问
+
+    业务约束：(asset_class, market, ticker) 三元组在 asset_holdings 中唯一。
+    所有按品种定位的查询都必须传完整三元组。
+    """
 
     async def list_holdings(self) -> list[AssetHolding]:
         """获取全部持仓"""
@@ -22,20 +26,30 @@ class AssetHoldingRepository:
             )).scalars().all()
             return [_record_to_holding(r) for r in records]
 
-    async def get_holding(self, ticker: str) -> AssetHolding | None:
-        """按代码获取持仓"""
+    async def get_holding(
+        self, ticker: str, asset_class: str, market: str
+    ) -> AssetHolding | None:
+        """按三元组获取持仓"""
         async with async_session() as session:
             r = (await session.execute(
-                select(AssetHoldingRecord).where(AssetHoldingRecord.ticker == ticker)
+                select(AssetHoldingRecord).where(
+                    AssetHoldingRecord.ticker == ticker,
+                    AssetHoldingRecord.asset_class == asset_class,
+                    AssetHoldingRecord.market == market,
+                )
             )).scalar_one_or_none()
             return _record_to_holding(r) if r else None
 
     async def get_record_in_session(
-        self, session: AsyncSession, ticker: str
+        self, session: AsyncSession, ticker: str, asset_class: str, market: str
     ) -> AssetHoldingRecord | None:
         """在外部 session 内获取 ORM 记录（供事务内重算使用）"""
         return (await session.execute(
-            select(AssetHoldingRecord).where(AssetHoldingRecord.ticker == ticker)
+            select(AssetHoldingRecord).where(
+                AssetHoldingRecord.ticker == ticker,
+                AssetHoldingRecord.asset_class == asset_class,
+                AssetHoldingRecord.market == market,
+            )
         )).scalar_one_or_none()
 
     async def create_holding(self, data: AssetHoldingCreate) -> AssetHolding:
@@ -61,16 +75,22 @@ class AssetHoldingRepository:
             await session.refresh(record)
             return _record_to_holding(record)
 
-    async def update_holding(self, ticker: str, data: AssetHoldingUpdate) -> AssetHolding | None:
+    async def update_holding(
+        self, ticker: str, asset_class: str, market: str, data: AssetHoldingUpdate
+    ) -> AssetHolding | None:
         """更新持仓 — quantity/cost_price/total_invested 同步写到 initial_* 作为新基线
 
         语义：用户在持仓页手动修改持仓，相当于重设建仓基线。
-        调用方需在 update 后触发该 ticker 的全量重算（_recompute_holding），
+        调用方需在 update 后触发该 ticker 的全量重算（recompute_holding），
         以使派生字段反映"新基线 + 现有交易回放"的结果。
         """
         async with async_session() as session:
             record = (await session.execute(
-                select(AssetHoldingRecord).where(AssetHoldingRecord.ticker == ticker)
+                select(AssetHoldingRecord).where(
+                    AssetHoldingRecord.ticker == ticker,
+                    AssetHoldingRecord.asset_class == asset_class,
+                    AssetHoldingRecord.market == market,
+                )
             )).scalar_one_or_none()
             if not record:
                 return None
@@ -91,11 +111,17 @@ class AssetHoldingRepository:
             await session.refresh(record)
             return _record_to_holding(record)
 
-    async def delete_holding(self, ticker: str) -> bool:
-        """删除持仓"""
+    async def delete_holding(
+        self, ticker: str, asset_class: str, market: str
+    ) -> bool:
+        """删除持仓（仅 ORM 删除一行；不级联删交易，调用方负责）"""
         async with async_session() as session:
             record = (await session.execute(
-                select(AssetHoldingRecord).where(AssetHoldingRecord.ticker == ticker)
+                select(AssetHoldingRecord).where(
+                    AssetHoldingRecord.ticker == ticker,
+                    AssetHoldingRecord.asset_class == asset_class,
+                    AssetHoldingRecord.market == market,
+                )
             )).scalar_one_or_none()
             if not record:
                 return False

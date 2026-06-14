@@ -13,11 +13,15 @@ service = TransactionService()
 
 @router.get("/transactions")
 async def list_transactions(
-    ticker: str | None = Query(None, description="按品种筛选"),
+    ticker: str | None = Query(None, description="按品种 ticker 筛选"),
+    asset_class: str | None = Query(None, description="按资产类别筛选 STOCK/FUND/CRYPTO"),
+    market: str | None = Query(None, description="按市场筛选 CN/US/CRYPTO"),
     limit: int = Query(100, ge=1, le=500, description="返回条数上限"),
 ):
-    """获取交易记录列表（按日期倒序）"""
-    data = await service.list_transactions(ticker=ticker, limit=limit)
+    """获取交易记录列表（按日期倒序）；三个筛选都可选，按品种精确筛选时三个一起传"""
+    data = await service.list_transactions(
+        ticker=ticker, asset_class=asset_class, market=market, limit=limit
+    )
     return success(data)
 
 

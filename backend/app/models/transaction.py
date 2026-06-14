@@ -11,6 +11,8 @@ class Transaction(BaseModel):
 
     id: int
     ticker: str
+    asset_class: str        # STOCK / FUND / CRYPTO
+    market: str             # CN / US / CRYPTO
     transaction_date: date
     type: str  # "buy" / "sell"
     quantity: Decimal | None = None
@@ -23,6 +25,8 @@ class TransactionCreate(BaseModel):
     """新增交易记录 — 请求体"""
 
     ticker: str
+    asset_class: str
+    market: str
     transaction_date: date
     type: str = Field(..., pattern=r"^(buy|sell)$")  # 只允许 buy / sell
     quantity: Decimal | None = None
@@ -35,6 +39,8 @@ class TransactionUpdate(BaseModel):
     """更新交易记录 — 请求体（所有字段可选）"""
 
     ticker: str | None = None
+    asset_class: str | None = None
+    market: str | None = None
     transaction_date: date | None = None
     type: str | None = Field(None, pattern=r"^(buy|sell)$")
     quantity: Decimal | None = None

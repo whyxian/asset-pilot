@@ -24,29 +24,34 @@ from app.services.asset_holding_service import recompute_holding
 
 async def main():
     async with async_session() as session:
-        tickers = (await session.execute(
-            select(AssetHoldingRecord.ticker).order_by(AssetHoldingRecord.ticker)
-        )).scalars().all()
+        rows = (await session.execute(
+            select(
+                AssetHoldingRecord.ticker,
+                AssetHoldingRecord.asset_class,
+                AssetHoldingRecord.market,
+            ).order_by(AssetHoldingRecord.ticker)
+        )).all()
 
-    if not tickers:
+    if not rows:
         print("📭 持仓表为空，无需回算")
         return
 
-    print(f"🔄 准备回算 {len(tickers)} 个持仓品种")
+    print(f"🔄 准备回算 {len(rows)} 个持仓品种")
     success, failed = 0, 0
-    for ticker in tickers:
+    for ticker, asset_class, market in rows:
+        label = f"{ticker} ({asset_class}/{market})"
         try:
             async with async_session() as session:
-                await recompute_holding(session, ticker)
+                await recompute_holding(session, ticker, asset_class, market)
                 await session.commit()
             success += 1
-            print(f"  ✅ {ticker}")
+            print(f"  ✅ {label}")
         except BusinessError as e:
             failed += 1
-            print(f"  ❌ {ticker}: {e.message}")
+            print(f"  ❌ {label}: {e.message}")
         except Exception as e:
             failed += 1
-            print(f"  ❌ {ticker}: {type(e).__name__}: {e}")
+            print(f"  ❌ {label}: {type(e).__name__}: {e}")
 
     print(f"\n📊 回算完成：成功 {success}，失败 {failed}")
 

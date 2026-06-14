@@ -14,18 +14,26 @@ class TransactionRepository:
     """交易记录数据访问"""
 
     async def list_transactions(
-        self, ticker: str | None = None, limit: int = 100
+        self,
+        ticker: str | None = None,
+        asset_class: str | None = None,
+        market: str | None = None,
+        limit: int = 100,
     ) -> list[Transaction]:
         """获取交易记录列表（按日期倒序）
 
-        Args:
-            ticker: 可选，按品种筛选
-            limit: 返回条数上限
+        三个筛选都是可选；任一非空就加 where 条件。要按持仓精确筛选时三个一起传。
         """
         async with async_session() as session:
-            stmt = select(TransactionRecord).order_by(TransactionRecord.transaction_date.desc())
+            stmt = select(TransactionRecord).order_by(
+                TransactionRecord.transaction_date.desc(), TransactionRecord.id.desc()
+            )
             if ticker:
                 stmt = stmt.where(TransactionRecord.ticker == ticker)
+            if asset_class:
+                stmt = stmt.where(TransactionRecord.asset_class == asset_class)
+            if market:
+                stmt = stmt.where(TransactionRecord.market == market)
             stmt = stmt.limit(limit)
             records = (await session.execute(stmt)).scalars().all()
             return [_record_to_transaction(r) for r in records]
@@ -42,6 +50,8 @@ class TransactionRepository:
         """新增交易记录"""
         record = TransactionRecord(
             ticker=data.ticker,
+            asset_class=data.asset_class,
+            market=data.market,
             transaction_date=data.transaction_date,
             type=data.type,
             quantity=data.quantity if data.quantity is not None else None,
@@ -69,10 +79,7 @@ class TransactionRepository:
             update_data = data.model_dump(exclude_unset=True)
             for key, value in update_data.items():
                 if value is not None:
-                    if key in ("quantity", "unit_price", "amount"):
-                        setattr(record, key, value)  # Decimal 直接赋值，无需 float()
-                    else:
-                        setattr(record, key, value)
+                    setattr(record, key, value)
             await session.commit()
             await session.refresh(record)
             return _record_to_transaction(record)
@@ -95,6 +102,8 @@ def _record_to_transaction(r: TransactionRecord) -> Transaction:
     return Transaction(
         id=r.id,
         ticker=r.ticker,
+        asset_class=r.asset_class,
+        market=r.market,
         transaction_date=r.transaction_date if isinstance(r.transaction_date, date) else r.transaction_date.date(),
         type=r.type,
         quantity=Decimal(str(r.quantity)) if r.quantity is not None else None,

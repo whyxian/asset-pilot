@@ -1,4 +1,8 @@
-"""持仓业务逻辑"""
+"""持仓业务逻辑
+
+数据约束：(asset_class, market, ticker) 三元组唯一定位一笔持仓。
+所有按品种操作的函数都必须传完整三元组。
+"""
 
 from collections import defaultdict
 from datetime import date
@@ -27,9 +31,11 @@ class AssetHoldingService:
         """获取全部持仓"""
         return await self._repo.list_holdings()
 
-    async def get_holding(self, ticker: str) -> AssetHolding | None:
-        """按代码获取持仓"""
-        return await self._repo.get_holding(ticker)
+    async def get_holding(
+        self, ticker: str, asset_class: str, market: str
+    ) -> AssetHolding | None:
+        """按三元组获取持仓"""
+        return await self._repo.get_holding(ticker, asset_class, market)
 
     async def create_holding(self, data: AssetHoldingCreate) -> AssetHolding:
         """新增持仓（建仓 = 设定基线，校验品种是否存在，名称空时从品种记录自动补填）"""
@@ -41,7 +47,9 @@ class AssetHoldingService:
             data = data.model_copy(update={"name": variety.name})
         return await self._repo.create_holding(data)
 
-    async def update_holding(self, ticker: str, data: AssetHoldingUpdate) -> AssetHolding | None:
+    async def update_holding(
+        self, ticker: str, asset_class: str, market: str, data: AssetHoldingUpdate
+    ) -> AssetHolding | None:
         """更新持仓 — 修改 baseline 后触发该 ticker 的全量重算
 
         注意：用户在持仓页修改 quantity/cost_price/total_invested 时，
@@ -49,7 +57,7 @@ class AssetHoldingService:
         反映"新基线 + 现有交易回放"的结果。如该 ticker 没有交易，
         重算结果 == 新 baseline，等价于直接修改派生字段。
         """
-        result = await self._repo.update_holding(ticker, data)
+        result = await self._repo.update_holding(ticker, asset_class, market, data)
         if result is None:
             return None
 
@@ -58,14 +66,16 @@ class AssetHoldingService:
         if any(k in update_dict for k in ("quantity", "cost_price", "total_invested")):
             from app.core.database import async_session  # 局部导入避免循环
             async with async_session() as session:
-                await recompute_holding(session, ticker)
+                await recompute_holding(session, ticker, asset_class, market)
                 await session.commit()
             # 重算后再读一次返回最新值
-            return await self._repo.get_holding(ticker)
+            return await self._repo.get_holding(ticker, asset_class, market)
         return result
 
-    async def delete_holding(self, ticker: str) -> int:
-        """删除持仓 — 级联删除该 ticker 的全部关联交易记录（事务原子）
+    async def delete_holding(
+        self, ticker: str, asset_class: str, market: str
+    ) -> int:
+        """删除持仓 — 级联删除该品种的全部关联交易记录（事务原子）
 
         Returns:
             一并删除的关联交易记录条数；持仓本身不存在时返回 -1
@@ -74,13 +84,17 @@ class AssetHoldingService:
         async with async_session() as session:
             try:
                 # 先确认持仓存在
-                holding = await self._repo.get_record_in_session(session, ticker)
+                holding = await self._repo.get_record_in_session(session, ticker, asset_class, market)
                 if holding is None:
                     return -1
 
-                # 删除该 ticker 的全部交易（重算逻辑此时已无意义，跳过）
+                # 删除该品种(三元组定位)的全部交易
                 txn_records = (await session.execute(
-                    select(TransactionRecord).where(TransactionRecord.ticker == ticker)
+                    select(TransactionRecord).where(
+                        TransactionRecord.ticker == ticker,
+                        TransactionRecord.asset_class == asset_class,
+                        TransactionRecord.market == market,
+                    )
                 )).scalars().all()
                 txn_count = len(txn_records)
                 for t in txn_records:
@@ -113,12 +127,13 @@ class AssetHoldingService:
         for (ac, market), tickers in groups.items():
             quotes = await self._quote_svc.fetch_quotes_by_asset_class(ac, market, tickers)
             for q in quotes:
-                quote_map[q.ticker] = q
+                # 行情按 (asset_class, market, ticker) 三元组定位，避免不同品种 ticker 冲突
+                quote_map[(ac, market, q.ticker)] = q
 
         today = date.today()
         results = []
         for h in holdings:
-            q = quote_map.get(h.ticker)
+            q = quote_map.get((h.asset_class, h.market, h.ticker))
             current_price = q.price if q else Decimal("0")
             market_value = h.quantity * current_price
             pnl = market_value - h.total_invested
@@ -158,12 +173,14 @@ class AssetHoldingService:
         return results
 
 
-async def recompute_holding(session: AsyncSession, ticker: str) -> None:
-    """全量重算指定 ticker 的派生持仓字段（quantity / cost_price / total_invested / liquidated_at）
+async def recompute_holding(
+    session: AsyncSession, ticker: str, asset_class: str, market: str
+) -> None:
+    """全量重算指定品种的派生持仓字段（quantity / cost_price / total_invested / liquidated_at）
 
     算法：
         1. 以 holdings 行的 initial_* 三列作为起点 (q, p, t)
-        2. 按 (transaction_date 升序, id 升序) 顺序回放该 ticker 全部交易：
+        2. 按 (transaction_date 升序, id 升序) 顺序回放该品种全部交易（三元组过滤）：
            - buy:  amt = transaction.amount 优先，否则 quantity * unit_price
                    new_q = q + qty
                    new_t = t + amt
@@ -179,33 +196,37 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
            最终 q > 0：liquidated_at = None。
 
     注：自从引入 closed_holdings 归档机制后，"清仓后再 buy 复活"的场景
-    不会再发生（清仓 → 立即归档 → holdings 中无此 ticker → 再交易会被
+    不会再发生（清仓 → 立即归档 → holdings 中无此品种 → 再交易会被
     "必须先建仓"校验拦下）。所以本函数不再处理复活逻辑。
 
     Args:
         session: 外部传入的 session（必须由调用方控制 commit/rollback）
-        ticker: 持仓代码
+        ticker, asset_class, market: 三元组定位品种
 
     Raises:
-        BusinessError: holdings 中不存在该 ticker，或某笔 sell 卖超
+        BusinessError: holdings 中不存在该品种，或某笔 sell 卖超
     """
     from app.repositories.asset_holding_repository import AssetHoldingRepository
     repo = AssetHoldingRepository()
 
-    # 取持仓 ORM 记录
-    holding = await repo.get_record_in_session(session, ticker)
+    # 取持仓 ORM 记录（按三元组）
+    holding = await repo.get_record_in_session(session, ticker, asset_class, market)
     if holding is None:
-        raise BusinessError(40401, f"持仓 '{ticker}' 不存在，无法重算")
+        raise BusinessError(40401, f"持仓 '{ticker}' ({asset_class}/{market}) 不存在，无法重算")
 
     # 起点 = 建仓基线
     q = Decimal(str(holding.initial_quantity))
     p = Decimal(str(holding.initial_cost_price))
     t = Decimal(str(holding.initial_total_invested))
 
-    # 按时间正序回放该 ticker 的全部交易
+    # 按时间正序回放该品种的全部交易（三元组过滤，避免不同品种同 ticker 串扰）
     txns = (await session.execute(
         select(TransactionRecord)
-        .where(TransactionRecord.ticker == ticker)
+        .where(
+            TransactionRecord.ticker == ticker,
+            TransactionRecord.asset_class == asset_class,
+            TransactionRecord.market == market,
+        )
         .order_by(TransactionRecord.transaction_date.asc(), TransactionRecord.id.asc())
     )).scalars().all()
 
@@ -270,14 +291,16 @@ async def recompute_holding(session: AsyncSession, ticker: str) -> None:
     # session.commit() 由调用方负责
 
 
-async def archive_holding(session: AsyncSession, ticker: str) -> int:
+async def archive_holding(
+    session: AsyncSession, ticker: str, asset_class: str, market: str
+) -> int:
     """把 quantity=0 的持仓归档到 closed_holdings + closed_transactions，并删除原表对应记录。
 
     调用方负责 commit / rollback。
 
     Args:
         session: 外部 session
-        ticker: 持仓代码
+        ticker, asset_class, market: 三元组定位品种
 
     Returns:
         新建的 closed_holding.id
@@ -289,15 +312,19 @@ async def archive_holding(session: AsyncSession, ticker: str) -> int:
     from app.repositories.asset_holding_repository import AssetHoldingRepository
     repo = AssetHoldingRepository()
 
-    holding = await repo.get_record_in_session(session, ticker)
+    holding = await repo.get_record_in_session(session, ticker, asset_class, market)
     if holding is None:
-        raise BusinessError(40401, f"持仓 '{ticker}' 不存在，无法归档")
+        raise BusinessError(40401, f"持仓 '{ticker}' ({asset_class}/{market}) 不存在，无法归档")
     if Decimal(str(holding.quantity)) != Decimal("0"):
         raise BusinessError(40001, f"持仓 '{ticker}' quantity={holding.quantity} 非 0，不能归档")
 
     txns = (await session.execute(
         select(TransactionRecord)
-        .where(TransactionRecord.ticker == ticker)
+        .where(
+            TransactionRecord.ticker == ticker,
+            TransactionRecord.asset_class == asset_class,
+            TransactionRecord.market == market,
+        )
         .order_by(TransactionRecord.transaction_date.asc(), TransactionRecord.id.asc())
     )).scalars().all()
 
@@ -350,11 +377,13 @@ async def archive_holding(session: AsyncSession, ticker: str) -> int:
     session.add(closed)
     await session.flush()  # 拿 closed.id
 
-    # INSERT closed_transactions（关联到 closed.id）
+    # INSERT closed_transactions（关联到 closed.id；带上品种三元组）
     for txn in txns:
         session.add(ClosedTransactionRecord(
             closed_holding_id=closed.id,
             ticker=txn.ticker,
+            asset_class=txn.asset_class,
+            market=txn.market,
             transaction_date=txn.transaction_date,
             type=txn.type,
             quantity=txn.quantity,

@@ -35,13 +35,14 @@ async def _make_engine():
 
 
 async def _seed_holding(session: AsyncSession, HoldingRecord, ticker: str,
-                         qty: str, cost: str, total: str, dt: date = date(2024, 1, 1)):
+                         qty: str, cost: str, total: str, dt: date = date(2024, 1, 1),
+                         asset_class: str = "STOCK", market: str = "CN"):
     """种入一条持仓基线（initial_* = quantity = ...）"""
     h = HoldingRecord(
         ticker=ticker,
         name=ticker,
-        market="CN",
-        asset_class="STOCK",
+        market=market,
+        asset_class=asset_class,
         currency="CNY",
         quantity=Decimal(qty),
         cost_price=Decimal(cost),
@@ -57,10 +58,13 @@ async def _seed_holding(session: AsyncSession, HoldingRecord, ticker: str,
 
 async def _add_txn(session: AsyncSession, TxnRecord, ticker: str, type_: str,
                     dt: date, qty: str | None = None, price: str | None = None,
-                    amount: str | None = None):
+                    amount: str | None = None,
+                    asset_class: str = "STOCK", market: str = "CN"):
     """种入一条交易"""
     t = TxnRecord(
         ticker=ticker,
+        asset_class=asset_class,
+        market=market,
         transaction_date=dt,
         type=type_,
         quantity=Decimal(qty) if qty else None,
@@ -71,9 +75,14 @@ async def _add_txn(session: AsyncSession, TxnRecord, ticker: str, type_: str,
     await session.commit()
 
 
-async def _read_holding(session: AsyncSession, HoldingRecord, ticker: str):
+async def _read_holding(session: AsyncSession, HoldingRecord, ticker: str,
+                         asset_class: str = "STOCK", market: str = "CN"):
     return (await session.execute(
-        select(HoldingRecord).where(HoldingRecord.ticker == ticker)
+        select(HoldingRecord).where(
+            HoldingRecord.ticker == ticker,
+            HoldingRecord.asset_class == asset_class,
+            HoldingRecord.market == market,
+        )
     )).scalar_one()
 
 
@@ -100,7 +109,7 @@ async def test_baseline_only():
         await _seed_holding(session, HoldingRecord, "TEST", "100", "10", "1000")
 
     async with Session() as session:
-        await recompute_holding(session, "TEST")
+        await recompute_holding(session, "TEST", "STOCK", "CN")
         await session.commit()
 
     async with Session() as session:
@@ -129,7 +138,7 @@ async def test_buy_after_baseline():
                         qty="50", price="12", amount="600")
 
     async with Session() as session:
-        await recompute_holding(session, "TEST")
+        await recompute_holding(session, "TEST", "STOCK", "CN")
         await session.commit()
 
     async with Session() as session:
@@ -160,7 +169,7 @@ async def test_sell_lowers_cost():
                         qty="30", price="15")
 
     async with Session() as session:
-        await recompute_holding(session, "TEST")
+        await recompute_holding(session, "TEST", "STOCK", "CN")
         await session.commit()
 
     async with Session() as session:
@@ -194,7 +203,7 @@ async def test_oversell_raises():
     raised = False
     async with Session() as session:
         try:
-            await recompute_holding(session, "TEST")
+            await recompute_holding(session, "TEST", "STOCK", "CN")
         except BusinessError as e:
             raised = True
             print(f"    ✅ 已抛 BusinessError: {e.message}")
@@ -219,7 +228,7 @@ async def test_full_liquidation():
         await _add_txn(session, TxnRecord, "TEST", "sell", sell_date, qty="100", price="15")
 
     async with Session() as session:
-        await recompute_holding(session, "TEST")
+        await recompute_holding(session, "TEST", "STOCK", "CN")
         await session.commit()
 
     async with Session() as session:
@@ -252,8 +261,8 @@ async def test_archive_on_full_sell():
         await _add_txn(session, TxnRecord, "TEST", "sell", sell_date, qty="100", price="15")
 
     async with Session() as session:
-        await recompute_holding(session, "TEST")
-        closed_id = await archive_holding(session, "TEST")
+        await recompute_holding(session, "TEST", "STOCK", "CN")
+        closed_id = await archive_holding(session, "TEST", "STOCK", "CN")
         await session.commit()
         assert closed_id is not None and closed_id > 0
 
@@ -312,7 +321,7 @@ async def test_no_liquidation_keeps_first_buy_date():
                         qty="50", price="12", amount="600")
 
     async with Session() as session:
-        await recompute_holding(session, "TEST")
+        await recompute_holding(session, "TEST", "STOCK", "CN")
         await session.commit()
 
     async with Session() as session:
@@ -340,7 +349,7 @@ async def test_cost_floor_zero():
                         qty="50", price="30")
 
     async with Session() as session:
-        await recompute_holding(session, "TEST")
+        await recompute_holding(session, "TEST", "STOCK", "CN")
         await session.commit()
 
     async with Session() as session:

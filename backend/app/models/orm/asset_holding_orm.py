@@ -3,7 +3,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Integer, Numeric, String, func
+from sqlalchemy import Date, DateTime, Integer, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -13,9 +13,14 @@ class AssetHoldingRecord(Base):
     """当前持仓记录表"""
 
     __tablename__ = "asset_holdings"
+    __table_args__ = (
+        # 同一品种(三元组)只允许一行；同 ticker 不同 market/asset_class 可共存
+        # （例：A 股 000001=平安银行 与 基金 000001=华夏成长 可同时持有）
+        UniqueConstraint("asset_class", "market", "ticker", name="uq_holding_class_market_ticker"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ticker: Mapped[str] = mapped_column(String(30), nullable=False, index=True, unique=True)
+    ticker: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), default="")
     market: Mapped[str] = mapped_column(String(10), nullable=False)
     asset_class: Mapped[str] = mapped_column(String(10), nullable=False)

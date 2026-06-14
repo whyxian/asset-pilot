@@ -1,4 +1,8 @@
-"""交易记录业务逻辑"""
+"""交易记录业务逻辑
+
+业务约束：transactions 表通过 (asset_class, market, ticker) 三元组关联到 holdings 中
+唯一一笔持仓。所有按品种操作都必须传完整三元组。
+"""
 
 from sqlalchemy import select
 
@@ -18,10 +22,16 @@ class TransactionService:
         self._repo = TransactionRepository()
 
     async def list_transactions(
-        self, ticker: str | None = None, limit: int = 100
+        self,
+        ticker: str | None = None,
+        asset_class: str | None = None,
+        market: str | None = None,
+        limit: int = 100,
     ) -> list[Transaction]:
-        """获取交易记录列表"""
-        return await self._repo.list_transactions(ticker=ticker, limit=limit)
+        """获取交易记录列表（按日期倒序）；三个筛选都是可选"""
+        return await self._repo.list_transactions(
+            ticker=ticker, asset_class=asset_class, market=market, limit=limit
+        )
 
     async def get_transaction(self, transaction_id: int) -> Transaction | None:
         """获取单条交易记录"""
@@ -31,9 +41,8 @@ class TransactionService:
         """新增交易记录（事务内：写入 + 重算持仓 + 必要时归档，原子操作）
 
         校验链：
-        1. 品种存在性
-        2. (quantity + unit_price) 或 amount 至少一组
-        3. 必须先建仓 — 持仓表中必须已存在该 ticker
+        1. (quantity + unit_price) 或 amount 至少一组
+        2. 必须先建仓 — 持仓表中必须已存在 (asset_class, market, ticker) 三元组
         """
         await self._validate_create_payload(data)
 
@@ -41,6 +50,8 @@ class TransactionService:
             try:
                 record = TransactionRecord(
                     ticker=data.ticker,
+                    asset_class=data.asset_class,
+                    market=data.market,
                     transaction_date=data.transaction_date,
                     type=data.type,
                     quantity=data.quantity,
@@ -52,13 +63,13 @@ class TransactionService:
                 await session.flush()  # 让 INSERT 落到当前事务，便于重算时 SELECT 到
 
                 # 在同一事务内回放重算持仓
-                await recompute_holding(session, data.ticker)
+                await recompute_holding(session, data.ticker, data.asset_class, data.market)
 
                 # 提前快照（归档会删除 record，refresh 会失败）
                 snapshot = _orm_to_transaction(record)
 
-                # 如果重算后持仓为 0，立即归档（持仓 + 全部交易搬到 closed_*，原表删除）
-                await self._archive_if_zero(session, data.ticker)
+                # 如果重算后持仓为 0，立即归档
+                await self._archive_if_zero(session, data.ticker, data.asset_class, data.market)
 
                 await session.commit()
                 return snapshot
@@ -66,22 +77,28 @@ class TransactionService:
                 await session.rollback()
                 raise
 
-    async def _archive_if_zero(self, session, ticker: str) -> None:
-        """重算后如果该 ticker 持仓为 0，触发归档"""
-        from app.models.orm.asset_holding_orm import AssetHoldingRecord
+    async def _archive_if_zero(
+        self, session, ticker: str, asset_class: str, market: str
+    ) -> None:
+        """重算后如果该品种持仓为 0，触发归档"""
         from decimal import Decimal as _D
         holding = (await session.execute(
-            select(AssetHoldingRecord).where(AssetHoldingRecord.ticker == ticker)
+            select(AssetHoldingRecord).where(
+                AssetHoldingRecord.ticker == ticker,
+                AssetHoldingRecord.asset_class == asset_class,
+                AssetHoldingRecord.market == market,
+            )
         )).scalar_one_or_none()
         if holding is not None and _D(str(holding.quantity)) == _D("0"):
-            await archive_holding(session, ticker)
+            await archive_holding(session, ticker, asset_class, market)
 
     async def update_transaction(
         self, transaction_id: int, data: TransactionUpdate
     ) -> Transaction | None:
-        """更新交易记录（事务内：写入 + 重算受影响 ticker，原子操作）
+        """更新交易记录（事务内：写入 + 重算受影响品种，原子操作）
 
-        如果修改了 ticker，需要重算新旧两个 ticker（旧 ticker 少了这笔，新 ticker 多了这笔）。
+        如果修改了三元组（ticker / asset_class / market 任一），需要重算
+        新旧两个品种（旧的少了这笔，新的多了这笔）。
         """
         async with async_session() as session:
             try:
@@ -91,18 +108,28 @@ class TransactionService:
                 if not record:
                     return None
 
-                old_ticker = record.ticker
-                new_ticker = data.ticker if data.ticker is not None else old_ticker
+                # 旧三元组（用于回算）
+                old_triple = (record.ticker, record.asset_class, record.market)
 
-                # 改 ticker 时，新 ticker 也必须有持仓基线
-                if new_ticker != old_ticker:
+                # 新三元组：data 里有就替换，没传则保留原值
+                new_ticker = data.ticker if data.ticker is not None else record.ticker
+                new_class = data.asset_class if data.asset_class is not None else record.asset_class
+                new_market = data.market if data.market is not None else record.market
+                new_triple = (new_ticker, new_class, new_market)
+
+                # 改三元组时，新品种也必须有持仓基线
+                if new_triple != old_triple:
                     holding = (await session.execute(
-                        select(AssetHoldingRecord).where(AssetHoldingRecord.ticker == new_ticker)
+                        select(AssetHoldingRecord).where(
+                            AssetHoldingRecord.ticker == new_ticker,
+                            AssetHoldingRecord.asset_class == new_class,
+                            AssetHoldingRecord.market == new_market,
+                        )
                     )).scalar_one_or_none()
                     if not holding:
                         raise BusinessError(
                             40001,
-                            f"请先在持仓页新增 {new_ticker} 的建仓记录，再录入交易",
+                            f"请先在持仓页新增 {new_ticker} ({new_class}/{new_market}) 的建仓记录，再录入交易",
                         )
 
                 # 应用更新
@@ -111,17 +138,17 @@ class TransactionService:
                     setattr(record, key, value)
                 await session.flush()
 
-                # 重算：先旧后新（如果 ticker 改了，两个都要算）
-                tickers_to_recompute = {old_ticker, new_ticker}
-                for t in tickers_to_recompute:
-                    await recompute_holding(session, t)
+                # 重算：新旧三元组都要算
+                triples_to_recompute = {old_triple, new_triple}
+                for t, ac, mk in triples_to_recompute:
+                    await recompute_holding(session, t, ac, mk)
 
                 # 提前快照（归档会删除 record）
                 snapshot = _orm_to_transaction(record)
 
-                # 任一 ticker 持仓为 0 都要归档
-                for t in tickers_to_recompute:
-                    await self._archive_if_zero(session, t)
+                # 任一品种持仓为 0 都要归档
+                for t, ac, mk in triples_to_recompute:
+                    await self._archive_if_zero(session, t, ac, mk)
 
                 await session.commit()
                 return snapshot
@@ -130,7 +157,7 @@ class TransactionService:
                 raise
 
     async def delete_transaction(self, transaction_id: int) -> bool:
-        """删除交易记录（事务内：删除 + 重算原 ticker，原子操作）"""
+        """删除交易记录（事务内：删除 + 重算原品种，原子操作）"""
         async with async_session() as session:
             try:
                 record = (await session.execute(
@@ -140,12 +167,14 @@ class TransactionService:
                     return False
 
                 ticker = record.ticker
+                asset_class = record.asset_class
+                market = record.market
                 await session.delete(record)
                 await session.flush()
 
-                # 重算原 ticker（少了这笔交易）— 注意：可能恰好让持仓为 0 触发归档
-                await recompute_holding(session, ticker)
-                await self._archive_if_zero(session, ticker)
+                # 重算原品种（少了这笔交易）— 注意：可能恰好让持仓为 0 触发归档
+                await recompute_holding(session, ticker, asset_class, market)
+                await self._archive_if_zero(session, ticker, asset_class, market)
 
                 await session.commit()
                 return True
@@ -154,13 +183,7 @@ class TransactionService:
                 raise
 
     async def _validate_create_payload(self, data: TransactionCreate) -> None:
-        """create 的前置业务校验：字段组合 / 必须先建仓
-
-        说明：不再校验 asset_varieties — 因为 (ticker) 在该表非唯一
-        （UNIQUE 是 (asset_class, market, ticker) 组合），单 ticker 可能命中多行。
-        持仓表的 ticker 是唯一的，且建仓时已校验过品种存在，
-        所以"必须先建仓"这一步就足够了。
-        """
+        """create 的前置业务校验：字段组合 / 必须先建仓"""
         # 至少填 quantity+unit_price 或 amount 之一
         has_qty_price = data.quantity is not None and data.unit_price is not None
         has_amount = data.amount is not None
@@ -170,25 +193,31 @@ class TransactionService:
                 "请填写 (数量 + 成交价) 或 (交易金额)，至少填一组",
             )
 
-        # 必须先建仓
+        # 必须先建仓（按三元组定位）
         async with async_session() as session:
             holding = (await session.execute(
-                select(AssetHoldingRecord).where(AssetHoldingRecord.ticker == data.ticker)
+                select(AssetHoldingRecord).where(
+                    AssetHoldingRecord.ticker == data.ticker,
+                    AssetHoldingRecord.asset_class == data.asset_class,
+                    AssetHoldingRecord.market == data.market,
+                )
             )).scalar_one_or_none()
             if not holding:
                 raise BusinessError(
                     40001,
-                    f"请先在持仓页新增 {data.ticker} 的建仓记录，再录入交易",
+                    f"请先在持仓页新增 {data.ticker} ({data.asset_class}/{data.market}) 的建仓记录，再录入交易",
                 )
 
 
 def _orm_to_transaction(r: TransactionRecord) -> Transaction:
-    """ORM 记录转 Pydantic 模型（与 transaction_repository 内部函数等价，避免在 service 层反向引用 repo 内部函数）"""
+    """ORM 记录转 Pydantic 模型（与 transaction_repository 内部函数等价）"""
     from datetime import date as date_type
     from decimal import Decimal
     return Transaction(
         id=r.id,
         ticker=r.ticker,
+        asset_class=r.asset_class,
+        market=r.market,
         transaction_date=r.transaction_date if isinstance(r.transaction_date, date_type) else r.transaction_date.date(),
         type=r.type,
         quantity=Decimal(str(r.quantity)) if r.quantity is not None else None,
