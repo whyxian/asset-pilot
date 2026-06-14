@@ -10,16 +10,24 @@ from app.core.database import Base
 
 
 class AssetQuoteRecord(Base):
-    """资产报价记录表"""
+    """资产报价记录表
+
+    业务约束：(asset_class, market, ticker) 三元组才能唯一定位品种
+    （A 股 000001 vs 基金 000001 ticker 重合），所以行情快照按
+    (asset_class, market, ticker, timestamp) 四元组去重。
+    """
 
     __tablename__ = "asset_quote"
     __table_args__ = (
-        # 同一标的同一时间戳只允许一条行情，避免重复写入
-        UniqueConstraint("ticker", "timestamp", name="uq_quote_ticker_timestamp"),
+        UniqueConstraint(
+            "asset_class", "market", "ticker", "timestamp",
+            name="uq_quote_class_market_ticker_ts",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ticker: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    asset_class: Mapped[str] = mapped_column(String(10), nullable=False)
     market: Mapped[str] = mapped_column(String(10), nullable=False)
     name: Mapped[str] = mapped_column(String(200), default="")
     price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
