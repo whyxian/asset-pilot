@@ -68,6 +68,8 @@ export function TransactionsPage() {
 
   function handleFormSubmit(data: {
     ticker: string
+    asset_class: string
+    market: string
     transaction_date: string
     type: 'buy' | 'sell'
     quantity: string
@@ -79,6 +81,8 @@ export function TransactionsPage() {
       // 仅提交变更字段（与持仓页 update 风格一致）
       const payload: TransactionUpdate = {}
       if (data.ticker !== editingTxn.ticker) payload.ticker = data.ticker
+      if (data.asset_class !== editingTxn.asset_class) payload.asset_class = data.asset_class
+      if (data.market !== editingTxn.market) payload.market = data.market
       if (data.transaction_date !== editingTxn.transaction_date)
         payload.transaction_date = data.transaction_date
       if (data.type !== editingTxn.type) payload.type = data.type
@@ -98,6 +102,8 @@ export function TransactionsPage() {
     } else {
       const payload: TransactionCreate = {
         ticker: data.ticker,
+        asset_class: data.asset_class,
+        market: data.market,
         transaction_date: data.transaction_date,
         type: data.type,
         quantity: toNumOrNull(data.quantity),

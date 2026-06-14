@@ -21,6 +21,8 @@ import type { Transaction } from '@/types'
 
 interface TransactionFormData {
   ticker: string
+  asset_class: string
+  market: string
   transaction_date: string
   type: 'buy' | 'sell'
   quantity: string
@@ -32,6 +34,8 @@ interface TransactionFormData {
 function emptyForm(): TransactionFormData {
   return {
     ticker: '',
+    asset_class: '',
+    market: '',
     transaction_date: new Date().toISOString().slice(0, 10),
     type: 'buy',
     quantity: '',
@@ -44,6 +48,8 @@ function emptyForm(): TransactionFormData {
 function transactionToForm(t: Transaction): TransactionFormData {
   return {
     ticker: t.ticker,
+    asset_class: t.asset_class,
+    market: t.market,
     transaction_date: t.transaction_date,
     type: t.type,
     quantity: t.quantity != null ? String(t.quantity) : '',
@@ -165,6 +171,7 @@ export function TransactionFormDialog({
     ticker: h.ticker,
     name: h.name,
     market: h.market,
+    asset_class: h.asset_class,
     isOrphan: false,
   }))
   if (form.ticker && !tickerOptions.some((o) => o.ticker === form.ticker)) {
@@ -172,6 +179,7 @@ export function TransactionFormDialog({
       ticker: form.ticker,
       name: '(持仓中找不到该 ticker)',
       market: '',
+      asset_class: '',
       isOrphan: true,
     })
   }
@@ -181,7 +189,7 @@ export function TransactionFormDialog({
     `text-xs font-medium ${errors[key] ? 'text-destructive' : 'text-muted-foreground'}`
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => { if (!isPending) onOpenChange(next) }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? '编辑交易' : '新增交易'}</DialogTitle>
@@ -191,28 +199,40 @@ export function TransactionFormDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* 持仓品种下拉 */}
+          {/* 持仓品种下拉（value 用 "ticker|asset_class|market" 三元组以区分同 ticker 不同品种） */}
           <div>
             <label className={labelClass('ticker')}>代码</label>
             <Select
-              value={form.ticker}
-              onValueChange={(v) => updateField('ticker', v)}
+              value={form.ticker ? `${form.ticker}|${form.asset_class}|${form.market}` : ''}
+              onValueChange={(v) => {
+                const [ticker, asset_class, market] = v.split('|')
+                setForm((prev) => ({ ...prev, ticker, asset_class, market }))
+                setErrors((prev) => {
+                  if (!prev.ticker) return prev
+                  const next = { ...prev }
+                  delete next.ticker
+                  return next
+                })
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder={tickerOptions.length === 0 ? '尚无持仓 — 请先在持仓页建仓' : '选择持仓品种'} />
               </SelectTrigger>
               <SelectContent>
-                {tickerOptions.map((o) => (
-                  <SelectItem key={o.ticker} value={o.ticker} disabled={o.isOrphan}>
-                    <span className="font-medium">{o.ticker}</span>
-                    <span className="ml-2 text-muted-foreground">{o.name}</span>
-                    {o.market && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {marketOptionLabel[o.market] || o.market}
-                      </span>
-                    )}
-                  </SelectItem>
-                ))}
+                {tickerOptions.map((o) => {
+                  const triple = `${o.ticker}|${o.asset_class}|${o.market}`
+                  return (
+                    <SelectItem key={triple} value={triple} disabled={o.isOrphan}>
+                      <span className="font-medium">{o.ticker}</span>
+                      <span className="ml-2 text-muted-foreground">{o.name}</span>
+                      {o.market && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {marketOptionLabel[o.market] || o.market}
+                        </span>
+                      )}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
             {errors.ticker && <p className="mt-1 text-xs text-destructive">{errors.ticker}</p>}
@@ -301,7 +321,7 @@ export function TransactionFormDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             取消
           </Button>
           <Button onClick={handleSubmit} disabled={isPending}>

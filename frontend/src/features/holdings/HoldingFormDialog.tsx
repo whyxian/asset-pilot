@@ -251,7 +251,7 @@ export function HoldingFormDialog({
     `text-xs font-medium ${errors[key] ? 'text-destructive' : 'text-muted-foreground'}`
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => { if (!isPending) onOpenChange(next) }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? '编辑持仓' : '新增持仓'}</DialogTitle>
@@ -410,7 +410,7 @@ export function HoldingFormDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             取消
           </Button>
           <Button onClick={handleSubmit} disabled={isPending}>

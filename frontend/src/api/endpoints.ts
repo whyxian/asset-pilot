@@ -13,13 +13,13 @@ export const fetchHoldingsWithQuotes = () =>
 export const createHolding = (data: HoldingCreate) =>
   apiClient.post('/api/v1/holdings', data) as Promise<HoldingWithQuote>
 
-/** 更新持仓 */
-export const updateHolding = (ticker: string, data: HoldingUpdate) =>
-  apiClient.put(`/api/v1/holdings/${ticker}`, data) as Promise<HoldingWithQuote>
+/** 更新持仓（按三元组定位） */
+export const updateHolding = (ticker: string, asset_class: string, market: string, data: HoldingUpdate) =>
+  apiClient.put(`/api/v1/holdings/${ticker}`, data, { params: { asset_class, market } }) as Promise<HoldingWithQuote>
 
-/** 删除持仓 */
-export const deleteHolding = (ticker: string) =>
-  apiClient.delete(`/api/v1/holdings/${ticker}`) as Promise<void>
+/** 删除持仓（按三元组定位，级联删交易） */
+export const deleteHolding = (ticker: string, asset_class: string, market: string) =>
+  apiClient.delete(`/api/v1/holdings/${ticker}`, { params: { asset_class, market } }) as Promise<void>
 
 // ═══════════════════════════════════════════
 // 概览
@@ -73,10 +73,15 @@ export const fetchFundQuotes = (market: 'CN' | 'US', codes: string[]) =>
 // 交易记录
 // ═══════════════════════════════════════════
 
-/** 获取交易记录列表 */
-export const fetchTransactions = (ticker?: string, limit = 100) =>
+/** 获取交易记录列表（三元组都可选筛选） */
+export const fetchTransactions = (
+  ticker?: string,
+  asset_class?: string,
+  market?: string,
+  limit = 100,
+) =>
   apiClient.get('/api/v1/transactions', {
-    params: { ticker, limit },
+    params: { ticker, asset_class, market, limit },
   }) as Promise<Transaction[]>
 
 /** 新增交易记录 */

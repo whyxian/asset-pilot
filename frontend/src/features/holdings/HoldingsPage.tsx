@@ -96,7 +96,8 @@ export function HoldingsPage() {
   }
 
   function handleLiquidateSubmit(data: {
-    ticker: string; transaction_date: string; type: 'buy' | 'sell'
+    ticker: string; asset_class: string; market: string
+    transaction_date: string; type: 'buy' | 'sell'
     quantity: string; unit_price: string; amount: string; notes: string
   }) {
     const toNumOrNull = (v: string) => {
@@ -106,6 +107,8 @@ export function HoldingsPage() {
     }
     const payload: TransactionCreate = {
       ticker: data.ticker,
+      asset_class: data.asset_class,
+      market: data.market,
       transaction_date: data.transaction_date,
       type: data.type,
       quantity: toNumOrNull(data.quantity),
@@ -132,7 +135,12 @@ export function HoldingsPage() {
       if (data.first_buy_date !== editingHolding.first_buy_date)
         updateData.first_buy_date = data.first_buy_date
       updateMut.mutate(
-        { ticker: editingHolding.ticker, data: updateData },
+        {
+          ticker: editingHolding.ticker,
+          asset_class: editingHolding.asset_class,
+          market: editingHolding.market,
+          data: updateData,
+        },
         { onSuccess: () => setDialogOpen(false) },
       )
     } else {
@@ -152,6 +160,8 @@ export function HoldingsPage() {
   const liquidatePreset = liquidating
     ? {
         ticker: liquidating.ticker,
+        asset_class: liquidating.asset_class,
+        market: liquidating.market,
         type: 'sell' as const,
         transaction_date: new Date().toISOString().slice(0, 10),
         quantity: String(toNum(liquidating.quantity)),

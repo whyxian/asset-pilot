@@ -100,6 +100,8 @@ export interface HoldingUpdate {
 export interface Transaction {
   id: number
   ticker: string
+  asset_class: string  // STOCK / FUND / CRYPTO
+  market: string       // CN / US / CRYPTO
   transaction_date: string // "YYYY-MM-DD"
   type: 'buy' | 'sell'
   quantity: number | null
@@ -111,6 +113,8 @@ export interface Transaction {
 /** 新增交易记录请求体 */
 export interface TransactionCreate {
   ticker: string
+  asset_class: string
+  market: string
   transaction_date: string
   type: 'buy' | 'sell'
   quantity?: number | null
@@ -122,6 +126,8 @@ export interface TransactionCreate {
 /** 更新交易记录请求体（所有字段可选） */
 export interface TransactionUpdate {
   ticker?: string
+  asset_class?: string
+  market?: string
   transaction_date?: string
   type?: 'buy' | 'sell'
   quantity?: number | null
@@ -139,6 +145,8 @@ export interface ClosedTransaction {
   id: number
   closed_holding_id: number
   ticker: string
+  asset_class: string
+  market: string
   transaction_date: string
   type: 'buy' | 'sell'
   quantity: number | null
