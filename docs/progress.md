@@ -1,6 +1,6 @@
 # AssetPilot 开发进度
 
-> 最后更新：2026-06-13
+> 最后更新：2026-06-15
 > 记录所有模块的完成状态、任务拆分和开发规划
 
 ---
@@ -26,6 +26,7 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | 精度修复 | 前端数字格式化 T0 级重写 | 2026-06-11 | ✅ |
 | 数据自动刷新 | 概览/持仓页 60s 轮询 + 持仓变更联动失效概览缓存 | 2026-06-13 | ✅ |
 | 交易→持仓自动反推 | 建仓基线 + 全量重算（加权平均/卖超拒绝/事务原子）+ 交易页 CRUD UI | 2026-06-13 | ✅ |
+| 单元测试补齐 | 65 个 pytest 用例覆盖 service/repo/data_source/exchange_rate | 2026-06-15 | ✅ |
 | Phase 6 | 净值快照 | — | 📋 下一步 |
 | 图表 | Recharts 折线图/饼图 | — | 📋 规划中 |
 
@@ -102,7 +103,27 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 
 ---
 
-## 六、后续规划
+## 六、测试覆盖
+
+> 共 65 个 pytest 用例，1.86s 全通过
+
+| 测试文件 | 用例数 | 覆盖模块 | 关键验证点 |
+|---------|--------|---------|-----------|
+| `test_transaction_recompute.py` | 8 | `recompute_holding` + `archive_holding` | 基线/买入/卖出/卖超/清仓/归档/白拿股票 |
+| `test_asset_holding_service.py` | 7 | `AssetHoldingService` | CRUD + initial_* 基线 + 级联删除 + 三元组行情分发 |
+| `test_transaction_service.py` | 9 | `TransactionService` | 校验链 + 事务回滚 + 归档触发 + 修改 ticker 双重重算 |
+| `test_exchange_rate.py` | 7 | `exchange_rate.py` | 缓存 TTL + 网络降级 + CNY 直通 + 货币缺失兜底 |
+| `test_overview_service.py` | 7 | `OverviewService` | `_calc_annualized` 5 种边界 + `get_overview` 空仓/聚合 |
+| `test_asset_quote_service.py` | 8 | `AssetQuoteService` | 基金 15 分钟缓存 + 名称补全 + 路由分发 |
+| `test_data_sources.py` | 9 | 5 个 `DataSource` | 腾讯解析/前缀/过滤 + CoinGlass JSON + 天天基金 JS 正则 + akshare DataFrame |
+| `test_asset_variety_repository.py` | 5 | `AssetVarietyRepository` | 搜索 4 级相关性排序 + limit + 空结果 |
+| `test_asset_quote_repository.py` | 4 | `AssetQuoteRepository` | INSERT OR IGNORE 去重 + `get_recent_quotes` 去重/时间窗口 |
+
+未覆盖（薄委托层/工具类，收益低）：`ClosedHoldingService`、`AssetVarietyService`、`ClosedHoldingRepository`、`exceptions.py`、`response.py`、SinaDataSource（需 Playwright）、API 路由层。
+
+---
+
+## 七、后续规划
 
 | 优先级 | 项目 | 说明 |
 |--------|------|------|

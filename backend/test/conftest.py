@@ -188,6 +188,102 @@ def read_holding(Session):
     return _read
 
 
+@pytest.fixture(autouse=True)
+def reset_exchange_cache():
+    """每个测试前重置汇率缓存，避免跨测试污染"""
+    import app.utils.exchange_rate as er
+    er._cache = {"rates": None, "fetched_at": 0}
+
+
+@pytest.fixture
+async def seed_quote(Session):
+    """工具：往 asset_quote 插入一条行情记录"""
+    from datetime import datetime
+    from decimal import Decimal
+
+    from app.models.orm.asset_quote_orm import AssetQuoteRecord
+
+    async def _seed(
+        ticker: str = "TEST",
+        asset_class: str = "STOCK",
+        market: str = "CN",
+        name: str = "测试",
+        price: str = "10",
+        currency: str = "CNY",
+        source: str = "TEST",
+        timestamp: datetime | None = None,
+        created_at: datetime | None = None,
+    ):
+        now = datetime.now()
+        async with Session() as s:
+            r = AssetQuoteRecord(
+                ticker=ticker,
+                asset_class=asset_class,
+                market=market,
+                name=name,
+                price=Decimal(price),
+                currency=currency,
+                source=source,
+                timestamp=timestamp or now,
+            )
+            if created_at is not None:
+                r.created_at = created_at
+            s.add(r)
+            await s.commit()
+
+    return _seed
+
+
+@pytest.fixture
+async def seed_closed_holding(Session):
+    """工具：往 closed_holdings + closed_transactions 插入归档记录"""
+    from datetime import date, datetime
+    from decimal import Decimal
+
+    from app.models.orm.closed_holding_orm import ClosedHoldingRecord, ClosedTransactionRecord
+
+    async def _seed(
+        ticker: str = "TEST",
+        asset_class: str = "STOCK",
+        market: str = "CN",
+        name: str = "测试品种",
+        initial_qty: str = "100",
+        initial_cost: str = "10",
+        initial_total: str = "1000",
+        first_buy_date: date = date(2024, 1, 1),
+        closed_at: date = date(2024, 6, 1),
+        holding_days: int = 153,
+        realized_pnl: str = "500",
+        sell_qty: str = "100",
+        sell_price: str = "15",
+    ):
+        async with Session() as s:
+            ch = ClosedHoldingRecord(
+                ticker=ticker, name=name, market=market, asset_class=asset_class,
+                currency="CNY",
+                initial_quantity=Decimal(initial_qty),
+                initial_cost_price=Decimal(initial_cost),
+                initial_total_invested=Decimal(initial_total),
+                first_buy_date=first_buy_date,
+                closed_at=closed_at,
+                holding_days=holding_days,
+                realized_pnl=Decimal(realized_pnl),
+            )
+            s.add(ch)
+            await s.flush()
+            ct = ClosedTransactionRecord(
+                closed_holding_id=ch.id,
+                ticker=ticker, asset_class=asset_class, market=market,
+                transaction_date=closed_at, type="sell",
+                quantity=Decimal(sell_qty), unit_price=Decimal(sell_price),
+            )
+            s.add(ct)
+            await s.commit()
+            return ch.id
+
+    return _seed
+
+
 def approx(a, b: str, tol: str = "0.01") -> bool:
     """容差比较 Decimal(测试断言用)"""
     return abs(Decimal(str(a)) - Decimal(b)) <= Decimal(tol)

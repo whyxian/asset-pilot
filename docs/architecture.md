@@ -1,7 +1,7 @@
 # AssetPilot V2 架构设计
 
-> 版本：v2.5
-> 最后更新：2026-06-11
+> 版本：v2.6
+> 最后更新：2026-06-15
 
 ---
 
@@ -98,11 +98,17 @@ backend/
 │   ├── fetch_us_names.py      # 批量获取美股英文名
 │   ├── fetch_cn_fund.py       # 天天基金数据采集
 │   └── fetch_us_stocks.py     # 东方财富美股数据采集
-├── test/                      # 测试
-│   ├── test_stock_api.py      # 行情接口测试
-│   ├── test_fund_repo.py      # 基金净值测试
-│   ├── test_us_quotes.py      # 美股行情测试（腾讯源+新浪源对比）
-│   └── test_xueqiu.py         # 雪球公司概况爬取测试
+├── test/                      # 单元测试（pytest + pytest-asyncio，内存 SQLite）
+│   ├── conftest.py            # 共享 fixture（engine/Session/seed_*/approx）
+│   ├── test_transaction_recompute.py    # 重算 + 归档算法
+│   ├── test_asset_holding_service.py    # 持仓 CRUD + 三元组行情
+│   ├── test_transaction_service.py      # 交易 CRUD + 校验链 + 事务回滚
+│   ├── test_exchange_rate.py            # 汇率缓存 + 转换
+│   ├── test_overview_service.py         # 概览聚合 + 年化计算
+│   ├── test_asset_quote_service.py      # 行情缓存 + 名称补全 + 路由
+│   ├── test_data_sources.py             # 数据源解析（mock httpx）
+│   ├── test_asset_variety_repository.py # 品种搜索相关性排序
+│   └── test_asset_quote_repository.py   # 行情去重 + 缓存查询
 └── Dockerfile
 ```
 
