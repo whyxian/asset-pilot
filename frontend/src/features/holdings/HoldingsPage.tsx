@@ -183,7 +183,7 @@ export function HoldingsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/50">
-                {['代码','名称','市场','持仓量','成本价','现价','市值','盈亏金额','盈亏率','年化回报','持仓天数','操作'].map((h) => (
+                {['代码','名称','市场','类型','持仓量','成本价','现价','市值','盈亏金额','盈亏率','年化回报','持仓天数','操作'].map((h) => (
                   <th key={h} className={`text-${h==='操作'?'center':'left'} p-3 whitespace-nowrap`}>{h}</th>
                 ))}
               </tr>
@@ -191,7 +191,7 @@ export function HoldingsPage() {
             <tbody>
               {[...Array(5)].map((_, i) => (
                 <tr key={i} className="border-t">
-                  {[...Array(12)].map((_, j) => (
+                  {[...Array(13)].map((_, j) => (
                     <td key={j} className="p-3"><Skeleton className="h-4 w-full" /></td>
                   ))}
                 </tr>
@@ -260,6 +260,7 @@ export function HoldingsPage() {
               <th className="text-left p-3 whitespace-nowrap">代码</th>
               <th className="text-left p-3">名称</th>
               <th className="text-left p-3 whitespace-nowrap">市场</th>
+	              <th className="text-left p-3 whitespace-nowrap">类型</th>
               <th className="text-right p-3 whitespace-nowrap">持仓量</th>
               <th className="text-right p-3 whitespace-nowrap">成本价</th>
               <th className="text-right p-3 whitespace-nowrap">现价</th>
@@ -281,6 +282,7 @@ export function HoldingsPage() {
                   </Tooltip>
                 </td>
                 <td className="p-3 whitespace-nowrap"><Badge variant="outline">{marketLabel[h.market] || h.market}</Badge></td>
+	                <td className="p-3 text-muted-foreground whitespace-nowrap">{h.asset_class}</td>
                 <td className="p-3 text-right whitespace-nowrap">{toNum(h.quantity).toLocaleString()}</td>
                 <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.cost_price, h.currency)}</td>
                 <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.current_price, h.currency)}</td>

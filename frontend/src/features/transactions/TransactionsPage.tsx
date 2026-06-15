@@ -23,6 +23,12 @@ const typeLabel: Record<string, string> = {
   sell: '卖出',
 }
 
+const marketLabel: Record<string, string> = {
+  CN: 'A 股',
+  US: '美股',
+  CRYPTO: '加密货币',
+}
+
 /** 把表单字符串转成 number 或 null */
 function toNumOrNull(v: string): number | null {
   if (!v.trim()) return null
@@ -133,7 +139,7 @@ export function TransactionsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/50">
-                {['日期', '代码', '方向', '数量', '成交价', '金额', '备注', '操作'].map((h) => (
+                {['日期', '代码', '市场', '类型', '方向', '数量', '成交价', '金额', '备注', '操作'].map((h) => (
                   <th key={h} className="text-left p-3">{h}</th>
                 ))}
               </tr>
@@ -141,7 +147,7 @@ export function TransactionsPage() {
             <tbody>
               {[...Array(5)].map((_, i) => (
                 <tr key={i} className="border-t">
-                  {[...Array(8)].map((_, j) => (
+                  {[...Array(10)].map((_, j) => (
                     <td key={j} className="p-3">
                       <Skeleton className="h-4 w-full" />
                     </td>
@@ -244,6 +250,8 @@ export function TransactionsPage() {
             <tr className="bg-muted/50">
               <th className="text-left p-3">日期</th>
               <th className="text-left p-3">代码</th>
+              <th className="text-left p-3">市场</th>
+              <th className="text-left p-3">类型</th>
               <th className="text-left p-3">方向</th>
               <th className="text-right p-3">数量</th>
               <th className="text-right p-3">成交价</th>
@@ -257,6 +265,8 @@ export function TransactionsPage() {
               <tr key={t.id} className="border-t hover:bg-muted/30">
                 <td className="p-3">{t.transaction_date}</td>
                 <td className="p-3 font-medium">{t.ticker}</td>
+                <td className="p-3"><Badge variant="outline">{marketLabel[t.market] || t.market}</Badge></td>
+                <td className="p-3 text-muted-foreground">{t.asset_class}</td>
                 <td className="p-3">
                   <Badge variant={t.type === 'buy' ? 'default' : 'destructive'}>
                     {typeLabel[t.type] || t.type}
