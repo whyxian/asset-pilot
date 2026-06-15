@@ -59,5 +59,5 @@ class HoldingWithQuote(BaseModel):
     current_price: Decimal = Decimal("0")
     market_value: Decimal = Decimal("0")
     pnl: Decimal = Decimal("0")
-    pnl_pct: float | None = None
-    annualized_return: float | None = None
+    pnl_pct: float | str | None = None       # 零成本时为 "∞"
+    annualized_return: float | str | None = None  # 零成本时为 "∞"

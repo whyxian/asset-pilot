@@ -51,7 +51,7 @@ function PnlAmountCell({ holding }: { holding: HoldingWithQuote }) {
 
 function AnnualizedCell({ holding }: { holding: HoldingWithQuote }) {
   if (holding.annualized_return == null) return <span className="text-muted-foreground">N/A</span>
-  const positive = holding.annualized_return >= 0
+  const positive = typeof holding.annualized_return === 'string' || holding.annualized_return >= 0
   return (
     <span className={positive ? 'text-green-600' : 'text-red-600'}>
       {formatPct(holding.annualized_return)}

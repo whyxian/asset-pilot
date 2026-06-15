@@ -51,8 +51,9 @@ export function formatPrice(value: number | string | null | undefined, currency 
 }
 
 /** 格式化百分比（始终保留 2 位小数） */
-export function formatPct(value: number | null | undefined, signed = true): string {
+export function formatPct(value: number | string | null | undefined, signed = true): string {
   if (value == null) return 'N/A'
+  if (typeof value === 'string') return value  // "∞" 等特殊值直接透传
   const sign = signed && value >= 0 ? '+' : ''
   return `${sign}${value.toFixed(2)}%`
 }

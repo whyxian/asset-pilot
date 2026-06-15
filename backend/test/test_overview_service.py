@@ -32,10 +32,18 @@ def test_calc_annualized_normal():
     assert abs(result - 4.99) < 0.1
 
 
-def test_calc_annualized_cost_zero():
-    """cost_price=0 → 返回 None（避免除零）"""
+def test_calc_annualized_cost_zero_with_price():
+    """cost_price=0 + current_price>0 → 返回 "∞"（零成本持有）"""
     result = OverviewService._calc_annualized(
         Decimal("11"), Decimal("0"), date(2024, 1, 1), date(2025, 1, 1),
+    )
+    assert result == "∞"
+
+
+def test_calc_annualized_cost_zero_no_price():
+    """cost_price=0 + current_price=0 → 返回 None（无意义的零持仓）"""
+    result = OverviewService._calc_annualized(
+        Decimal("0"), Decimal("0"), date(2024, 1, 1), date(2025, 1, 1),
     )
     assert result is None
 

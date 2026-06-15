@@ -78,7 +78,7 @@ export function HoldingDetailDialog({ open, onOpenChange, holding }: HoldingDeta
           </div>
           <div className="rounded-lg border p-3">
             <div className="text-xs text-muted-foreground">年化回报</div>
-            <div className={`text-lg font-bold mt-0.5 ${(holding.annualized_return ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`text-lg font-bold mt-0.5 ${(typeof holding.annualized_return === 'string' || (holding.annualized_return ?? 0) >= 0) ? 'text-green-600' : 'text-red-600'}`}>
               {formatPct(holding.annualized_return)}
             </div>
           </div>

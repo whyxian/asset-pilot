@@ -139,18 +139,22 @@ class AssetHoldingService:
             pnl = market_value - h.total_invested
 
             # 盈亏百分比
-            pnl_pct = None
+            pnl_pct: float | str | None = None
             if h.total_invested > 0:
                 pnl_pct = float((pnl / h.total_invested) * 100)
+            elif h.total_invested == 0 and market_value > 0:
+                pnl_pct = "∞"  # 零成本持有，盈亏率无穷大
 
             # 简单年化回报率 = 总收益率 × (365 / 持有天数)
             # 持有天数 = (今日 - 首次买入日) + 1，当天买入也算持有 1 天
-            annualized = None
+            annualized: float | str | None = None
             if h.cost_price > 0 and h.first_buy_date:
                 holding_days = (today - h.first_buy_date).days + 1
                 if holding_days >= 1:
                     total_return_pct = float((current_price - h.cost_price) / h.cost_price) * 100
                     annualized = round(total_return_pct * (365 / holding_days), 4)
+            elif h.cost_price == 0 and current_price > 0 and h.first_buy_date:
+                annualized = "∞"  # 零成本持有，年化无穷大
 
             results.append(HoldingWithQuote(
                 ticker=h.ticker,

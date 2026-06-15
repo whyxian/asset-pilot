@@ -18,6 +18,6 @@ class OverviewStats(BaseModel):
     total_value_cny: Decimal = Decimal("0")
     total_cost_cny: Decimal = Decimal("0")
     total_pnl_cny: Decimal = Decimal("0")
-    total_pnl_pct: float | None = None
-    annualized_return: float | None = None
+    total_pnl_pct: float | str | None = None    # 零成本时为 "∞"
+    annualized_return: float | str | None = None  # 零成本时为 "∞"
     allocation: list[AllocationItem] = []

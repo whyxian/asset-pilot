@@ -46,8 +46,8 @@ export interface HoldingWithQuote {
   current_price: number
   market_value: number
   pnl: number
-  pnl_pct: number | null // total_invested=0 时为 null
-  annualized_return: number | null // 无法计算时为 null
+  pnl_pct: number | string | null // 零成本时为 "∞"
+  annualized_return: number | string | null // 零成本时为 "∞"
 }
 
 // ═══════════════════════════════════════════
@@ -65,8 +65,8 @@ export interface OverviewStats {
   total_value_cny: number
   total_cost_cny: number
   total_pnl_cny: number
-  total_pnl_pct: number | null
-  annualized_return: number | null
+  total_pnl_pct: number | string | null
+  annualized_return: number | string | null
   allocation: AllocationItem[]
 }
 
