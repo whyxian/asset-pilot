@@ -84,8 +84,8 @@ export function HoldingDetailDialog({ open, onOpenChange, holding }: HoldingDeta
           </div>
         </div>
 
-        {/* 持仓明细一行 */}
-        <div className="flex items-baseline gap-x-4 text-sm text-muted-foreground">
+        {/* 持仓明细 */}
+        <div className="rounded-lg border px-3 py-2 flex items-baseline gap-x-5 text-sm text-muted-foreground">
           <span>持仓 <span className="text-foreground font-medium">{toNum(holding.quantity).toLocaleString()}</span></span>
           <span>成本 <span className="text-foreground">{formatPrice(holding.cost_price, holding.currency)}</span></span>
           <span>现价 <span className="text-foreground">{formatPrice(holding.current_price, holding.currency)}</span></span>
