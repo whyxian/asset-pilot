@@ -61,7 +61,7 @@ class OverviewService:
         if total_cost_cny > 0:
             total_pnl_pct = float((total_pnl_cny / total_cost_cny) * 100)
         elif total_cost_cny == 0 and total_value_cny > 0:
-            total_pnl_pct = "∞"  # 零成本持有
+            total_pnl_pct = "+∞%"  # 零成本持有
 
         # 市值加权年化回报率
         has_inf = False  # 是否有零成本持仓导致无穷大
@@ -72,14 +72,14 @@ class OverviewService:
             current_price = q.price if q else Decimal("0")
             mv_cny = await to_cny(h.quantity * current_price, h.currency)
             annualized = self._calc_annualized(current_price, h.cost_price, h.first_buy_date, today)
-            if annualized == "∞":
+            if annualized == "+∞%":
                 has_inf = True
             elif annualized is not None and mv_cny > 0:
                 weighted_return += Decimal(str(annualized)) * mv_cny
                 total_weight += mv_cny
         avg_annualized: float | str | None = None
         if has_inf:
-            avg_annualized = "∞"
+            avg_annualized = "+∞%"
         elif total_weight > 0:
             avg_annualized = float(weighted_return / total_weight)
 
@@ -111,12 +111,12 @@ class OverviewService:
     ) -> float | str | None:
         """计算简单年化回报率
 
-        零成本持有（做T回本）时返回 "∞"
+        零成本持有（做T回本）时返回 "+∞%"
         """
         if not first_buy_date:
             return None
         if cost_price <= 0:
-            return "∞" if current_price > 0 else None
+            return "+∞%" if current_price > 0 else None
         holding_days = (today - first_buy_date).days + 1
         if holding_days < 1:
             return None

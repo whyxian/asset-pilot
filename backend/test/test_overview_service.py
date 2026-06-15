@@ -33,11 +33,11 @@ def test_calc_annualized_normal():
 
 
 def test_calc_annualized_cost_zero_with_price():
-    """cost_price=0 + current_price>0 → 返回 "∞"（零成本持有）"""
+    """cost_price=0 + current_price>0 → 返回 "+∞%"（零成本持有）"""
     result = OverviewService._calc_annualized(
         Decimal("11"), Decimal("0"), date(2024, 1, 1), date(2025, 1, 1),
     )
-    assert result == "∞"
+    assert result == "+∞%"
 
 
 def test_calc_annualized_cost_zero_no_price():
