@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteClosedHolding, fetchClosedHolding, fetchClosedHoldings, fetchClosedTransactions } from '@/api/endpoints'
 
 /** 获取全部归档持仓 */
