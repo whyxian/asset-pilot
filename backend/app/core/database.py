@@ -32,4 +32,6 @@ async def init_db():
         from app.models.orm.asset_variety_orm import AssetVarietyRecord  # noqa: F401
         from app.models.orm.transaction_orm import TransactionRecord  # noqa: F401
         from app.models.orm.closed_holding_orm import ClosedHoldingRecord, ClosedTransactionRecord  # noqa: F401
+        from app.models.orm.networth_snapshot_orm import NetWorthSnapshotRecord  # noqa: F401
+        from app.models.orm.asset_snapshot_orm import AssetSnapshotRecord  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)

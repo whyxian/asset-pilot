@@ -100,8 +100,8 @@ async def test_get_overview_empty():
         monkeypatch_repo.undo()
 
     assert isinstance(result, OverviewStats)
-    assert result.total_value_cny == Decimal("0")
-    assert result.total_cost_cny == Decimal("0")
+    assert result.total_value == Decimal("0")
+    assert result.total_cost == Decimal("0")
     assert result.allocation == []
 
 
@@ -141,16 +141,28 @@ async def test_get_overview_with_holdings():
         return []
     mock_quote_svc.fetch_quotes_by_asset_class = fake_fetch
 
-    # mock to_cny：USD 直接 × 7
-    async def fake_to_cny(amount, currency):
-        if currency == "CNY":
+    # mock 汇率：USD→CNY=7, USD→USD=1, CNY→USD=1/7
+    async def fake_convert(amount, from_ccy, to_ccy):
+        if from_ccy == to_ccy:
             return amount
-        return amount * Decimal("7")
+        if from_ccy == "USD" and to_ccy == "CNY":
+            return amount * Decimal("7")
+        if from_ccy == "CNY" and to_ccy == "USD":
+            return amount / Decimal("7")
+        return amount
+
+    async def fake_to_usd(amount, currency):
+        if currency == "USD":
+            return amount
+        if currency == "CNY":
+            return amount / Decimal("7")
+        return amount
 
     mp = pytest.MonkeyPatch()
     mp.setattr(svc, "_holding_repo", mock_repo)
     mp.setattr(svc, "_quote_svc", mock_quote_svc)
-    mp.setattr("app.services.overview_service.to_cny", fake_to_cny)
+    mp.setattr("app.services.overview_service.to_usd", fake_to_usd)
+    mp.setattr("app.services.overview_service.convert", fake_convert)
 
     try:
         result = await svc.get_overview()
@@ -161,9 +173,9 @@ async def test_get_overview_with_holdings():
     # 600519: mv=5×1900=9500 CNY, cost=9000 CNY
     # total_value = 11900 + 9500 = 21400
     # total_cost  = 10500 + 9000 = 19500
-    assert abs(result.total_value_cny - Decimal("21400")) < Decimal("1")
-    assert abs(result.total_cost_cny - Decimal("19500")) < Decimal("1")
-    assert abs(result.total_pnl_cny - Decimal("1900")) < Decimal("1")
+    assert abs(result.total_value - Decimal("21400")) < Decimal("1")
+    assert abs(result.total_cost - Decimal("19500")) < Decimal("1")
+    assert abs(result.total_pnl - Decimal("1900")) < Decimal("1")
     assert result.total_pnl_pct is not None
     assert abs(result.total_pnl_pct - 9.74) < 0.5
 

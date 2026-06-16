@@ -57,17 +57,48 @@ export interface HoldingWithQuote {
 export interface AllocationItem {
   market: string
   label: string
-  value_cny: number
+  value: number      // 改名 value_cny → value（数值的币种由父对象的 currency 决定）
   pct: number
 }
 
 export interface OverviewStats {
-  total_value_cny: number
-  total_cost_cny: number
-  total_pnl_cny: number
+  currency: string             // 当前数据所在币种，如 "CNY" / "USD"
+  total_value: number          // 改名 total_value_cny → total_value
+  total_cost: number
+  total_pnl: number
   total_pnl_pct: number | string | null
   annualized_return: number | string | null
   allocation: AllocationItem[]
+}
+
+export interface NetWorthSnapshot {
+  snapshot_date: string  // YYYY-MM-DD
+  currency: string
+  total_value: number
+  total_cost: number
+  total_pnl: number
+  total_pnl_pct: number | string | null
+  annualized_return: number | string | null
+  allocation: AllocationItem[]
+}
+
+export interface AssetSnapshot {
+  snapshot_date: string
+  ticker: string
+  asset_class: string
+  market: string
+  name: string
+  currency: string  // 该品种原币
+  quantity: number
+  unit_value: number
+  cost_value: number
+  market_value: number
+  total_invested: number
+  unrealized_pnl: number
+  return_pct: number | null
+  display_currency: string
+  market_value_in_currency: number
+  total_invested_in_currency: number
 }
 
 /** 新增持仓请求体 */

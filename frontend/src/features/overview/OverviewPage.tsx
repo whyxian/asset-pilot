@@ -1,13 +1,26 @@
 import { useOverview } from '@/hooks/useOverview'
+import { useCreateSnapshot, useSnapshots } from '@/hooks/useSnapshots'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
+import { Camera, TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
 import { formatPrice, formatPct } from '@/lib/utils'
-import type { OverviewStats } from '@/types'
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+
+const CURRENCY = 'CNY'
 
 export function OverviewPage() {
-  const { data: stats, isLoading, isError, error, refetch } = useOverview()
+  const { data: stats, isLoading, isError, error, refetch } = useOverview(CURRENCY)
+  const { data: snapshots } = useSnapshots(CURRENCY)
+  const createSnapshotMut = useCreateSnapshot()
 
   // ---- 加载态 ----
   if (isLoading) {
@@ -53,7 +66,7 @@ export function OverviewPage() {
   }
 
   // ---- 空持仓 ----
-  if (!stats || stats.total_value_cny === 0 && stats.allocation.length === 0) {
+  if (!stats || (stats.total_value === 0 && stats.allocation.length === 0)) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold">概览</h1>
@@ -66,12 +79,28 @@ export function OverviewPage() {
     )
   }
 
-  const isPositive = stats.total_pnl_cny >= 0
+  const isPositive = stats.total_pnl >= 0
 
   // ---- 正常渲染 ----
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">概览</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">概览</h1>
+        <Button
+          variant="outline"
+          onClick={() => createSnapshotMut.mutate()}
+          disabled={createSnapshotMut.isPending}
+        >
+          <Camera className="w-4 h-4 mr-2" />
+          {createSnapshotMut.isPending ? '记录中...' : '记录快照'}
+        </Button>
+      </div>
+
+      {createSnapshotMut.error && (
+        <p className="text-sm text-destructive">
+          快照失败：{createSnapshotMut.error.message}
+        </p>
+      )}
 
       {/* 统计卡 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -82,7 +111,7 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatPrice(stats.total_value_cny, 'CNY', 2)}
+              {formatPrice(stats.total_value, stats.currency, 2)}
             </div>
           </CardContent>
         </Card>
@@ -94,7 +123,7 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatPrice(stats.total_cost_cny, 'CNY', 2)}
+              {formatPrice(stats.total_cost, stats.currency, 2)}
             </div>
           </CardContent>
         </Card>
@@ -112,7 +141,7 @@ export function OverviewPage() {
               {formatPct(stats.total_pnl_pct)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {formatPrice(stats.total_pnl_cny, 'CNY', 2)}
+              {formatPrice(stats.total_pnl, stats.currency, 2)}
             </p>
           </CardContent>
         </Card>
@@ -130,15 +159,52 @@ export function OverviewPage() {
         </Card>
       </div>
 
-      {/* 净值走势 — Phase 6 快照功能完成后启用 */}
+      {/* 净值走势 */}
       <Card>
         <CardHeader>
           <CardTitle>净值走势</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-            净值历史将在后续版本中提供
-          </div>
+          {!snapshots || snapshots.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-32 gap-2 text-sm text-muted-foreground">
+              <p>暂无快照数据</p>
+              <p className="text-xs">点击右上角「记录快照」开始追踪净值走势</p>
+            </div>
+          ) : snapshots.length === 1 ? (
+            <div className="flex flex-col items-center justify-center h-32 gap-2 text-sm text-muted-foreground">
+              <p>已有 1 条快照（{snapshots[0].snapshot_date}）</p>
+              <p className="text-xs">至少需要 2 条快照才能绘制走势图</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={snapshots} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  dataKey="snapshot_date"
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(v) => v.slice(5)}  // MM-DD
+                />
+                <YAxis
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                  domain={['auto', 'auto']}
+                />
+                <RechartsTooltip
+                  formatter={(value: number) => formatPrice(value, CURRENCY, 2)}
+                  labelFormatter={(label) => `日期：${label}`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="total_value"
+                  name="总市值"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
 
@@ -163,7 +229,7 @@ export function OverviewPage() {
                     {item.pct.toFixed(1)}%
                   </span>
                   <span className="w-28 text-right text-xs text-muted-foreground">
-                    {formatPrice(item.value_cny, 'CNY', 2)}
+                    {formatPrice(item.value, stats.currency, 2)}
                   </span>
                 </div>
               ))}
@@ -173,7 +239,7 @@ export function OverviewPage() {
       )}
 
       <p className="text-sm text-muted-foreground">
-        汇率数据由 exchangerates 提供 · 每小时更新
+        汇率数据由 exchangerates 提供 · 每小时更新 · 历史快照按当时汇率换算
       </p>
     </div>
   )

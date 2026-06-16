@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AssetQuote, AssetVariety, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingUpdate, HoldingWithQuote, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
+import type { AssetQuote, AssetSnapshot, AssetVariety, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
 
 // ═══════════════════════════════════════════
 // 持仓
@@ -25,9 +25,9 @@ export const deleteHolding = (ticker: string, asset_class: string, market: strin
 // 概览
 // ═══════════════════════════════════════════
 
-/** 获取概览统计（CNY 统一换算） */
-export const fetchOverview = () =>
-  apiClient.get('/api/v1/overview') as Promise<OverviewStats>
+/** 获取概览统计 */
+export const fetchOverview = (currency: string = 'CNY') =>
+  apiClient.get('/api/v1/overview', { params: { currency } }) as Promise<OverviewStats>
 
 // ═══════════════════════════════════════════
 // 品种目录
@@ -115,3 +115,27 @@ export const fetchClosedTransactions = (limit = 500) =>
 /** 删除归档持仓及其关联交易 */
 export const deleteClosedHolding = (id: number) =>
   apiClient.delete(`/api/v1/closed-holdings/${id}`) as Promise<void>
+
+// ═══════════════════════════════════════════
+// 净值快照
+// ═══════════════════════════════════════════
+
+/** 记录今日快照（手动触发） */
+export const createSnapshot = () =>
+  apiClient.post('/api/v1/snapshots') as Promise<NetWorthSnapshot>
+
+/** 获取组合级快照列表（按日期升序） */
+export const fetchSnapshots = (currency: string = 'CNY', limit = 365) =>
+  apiClient.get('/api/v1/snapshots', { params: { currency, limit } }) as Promise<NetWorthSnapshot[]>
+
+/** 获取品种级快照（可按三元组过滤） */
+export const fetchAssetSnapshots = (
+  currency: string = 'CNY',
+  ticker?: string,
+  asset_class?: string,
+  market?: string,
+  limit = 365,
+) =>
+  apiClient.get('/api/v1/snapshots/assets', {
+    params: { currency, ticker, asset_class, market, limit },
+  }) as Promise<AssetSnapshot[]>

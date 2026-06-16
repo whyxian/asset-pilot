@@ -59,37 +59,52 @@
 
 约束：UNIQUE(ticker)
 
-### 2.3 asset_snapshots（品种快照表）
+### 2.3 asset_snapshots（品种快照表）✅ 已创建
 
-每日定时计算并写入，记录每个品种当日的持仓状态，用于历史净值回溯。
-数据来源：asset_holdings + 实时行情。
+每次手动触发记录每个品种当时的持仓状态。原币和 USD 双存：原币便于审计，USD 便于聚合。
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | INTEGER | PK, AUTOINCREMENT | 主键 |
-| snapshot_date | DATE | NOT NULL | 快照日期 |
-| ticker | VARCHAR(30) | NOT NULL | 标的代码 |
+| snapshot_date | DATE | NOT NULL, INDEX | 快照日期 |
+| ticker | VARCHAR(30) | NOT NULL, INDEX | 标的代码 |
+| asset_class | VARCHAR(10) | NOT NULL | 资产类别 |
+| market | VARCHAR(10) | NOT NULL | 市场 |
+| name | VARCHAR(200) | | 品种名 |
+| currency | VARCHAR(3) | | 该品种原币 |
 | quantity | DECIMAL(18,4) | NOT NULL | 持仓数量 |
-| unit_value | DECIMAL(18,4) | NOT NULL | 当日收盘价/净值 |
-| cost_value | DECIMAL(18,4) | NOT NULL | 持仓总成本 |
-| market_value | DECIMAL(18,4) | NOT NULL | 持仓市值 |
-| unrealized_pnl | DECIMAL(18,4) | NOT NULL | 盈亏额 |
-| return_pct | DECIMAL(10,4) | | 收益率（%） |
+| unit_value | DECIMAL(18,4) | NOT NULL | 现价（原币） |
+| cost_value | DECIMAL(18,4) | NOT NULL | 成本价（原币） |
+| market_value | DECIMAL(18,4) | NOT NULL | 市值（原币） |
+| market_value_usd | DECIMAL(18,4) | NOT NULL | 市值（USD） |
+| total_invested | DECIMAL(18,4) | NOT NULL | 总投入（原币） |
+| total_invested_usd | DECIMAL(18,4) | NOT NULL | 总投入（USD） |
+| unrealized_pnl | DECIMAL(18,4) | NOT NULL | 浮动盈亏（原币） |
+| return_pct | DECIMAL(10,4) | | 盈亏率 |
+| created_at / updated_at / created_by / updated_by | | | 审计字段 |
 
-约束：UNIQUE(snapshot_date, ticker)
+约束：UNIQUE(asset_class, market, ticker, snapshot_date)
 
-### 2.4 networth_snapshots（净资产快照）
+### 2.4 networth_snapshots（净资产快照）✅ 已创建
 
-每日组合级别的汇总。
+组合级日快照，是 asset_snapshots 同日的预聚合（物化视图）。
+**以 USD 为基准存储 + 冻结当日汇率**：历史曲线按当时汇率换算到目标币种，反映"那一刻"的真实价值。
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | INTEGER | PK, AUTOINCREMENT | 主键 |
 | snapshot_date | DATE | NOT NULL, UNIQUE | 快照日期 |
-| total_value | DECIMAL(18,4) | NOT NULL | 总市值 |
-| total_cost | DECIMAL(18,4) | NOT NULL | 总成本 |
-| total_pnl | DECIMAL(18,4) | NOT NULL | 总盈亏 |
-| annualized_return | DECIMAL(10,6) | | 简单年化回报率 |
+| total_value_usd | DECIMAL(18,4) | NOT NULL | 总市值（USD） |
+| total_cost_usd | DECIMAL(18,4) | NOT NULL | 总成本（USD） |
+| total_pnl_usd | DECIMAL(18,4) | NOT NULL | 总盈亏（USD） |
+| total_pnl_pct | DECIMAL(10,4) | | 盈亏率（零成本时 NULL） |
+| annualized_return | DECIMAL(10,6) | | 加权年化（零成本时 NULL） |
+| allocation | TEXT | NOT NULL | JSON: `[{market, label, value_usd, pct}]` |
+| fx_rates | TEXT | NOT NULL | JSON: 快照时汇率，如 `{"CNY": 7.2, "HKD": 7.8}` |
+| created_at / updated_at / created_by / updated_by | | | 审计字段 |
+
+策略：当日重复触发会 INSERT OR REPLACE 覆盖。
+
 
 ### 2.5 transactions（交易记录表）✅ 已创建
 

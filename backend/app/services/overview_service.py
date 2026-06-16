@@ -1,15 +1,13 @@
-"""概览业务逻辑"""
+"""概览业务逻辑 — 内部 USD 聚合，按 currency 参数换算返回"""
 
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 
-from app.core.exceptions import BusinessError
-from app.models.asset_holding import AssetHolding
 from app.models.overview import AllocationItem, OverviewStats
 from app.repositories.asset_holding_repository import AssetHoldingRepository
 from app.services.asset_quote_service import AssetQuoteService
-from app.utils.exchange_rate import to_cny
+from app.utils.exchange_rate import convert, to_usd
 
 
 class OverviewService:
@@ -19,11 +17,17 @@ class OverviewService:
         self._holding_repo = AssetHoldingRepository()
         self._quote_svc = AssetQuoteService()
 
-    async def get_overview(self) -> OverviewStats:
-        """获取概览统计（所有金额统一换算为 CNY）"""
+    async def get_overview(self, currency: str = "CNY") -> OverviewStats:
+        """获取概览统计
+
+        Args:
+            currency: 显示币种（默认 CNY，可传 USD/HKD/EUR 等）
+
+        内部以 USD 为枢轴聚合，最后按 currency 换算返回。
+        """
         holdings = await self._holding_repo.list_holdings()
         if not holdings:
-            return OverviewStats()
+            return OverviewStats(currency=currency)
 
         # 批量获取行情
         groups = defaultdict(list)
@@ -37,69 +41,73 @@ class OverviewService:
                 quote_map[q.ticker] = q
 
         today = date.today()
-        total_value_cny = Decimal("0")
-        total_cost_cny = Decimal("0")
-        market_values: dict[str, Decimal] = defaultdict(Decimal)
+        total_value_usd = Decimal("0")
+        total_cost_usd = Decimal("0")
+        market_values_usd: dict[str, Decimal] = defaultdict(Decimal)
 
         for h in holdings:
             q = quote_map.get(h.ticker)
             current_price = q.price if q else Decimal("0")
             market_value = h.quantity * current_price
-            pnl = market_value - h.total_invested
 
-            # 换算为 CNY
-            mv_cny = await to_cny(market_value, h.currency)
-            cost_cny = await to_cny(h.total_invested, h.currency)
-            total_value_cny += mv_cny
-            total_cost_cny += cost_cny
-            market_values[h.market] += mv_cny
+            mv_usd = await to_usd(market_value, h.currency)
+            cost_usd = await to_usd(h.total_invested, h.currency)
+            total_value_usd += mv_usd
+            total_cost_usd += cost_usd
+            market_values_usd[h.market] += mv_usd
 
-        total_pnl_cny = total_value_cny - total_cost_cny
+        total_pnl_usd = total_value_usd - total_cost_usd
 
-        # 总盈亏百分比
+        # 总盈亏百分比（零成本兜底）
         total_pnl_pct: float | str | None = None
-        if total_cost_cny > 0:
-            total_pnl_pct = float((total_pnl_cny / total_cost_cny) * 100)
-        elif total_cost_cny == 0 and total_value_cny > 0:
-            total_pnl_pct = "+∞%"  # 零成本持有
+        if total_cost_usd > 0:
+            total_pnl_pct = float((total_pnl_usd / total_cost_usd) * 100)
+        elif total_cost_usd == 0 and total_value_usd > 0:
+            total_pnl_pct = "+∞%"
 
         # 市值加权年化回报率
-        has_inf = False  # 是否有零成本持仓导致无穷大
+        has_inf = False
         weighted_return = Decimal("0")
         total_weight = Decimal("0")
         for h in holdings:
             q = quote_map.get(h.ticker)
             current_price = q.price if q else Decimal("0")
-            mv_cny = await to_cny(h.quantity * current_price, h.currency)
+            mv_usd = await to_usd(h.quantity * current_price, h.currency)
             annualized = self._calc_annualized(current_price, h.cost_price, h.first_buy_date, today)
             if annualized == "+∞%":
                 has_inf = True
-            elif annualized is not None and mv_cny > 0:
-                weighted_return += Decimal(str(annualized)) * mv_cny
-                total_weight += mv_cny
+            elif annualized is not None and mv_usd > 0:
+                weighted_return += Decimal(str(annualized)) * mv_usd
+                total_weight += mv_usd
         avg_annualized: float | str | None = None
         if has_inf:
             avg_annualized = "+∞%"
         elif total_weight > 0:
             avg_annualized = float(weighted_return / total_weight)
 
-        # 资产配比
+        # 按 currency 换算
+        total_value = await convert(total_value_usd, "USD", currency)
+        total_cost = await convert(total_cost_usd, "USD", currency)
+        total_pnl = await convert(total_pnl_usd, "USD", currency)
+
+        # 资产配比（USD 算 pct，金额按 currency 换算）
         market_label = {"CN": "A 股", "US": "美股", "CRYPTO": "加密货币"}
-        total = total_value_cny
-        allocation = [
-            AllocationItem(
+        allocation = []
+        for m, v_usd in sorted(market_values_usd.items(), key=lambda x: x[1], reverse=True):
+            v_display = await convert(v_usd, "USD", currency)
+            pct = float((v_usd / total_value_usd) * 100) if total_value_usd > 0 else 0
+            allocation.append(AllocationItem(
                 market=m,
                 label=market_label.get(m, m),
-                value_cny=v,
-                pct=float((v / total) * 100) if total > 0 else 0,
-            )
-            for m, v in sorted(market_values.items(), key=lambda x: x[1], reverse=True)
-        ]
+                value=v_display,
+                pct=pct,
+            ))
 
         return OverviewStats(
-            total_value_cny=total_value_cny,
-            total_cost_cny=total_cost_cny,
-            total_pnl_cny=total_pnl_cny,
+            currency=currency,
+            total_value=total_value,
+            total_cost=total_cost,
+            total_pnl=total_pnl,
             total_pnl_pct=total_pnl_pct,
             annualized_return=avg_annualized,
             allocation=allocation,
