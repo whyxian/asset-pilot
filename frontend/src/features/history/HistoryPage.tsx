@@ -118,6 +118,29 @@ export function HistoryPage() {
     <div className="space-y-6">
       <PageHeader />
 
+      {deleteConfirm && (
+        <div className="flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 p-3">
+          <p className="text-sm">
+            确定删除 <span className="font-medium">{deleteConfirm.ticker}</span>（{deleteConfirm.name}）的历史持仓记录？关联的归档交易也会一并删除。
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteConfirm(null)}>取消</Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={confirmDelete}
+              disabled={deleteMut.isPending}
+            >
+              {deleteMut.isPending ? '删除中...' : '确认删除'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {deleteMut.error && !deleteConfirm && (
+        <p className="text-sm text-destructive">删除失败：{deleteMut.error.message}</p>
+      )}
+
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead>
@@ -185,29 +208,6 @@ export function HistoryPage() {
       </div>
 
       <p className="text-sm text-muted-foreground">共 {data.length} 笔历史持仓</p>
-
-      {deleteConfirm && (
-        <div className="flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 p-3">
-          <p className="text-sm">
-            确定删除 <span className="font-medium">{deleteConfirm.ticker}</span>（{deleteConfirm.name}）的历史持仓记录？关联的归档交易也会一并删除。
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setDeleteConfirm(null)}>取消</Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={confirmDelete}
-              disabled={deleteMut.isPending}
-            >
-              {deleteMut.isPending ? '删除中...' : '确认删除'}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {deleteMut.error && !deleteConfirm && (
-        <p className="text-sm text-destructive">删除失败：{deleteMut.error.message}</p>
-      )}
 
       <ClosedHoldingDetailDialog
         id={detailId}
