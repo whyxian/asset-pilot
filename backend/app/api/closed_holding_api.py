@@ -26,6 +26,15 @@ async def get_closed_holding(holding_id: int):
     return success(holding)
 
 
+@router.delete("/closed-holdings/{holding_id}")
+async def delete_closed_holding(holding_id: int):
+    """删除归档持仓及其关联交易"""
+    deleted = await service.delete_closed_holding(holding_id)
+    if not deleted:
+        raise BusinessError(40401, "归档持仓不存在")
+    return success(message="已删除")
+
+
 @router.get("/closed-transactions")
 async def list_closed_transactions(
     limit: int = Query(500, ge=1, le=2000, description="返回条数上限"),

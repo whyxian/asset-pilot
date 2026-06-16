@@ -21,3 +21,7 @@ class ClosedHoldingService:
     async def list_closed_transactions(self, limit: int = 500) -> list[ClosedTransaction]:
         """获取全部归档交易（统一历史查询）"""
         return await self._repo.list_closed_transactions(limit=limit)
+
+    async def delete_closed_holding(self, holding_id: int) -> bool:
+        """删除归档持仓及其关联交易"""
+        return await self._repo.delete_closed_holding(holding_id)

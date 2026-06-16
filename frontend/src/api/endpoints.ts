@@ -111,3 +111,7 @@ export const fetchClosedHolding = (id: number) =>
 /** 获取全部归档交易（按交易日倒序，统一历史交易查询） */
 export const fetchClosedTransactions = (limit = 500) =>
   apiClient.get('/api/v1/closed-transactions', { params: { limit } }) as Promise<ClosedTransaction[]>
+
+/** 删除归档持仓及其关联交易 */
+export const deleteClosedHolding = (id: number) =>
+  apiClient.delete(`/api/v1/closed-holdings/${id}`) as Promise<void>

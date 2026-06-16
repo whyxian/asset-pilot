@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useClosedHoldings } from '@/hooks/useClosedHoldings'
+import { useClosedHoldings, useDeleteClosedHolding } from '@/hooks/useClosedHoldings'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ClosedHoldingDetailDialog } from './ClosedHoldingDetailDialog'
-import { Eye, ArrowLeft } from 'lucide-react'
+import { Eye, ArrowLeft, Trash2 } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { formatPrice, formatPct } from '@/lib/utils'
 import type { ClosedHolding } from '@/types'
@@ -42,7 +42,21 @@ function PageHeader() {
 
 export function HistoryPage() {
   const { data, isLoading, isError, error, refetch } = useClosedHoldings()
+  const deleteMut = useDeleteClosedHolding()
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<ClosedHolding | null>(null)
+
+  function handleDeleteClick(h: ClosedHolding) {
+    setDeleteConfirm(h)
+  }
+
+  function confirmDelete() {
+    if (deleteConfirm) {
+      deleteMut.mutate(deleteConfirm.id, {
+        onSuccess: () => setDeleteConfirm(null),
+      })
+    }
+  }
 
   // ---- 加载态 ----
   if (isLoading) {
@@ -117,7 +131,7 @@ export function HistoryPage() {
               <th className="text-right p-3 whitespace-nowrap">总投入</th>
               <th className="text-right p-3 whitespace-nowrap">已实现盈亏</th>
               <th className="text-right p-3 whitespace-nowrap">盈亏率</th>
-              <th className="p-3 w-16 whitespace-nowrap">操作</th>
+              <th className="p-3 w-20 whitespace-nowrap">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -154,9 +168,14 @@ export function HistoryPage() {
                     )}
                   </td>
                   <td className="p-3">
-                    <Button variant="ghost" size="icon-sm" onClick={() => setDetailId(h.id)}>
-                      <Eye className="w-3.5 h-3.5" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon-sm" onClick={() => setDetailId(h.id)}>
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" onClick={() => handleDeleteClick(h)}>
+                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               )
@@ -166,6 +185,29 @@ export function HistoryPage() {
       </div>
 
       <p className="text-sm text-muted-foreground">共 {data.length} 笔历史持仓</p>
+
+      {deleteConfirm && (
+        <div className="flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 p-3">
+          <p className="text-sm">
+            确定删除 <span className="font-medium">{deleteConfirm.ticker}</span>（{deleteConfirm.name}）的历史持仓记录？关联的归档交易也会一并删除。
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteConfirm(null)}>取消</Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={confirmDelete}
+              disabled={deleteMut.isPending}
+            >
+              {deleteMut.isPending ? '删除中...' : '确认删除'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {deleteMut.error && !deleteConfirm && (
+        <p className="text-sm text-destructive">删除失败：{deleteMut.error.message}</p>
+      )}
 
       <ClosedHoldingDetailDialog
         id={detailId}

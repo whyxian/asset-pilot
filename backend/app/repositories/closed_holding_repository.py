@@ -64,6 +64,24 @@ class ClosedHoldingRepository:
             return [_record_to_closed_transaction(r) for r in records]
 
 
+    async def delete_closed_holding(self, holding_id: int) -> bool:
+        """删除归档持仓及其关联交易，返回是否删除成功"""
+        async with async_session() as session:
+            r = (await session.execute(
+                select(ClosedHoldingRecord).where(ClosedHoldingRecord.id == holding_id)
+            )).scalar_one_or_none()
+            if not r:
+                return False
+            # 先删关联交易（FK 约束）
+            await session.execute(
+                ClosedTransactionRecord.__table__.delete()
+                .where(ClosedTransactionRecord.closed_holding_id == holding_id)
+            )
+            await session.delete(r)
+            await session.commit()
+            return True
+
+
 def _record_to_closed_holding(r: ClosedHoldingRecord) -> ClosedHolding:
     return ClosedHolding(
         id=r.id,
