@@ -30,11 +30,16 @@ async def _setup_snapshot_mocks(svc: SnapshotService, mp: pytest.MonkeyPatch,
     mock_repo = AsyncMock()
     mock_repo.list_holdings = AsyncMock(return_value=holdings)
 
-    async def fake_fetch(asset_class, market, tickers):
-        return quotes_map.get((asset_class, market), [])
+    # mock fetch_quote_map_concurrent：把 quotes_map 按 (ac, market) 分组转成三元组 key dict
+    async def fake_fetch_quote_map(groups, force_refresh=False, timeout=None):
+        quote_map = {}
+        for (ac, market), _tickers in groups.items():
+            for q in quotes_map.get((ac, market), []):
+                quote_map[(ac, market, q.ticker)] = q
+        return quote_map
 
     mock_quote_svc = AsyncMock()
-    mock_quote_svc.fetch_quotes_by_asset_class = fake_fetch
+    mock_quote_svc.fetch_quote_map_concurrent = fake_fetch_quote_map
 
     fake_rates = {"USD": 1.0, "CNY": 7.2, "HKD": 7.8, "EUR": 0.92}
 
@@ -143,10 +148,14 @@ async def test_take_snapshot_multi_currency(Session, seed_variety):
     async def fake_fetch_rates():
         return fake_rates
 
-    async def fake_fetch(asset_class, market, tickers):
-        return quotes_map.get((asset_class, market), [])
+    async def fake_fetch_quote_map(groups, force_refresh=False, timeout=None):
+        quote_map = {}
+        for (ac, market), _tickers in groups.items():
+            for q in quotes_map.get((ac, market), []):
+                quote_map[(ac, market, q.ticker)] = q
+        return quote_map
 
-    mp.setattr(svc._quote_svc, "fetch_quotes_by_asset_class", fake_fetch)
+    mp.setattr(svc._quote_svc, "fetch_quote_map_concurrent", fake_fetch_quote_map)
     mp.setattr("app.services.snapshot_service.fetch_rates_snapshot", fake_fetch_rates)
 
     try:
@@ -192,10 +201,15 @@ async def test_take_snapshot_idempotent_same_day(Session, seed_holding):
     async def fake_fetch_rates():
         return fake_rates
 
-    async def fake_fetch(asset_class, market, tickers):
-        return quotes_map.get((asset_class, market), [])
+    async def fake_fetch_quote_map(groups, force_refresh=False, timeout=None):
+        # 每次 take_snapshot 调用时实时读 quotes_map，反映 price 的动态修改
+        quote_map = {}
+        for (ac, market), _tickers in groups.items():
+            for q in quotes_map.get((ac, market), []):
+                quote_map[(ac, market, q.ticker)] = q
+        return quote_map
 
-    mp.setattr(svc._quote_svc, "fetch_quotes_by_asset_class", fake_fetch)
+    mp.setattr(svc._quote_svc, "fetch_quote_map_concurrent", fake_fetch_quote_map)
     mp.setattr("app.services.snapshot_service.fetch_rates_snapshot", fake_fetch_rates)
 
     try:

@@ -1,5 +1,7 @@
 """行情业务逻辑 — STOCK / CRYPTO / FUND 三类行情"""
 
+import asyncio
+
 from app.core.logger import logger
 from app.models.asset_quote import AssetQuote
 from app.repositories.asset_quote_repository import (
@@ -12,6 +14,9 @@ from app.repositories.asset_variety_repository import AssetVarietyRepository
 # 基金净值数据按天更新（晚上才出当日净值），15 分钟内反复拉同一只基金没意义
 FUND_CACHE_MAX_AGE_MINUTES = 15
 
+# 行情并发拉取的整体超时阈值（秒）——比前端 axios 15s 略早，给后续业务处理留余量
+QUOTE_FETCH_TIMEOUT = 12
+
 
 class AssetQuoteService:
     """行情业务逻辑"""
@@ -20,6 +25,64 @@ class AssetQuoteService:
         self._stock_repo = StockQuoteRepository()
         self._crypto_repo = CryptoQuoteRepository()
         self._fund_repo = FundQuoteRepository()
+
+    async def fetch_quote_map_concurrent(
+        self,
+        groups: dict[tuple[str, str], list[str]],
+        force_refresh: bool = False,
+        timeout: float = QUOTE_FETCH_TIMEOUT,
+    ) -> dict[tuple[str, str, str], AssetQuote]:
+        """各资产组并发拉取行情，整体超时熔断 + 单组异常容错
+
+        供 overview / holdings / snapshot 等多组行情场景共用，避免按组串行 await。
+
+        Args:
+            groups: {(asset_class, market): [tickers]}
+            force_refresh: 是否强制刷新绕过基金 15 分钟缓存
+            timeout: 整体超时秒数，None 表示不超时
+
+        Returns:
+            {(asset_class, market, ticker): AssetQuote}；超时或单组失败时返回已
+            获取的部分结果，缺失品种由调用方兜底（如价格 0）。三元组 key 避免不同
+            品种 ticker 冲突（如 000001 同时是 A 股和基金）。
+        """
+        tasks = {
+            asyncio.create_task(
+                self.fetch_quotes_by_asset_class(ac, market, tickers, force_refresh=force_refresh)
+            ): (ac, market)
+            for (ac, market), tickers in groups.items()
+        }
+        try:
+            done, pending = await asyncio.wait(
+                tasks, timeout=timeout, return_when=asyncio.ALL_COMPLETED
+            )
+        except Exception as e:
+            logger.error(f"行情拉取异常: {e}")
+            for t in tasks:
+                t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            return {}
+
+        # 取消超时未完成的组，并 await 收尾以消费 CancelledError、清理协程内连接
+        for t in pending:
+            t.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+            logger.warning(
+                f"行情拉取超时({timeout}s)，丢弃组: "
+                f"{[tasks[t] for t in pending]}，已获取 {len(done)} 组"
+            )
+
+        quote_map: dict[tuple[str, str, str], AssetQuote] = {}
+        for t in done:
+            ac, market = tasks[t]
+            if t.exception():
+                logger.error(f"行情组 {ac}/{market} 拉取失败: {t.exception()}")
+                continue
+            for q in t.result():
+                # 三元组定位，避免不同品种 ticker 冲突
+                quote_map[(ac, market, q.ticker)] = q
+        return quote_map
 
     async def fetch_stock_quotes(
         self, market: str, codes: list[str], force_refresh: bool = False

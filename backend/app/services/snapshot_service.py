@@ -46,17 +46,13 @@ class SnapshotService:
         # 1. 拿当下完整汇率（USD-base，包含 CNY/HKD/EUR 等）
         rates = await fetch_rates_snapshot()
 
-        # 2. 拿当下持仓 + 行情
+        # 2. 拿当下持仓 + 行情（各资产组并发拉取，超时熔断 + 单组容错）
         holdings = await self._holding_repo.list_holdings()
         groups = defaultdict(list)
         for h in holdings:
             groups[(h.asset_class, h.market)].append(h.ticker)
 
-        quote_map = {}
-        for (ac, market), tickers in groups.items():
-            quotes = await self._quote_svc.fetch_quotes_by_asset_class(ac, market, tickers)
-            for q in quotes:
-                quote_map[(ac, market, q.ticker)] = q
+        quote_map = await self._quote_svc.fetch_quote_map_concurrent(groups)
 
         # 3. 算每只持仓的快照行（同时存原币和 USD）
         asset_rows = []

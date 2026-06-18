@@ -126,14 +126,8 @@ class AssetHoldingService:
         for h in holdings:
             groups[(h.asset_class, h.market)].append(h.ticker)
 
-        quote_map = {}
-        for (ac, market), tickers in groups.items():
-            quotes = await self._quote_svc.fetch_quotes_by_asset_class(
-                ac, market, tickers, force_refresh=force_refresh
-            )
-            for q in quotes:
-                # 行情按 (asset_class, market, ticker) 三元组定位，避免不同品种 ticker 冲突
-                quote_map[(ac, market, q.ticker)] = q
+        # 各资产组并发拉取（超时熔断 + 单组容错），三元组 key 避免 ticker 冲突
+        quote_map = await self._quote_svc.fetch_quote_map_concurrent(groups, force_refresh=force_refresh)
 
         today = date.today()
         results = []
