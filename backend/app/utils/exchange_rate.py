@@ -4,23 +4,70 @@
 - 汇率数据源以 USD 为基准（rates["CNY"] = 7.2 表示 1 USD = 7.2 CNY）
 - 内部以 USD 为枢轴：所有换算先 → USD → 目标币种
 - to_cny() 保留作为兼容 wrapper（多处旧代码在用）
+- 两级兜底：内存 L1（1h TTL，新鲜）+ 磁盘 L2（持久，进程重启不丢）
+  网络失败 → 用内存旧值（哪怕过期）→ 用磁盘旧值 → None
 """
 
+import json
 import time
 from decimal import Decimal
+from pathlib import Path
 
 import httpx
 
 from app.core.logger import logger
 
 _RATES_URL = "https://raw.githubusercontent.com/Sunny-DotNet/ExchangeRates/main/mini.json"
-_CACHE_TTL = 3600  # 缓存 1 小时（数据源每小时更新）
+_CACHE_TTL = 3600  # 内存缓存 1 小时（数据源每小时更新），过期后触发重拉但旧值仍可兜底
 
-_cache: dict = {"rates": None, "fetched_at": 0}
+# 运行时磁盘缓存（gitignore，运行时成功拉取后覆盖更新）
+_PERSIST_PATH = Path(__file__).resolve().parents[3] / "data" / "exchange_rates_cache.json"
+# 种子兜底文件（提交进仓库，全新环境/容器无持久卷 + 断网时的终极兜底）
+_FALLBACK_PATH = Path(__file__).resolve().parents[3] / "data" / "dbjson" / "exchange_rates_fallback.json"
+
+# 内存 L1 缓存：{rates, fetched_at, source_date}
+_cache: dict = {"rates": None, "fetched_at": 0, "source_date": None}
+
+
+def _load_persisted() -> dict[str, float] | None:
+    """从磁盘读取兜底汇率：优先运行时缓存（较新），没有则读种子文件（较旧但永在）
+
+    进程重启后首次网络失败时调用，保证全新环境也有兜底。
+    """
+    for path in (_PERSIST_PATH, _FALLBACK_PATH):
+        try:
+            if path.exists():
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                # 兼容两种格式：运行时缓存 {rates: {...}} / 数据源原始 {datas: {...}}
+                rates = payload.get("rates") or payload.get("datas")
+                if rates:
+                    if path == _FALLBACK_PATH:
+                        logger.warning(f"使用种子汇率兜底 ({payload.get('date', '?')})")
+                    return rates
+        except Exception as e:
+            logger.warning(f"读取汇率兜底文件失败 {path.name}: {e}")
+    return None
+
+
+def _persist(rates: dict[str, float], source_date: str | None) -> None:
+    """把成功拉取的汇率落盘（覆盖写，作为后续重启兜底）"""
+    try:
+        _PERSIST_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _PERSIST_PATH.write_text(
+            json.dumps(
+                {"rates": rates, "source_date": source_date, "fetched_at": time.time()},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    except Exception as e:
+        logger.warning(f"写入磁盘汇率兜底失败: {e}")
 
 
 async def fetch_rates() -> dict[str, float] | None:
-    """获取实时汇率（USD 为基准），带内存缓存
+    """获取实时汇率（USD 为基准），两级兜底
+
+    兜底链：内存新鲜值（未过 TTL）→ 网络拉取 → 内存旧值（过期）→ 磁盘旧值 → None
 
     Returns:
         { "CNY": 7.2, "EUR": 0.92, "HKD": 7.8, ... } 或 None
@@ -36,14 +83,25 @@ async def fetch_rates() -> dict[str, float] | None:
         rates = data.get("datas")
         if not rates:
             raise ValueError("缺少 datas 字段")
+        source_date = data.get("date")
         _cache["rates"] = rates
         _cache["fetched_at"] = now
-        logger.info(f"汇率已更新 ({data.get('date', '?')})")
+        _cache["source_date"] = source_date
+        _persist(rates, source_date)  # 落盘，作为重启后兜底
+        logger.info(f"汇率已更新 ({source_date or '?'})")
         return rates
     except Exception as e:
         logger.error(f"获取汇率失败: {e}")
-        # 缓存未过期则继续用旧数据
-        return _cache["rates"]
+        # 兜底 1：内存旧值（哪怕已过期）
+        if _cache["rates"]:
+            logger.warning(f"使用内存过期汇率兜底（source_date={_cache['source_date']}）")
+            return _cache["rates"]
+        # 兜底 2：磁盘兜底（运行时缓存优先，其次种子文件）
+        persisted = _load_persisted()
+        if persisted:
+            _cache["rates"] = persisted  # 回填内存，避免反复读盘
+            return persisted
+        return None
 
 
 async def fetch_rates_snapshot() -> dict[str, float]:

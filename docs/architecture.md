@@ -1,7 +1,7 @@
 # AssetPilot V2 架构设计
 
-> 版本：v2.6
-> 最后更新：2026-06-15
+> 版本：v2.7
+> 最后更新：2026-06-19
 
 ---
 
@@ -85,13 +85,13 @@ backend/
 │   │   ├── asset_variety_repository.py# 品种目录 CRUD
 │   │   └── transaction_repository.py  # 交易记录 CRUD
 │   └── services/                  # 业务逻辑层
-│       ├── asset_quote_service.py # 行情业务逻辑
+│       ├── asset_quote_service.py # 行情业务逻辑（基金 15min 缓存 + force_refresh 绕过）
 │       ├── asset_holding_service.py# 持仓业务逻辑（含计算）
 │       ├── asset_variety_service.py# 品种目录业务逻辑
-│       ├── overview_service.py    # 概览统计（汇率换算 + 聚合）
+│       ├── overview_service.py    # 概览统计（行情并发拉取 + 12s 超时熔断 + 汇率换算聚合）
 │       └── transaction_service.py # 交易记录业务逻辑
 ├── utils/                     # 工具模块
-│   └── exchange_rate.py       # 汇率获取（GitHub 源 + 内存缓存 1h）
+│   └── exchange_rate.py       # 汇率获取（GitHub 源 + 四级兜底：内存1h→内存过期→运行时缓存→种子文件）
 ├── script/                   # 数据导入/处理脚本
 │   ├── json_tools.py          # JSON 工具（拆分/合并/重命名 key / 区分股基）
 │   ├── seed_varieties.py      # 导入 JSON 品种数据到 DB
@@ -103,8 +103,8 @@ backend/
 │   ├── test_transaction_recompute.py    # 重算 + 归档算法
 │   ├── test_asset_holding_service.py    # 持仓 CRUD + 三元组行情
 │   ├── test_transaction_service.py      # 交易 CRUD + 校验链 + 事务回滚
-│   ├── test_exchange_rate.py            # 汇率缓存 + 转换
-│   ├── test_overview_service.py         # 概览聚合 + 年化计算
+│   ├── test_exchange_rate.py            # 汇率缓存 + 四级兜底 + 转换
+│   ├── test_overview_service.py         # 概览聚合 + 年化 + 行情并发熔断
 │   ├── test_asset_quote_service.py      # 行情缓存 + 名称补全 + 路由
 │   ├── test_data_sources.py             # 数据源解析（mock httpx）
 │   ├── test_asset_variety_repository.py # 品种搜索相关性排序
@@ -134,8 +134,8 @@ frontend/
 │   │   ├── layout/                # 侧边栏布局
 │   │   └── ui/                    # shadcn/ui 组件（badge/button/card/dialog/input/select/sheet/skeleton/table）
 │   ├── features/                  # 按功能域组织
-│   │   ├── overview/              # 概览：统计卡 + 资产配比（从 holdings 计算）
-│   │   ├── holdings/              # 持仓表格 + 新增/编辑/删除
+│   │   ├── overview/              # 概览：统计卡 + 资产配比 + 手动刷新按钮
+│   │   ├── holdings/              # 持仓表格 + 新增/编辑/删除 + 手动刷新按钮
 │   │   ├── transactions/          # 交易记录列表
 │   │   └── quotes/                # 行情查询（输入+市场选择+结果卡片）
 │   ├── routes/
@@ -243,3 +243,34 @@ quotes = await repo.fetch_realtime_quote(["166002"], source="akshare")  # ak sha
 - 按 `(asset_class, market, ticker)` 复合键去重，已有记录自动跳过
 - 每 1000 条输出一次进度
 - 支持分文件逐个导入
+
+### 5.7 汇率四级兜底
+
+`utils/exchange_rate.py` 以 USD 为枢轴做币种换算，汇率来源单一（GitHub raw），故采用四级兜底保证可用性：
+
+```
+内存新鲜值（1h TTL 内）→ 网络拉取 → 内存过期旧值 → 磁盘兜底 → None
+```
+
+磁盘兜底两层（`_load_persisted` 优先读前者，没有读后者）：
+- `data/exchange_rates_cache.json` — 运行时缓存，每次网络成功后覆盖写（gitignore，不进仓库）
+- `data/dbjson/exchange_rates_fallback.json` — 种子文件，提交进仓库，全新环境/容器无持久卷 + 断网时的终极兜底
+
+最坏情况（重启 + 长时间断网）也用上次成功的汇率兜底，避免概览因汇率缺失把 CNY/USD 当同币种静默算错。
+
+### 5.8 概览行情并发拉取与熔断
+
+`OverviewService.get_overview` 拉行情时的两个稳定性设计：
+
+- **组间并发**：按 `(asset_class, market)` 分组后用 `asyncio.wait` 并发拉取，总耗时 ≈ 最慢一组而非串行累加
+- **整体超时熔断**（`_QUOTE_FETCH_TIMEOUT = 12s`，比前端 axios 15s 略早）：超时组被取消丢弃，单组异常被吞掉，缺失品种价格兜底为 0——单个数据源抽风不拖垮整个概览，返回部分行情而非整体失败
+- **汇率一次取回**：循环外 `fetch_rates()` 取一次，循环内用同步 `convert_with_rates`，消除 2N 次冗余 await
+
+### 5.9 手动强制刷新
+
+持仓页/概览页刷新按钮通过 `force_refresh=true` query 参数强制拉最新行情：
+
+- 后端 `force_refresh` 从 API 一路透传到 `fetch_fund_quotes`，为 True 时跳过基金 15 分钟 DB 缓存全部走网络（股票/加密货币本就无缓存）
+- 前端用 `useMutation` + `setQueryData` 实现一次性强制刷新，不污染 queryKey，60s 自动轮询仍走正常缓存
+
+API 端点：`GET /api/v1/holdings/with-quotes?force_refresh=true`、`GET /api/v1/overview?currency=CNY&force_refresh=true`

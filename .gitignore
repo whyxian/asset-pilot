@@ -15,6 +15,7 @@ env/
 # Runtime data
 data/database/*.db
 data/varieties_*.json
+data/exchange_rates_cache.json
 
 # Node
 frontend/node_modules/

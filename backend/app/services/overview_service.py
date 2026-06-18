@@ -1,13 +1,18 @@
 """概览业务逻辑 — 内部 USD 聚合，按 currency 参数换算返回"""
 
+import asyncio
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 
+from app.core.logger import logger
 from app.models.overview import AllocationItem, OverviewStats
 from app.repositories.asset_holding_repository import AssetHoldingRepository
 from app.services.asset_quote_service import AssetQuoteService
-from app.utils.exchange_rate import convert, to_usd
+from app.utils.exchange_rate import convert_with_rates, fetch_rates
+
+# 行情并发拉取的整体超时阈值（秒）——比前端 axios 15s 略早，给汇率换算留余量
+_QUOTE_FETCH_TIMEOUT = 12
 
 
 class OverviewService:
@@ -17,11 +22,12 @@ class OverviewService:
         self._holding_repo = AssetHoldingRepository()
         self._quote_svc = AssetQuoteService()
 
-    async def get_overview(self, currency: str = "CNY") -> OverviewStats:
+    async def get_overview(self, currency: str = "CNY", force_refresh: bool = False) -> OverviewStats:
         """获取概览统计
 
         Args:
             currency: 显示币种（默认 CNY，可传 USD/HKD/EUR 等）
+            force_refresh: True 时绕过基金 15 分钟缓存，强制拉取最新行情
 
         内部以 USD 为枢轴聚合，最后按 currency 换算返回。
         """
@@ -29,16 +35,15 @@ class OverviewService:
         if not holdings:
             return OverviewStats(currency=currency)
 
-        # 批量获取行情
+        # 批量获取行情 — 各资产组并发拉取，整体超时熔断（比前端 15s 早返回）
         groups = defaultdict(list)
         for h in holdings:
             groups[(h.asset_class, h.market)].append(h.ticker)
 
-        quote_map = {}
-        for (ac, market), tickers in groups.items():
-            quotes = await self._quote_svc.fetch_quotes_by_asset_class(ac, market, tickers)
-            for q in quotes:
-                quote_map[q.ticker] = q
+        quote_map = await self._fetch_quote_map(groups, force_refresh)
+
+        # 汇率一次取回（命中 1h 缓存时无网络），循环内用同步换算避免 2N 次冗余 await
+        rates = await fetch_rates() or {}
 
         today = date.today()
         total_value_usd = Decimal("0")
@@ -50,8 +55,8 @@ class OverviewService:
             current_price = q.price if q else Decimal("0")
             market_value = h.quantity * current_price
 
-            mv_usd = await to_usd(market_value, h.currency)
-            cost_usd = await to_usd(h.total_invested, h.currency)
+            mv_usd = convert_with_rates(market_value, h.currency, "USD", rates)
+            cost_usd = convert_with_rates(h.total_invested, h.currency, "USD", rates)
             total_value_usd += mv_usd
             total_cost_usd += cost_usd
             market_values_usd[h.market] += mv_usd
@@ -72,7 +77,7 @@ class OverviewService:
         for h in holdings:
             q = quote_map.get(h.ticker)
             current_price = q.price if q else Decimal("0")
-            mv_usd = await to_usd(h.quantity * current_price, h.currency)
+            mv_usd = convert_with_rates(h.quantity * current_price, h.currency, "USD", rates)
             annualized = self._calc_annualized(current_price, h.cost_price, h.first_buy_date, today)
             if annualized == "+∞%":
                 has_inf = True
@@ -86,15 +91,15 @@ class OverviewService:
             avg_annualized = float(weighted_return / total_weight)
 
         # 按 currency 换算
-        total_value = await convert(total_value_usd, "USD", currency)
-        total_cost = await convert(total_cost_usd, "USD", currency)
-        total_pnl = await convert(total_pnl_usd, "USD", currency)
+        total_value = convert_with_rates(total_value_usd, "USD", currency, rates)
+        total_cost = convert_with_rates(total_cost_usd, "USD", currency, rates)
+        total_pnl = convert_with_rates(total_pnl_usd, "USD", currency, rates)
 
         # 资产配比（USD 算 pct，金额按 currency 换算）
         market_label = {"CN": "A 股", "US": "美股", "CRYPTO": "加密货币"}
         allocation = []
         for m, v_usd in sorted(market_values_usd.items(), key=lambda x: x[1], reverse=True):
-            v_display = await convert(v_usd, "USD", currency)
+            v_display = convert_with_rates(v_usd, "USD", currency, rates)
             pct = float((v_usd / total_value_usd) * 100) if total_value_usd > 0 else 0
             allocation.append(AllocationItem(
                 market=m,
@@ -112,6 +117,55 @@ class OverviewService:
             annualized_return=avg_annualized,
             allocation=allocation,
         )
+
+    async def _fetch_quote_map(
+        self, groups: dict[tuple[str, str], list[str]], force_refresh: bool
+    ) -> dict[str, object]:
+        """各资产组并发拉取行情，整体超时熔断
+
+        Args:
+            groups: {(asset_class, market): [tickers]}
+            force_refresh: 是否强制刷新绕过基金 15 分钟缓存
+
+        Returns:
+            {ticker: AssetQuote}；超时或单组失败时返回已获取的部分结果，
+            缺失品种的后续价格兜底为 0，避免单个数据源抽风拖垮整个概览请求。
+        """
+        # 比前端 axios 15s 超时略早，给后续汇率换算留余量
+        tasks = {
+            asyncio.create_task(
+                self._quote_svc.fetch_quotes_by_asset_class(ac, market, tickers, force_refresh=force_refresh)
+            ): (ac, market)
+            for (ac, market), tickers in groups.items()
+        }
+        try:
+            done, pending = await asyncio.wait(
+                tasks, timeout=_QUOTE_FETCH_TIMEOUT, return_when=asyncio.ALL_COMPLETED
+            )
+        except Exception as e:
+            logger.error(f"行情拉取异常: {e}")
+            for t in tasks:
+                t.cancel()
+            return {}
+
+        # 取消超时未完成的组
+        for t in pending:
+            t.cancel()
+        if pending:
+            logger.warning(
+                f"行情拉取超时({_QUOTE_FETCH_TIMEOUT}s)，丢弃组: "
+                f"{[tasks[t] for t in pending]}，已获取 {len(done)} 组"
+            )
+
+        quote_map: dict[str, object] = {}
+        for t in done:
+            ac, market = tasks[t]
+            if t.exception():
+                logger.error(f"行情组 {ac}/{market} 拉取失败: {t.exception()}")
+                continue
+            for q in t.result():
+                quote_map[q.ticker] = q
+        return quote_map
 
     @staticmethod
     def _calc_annualized(

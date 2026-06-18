@@ -1,9 +1,11 @@
 import { useOverview } from '@/hooks/useOverview'
 import { useCreateSnapshot, useSnapshots } from '@/hooks/useSnapshots'
+import { fetchOverview } from '@/api/endpoints'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Camera, TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
+import { Camera, RefreshCw, TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
 import { formatPrice, formatPct } from '@/lib/utils'
 import {
   CartesianGrid,
@@ -21,6 +23,13 @@ export function OverviewPage() {
   const { data: stats, isLoading, isError, error, refetch } = useOverview(CURRENCY)
   const { data: snapshots } = useSnapshots(CURRENCY)
   const createSnapshotMut = useCreateSnapshot()
+  const queryClient = useQueryClient()
+
+  // 手动刷新：force_refresh=true 绕过基金 15 分钟缓存，强制拉最新行情后写回缓存
+  const refreshMut = useMutation({
+    mutationFn: () => fetchOverview(CURRENCY, true),
+    onSuccess: (data) => queryClient.setQueryData(['overview', CURRENCY], data),
+  })
 
   // ---- 加载态 ----
   if (isLoading) {
@@ -86,14 +95,24 @@ export function OverviewPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">概览</h1>
-        <Button
-          variant="outline"
-          onClick={() => createSnapshotMut.mutate()}
-          disabled={createSnapshotMut.isPending}
-        >
-          <Camera className="w-4 h-4 mr-2" />
-          {createSnapshotMut.isPending ? '记录中...' : '记录快照'}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => refreshMut.mutate()}
+            disabled={refreshMut.isPending}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshMut.isPending ? 'animate-spin' : ''}`} />
+            {refreshMut.isPending ? '刷新中...' : '刷新'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => createSnapshotMut.mutate()}
+            disabled={createSnapshotMut.isPending}
+          >
+            <Camera className="w-4 h-4 mr-2" />
+            {createSnapshotMut.isPending ? '记录中...' : '记录快照'}
+          </Button>
+        </div>
       </div>
 
       {createSnapshotMut.error && (
@@ -194,13 +213,14 @@ export function OverviewPage() {
                   labelFormatter={(label) => `日期：${label}`}
                 />
                 <Line
-                  type="monotone"
+                  type="linear"
                   dataKey="total_value"
                   name="总市值"
                   stroke="#3b82f6"
                   strokeWidth={2}
-                  dot={{ r: 3 }}
+                  dot={{ r: 2, strokeWidth: 1 }}
                   activeDot={{ r: 5 }}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>

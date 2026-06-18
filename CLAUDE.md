@@ -4,17 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # AssetPilot - 个人投资看板与净值计算器
 
-> 当前版本：V2 (FastAPI 后端开发中)
-> 设计稿：详见 [docs/architecture.md](docs/architecture.md)（React + FastAPI + SQLite 前后端分离）
+> 当前版本：V2（FastAPI + React 前后端分离，开发中）
+> 架构设计：详见 [docs/architecture.md](docs/architecture.md)
 > 需求文档：详见 [docs/requirements.md](docs/requirements.md)
 > 数据库设计：详见 [docs/database.md](docs/database.md)
+> 开发进度：详见 [docs/progress.md](docs/progress.md)
 
 ## 项目目标
 一个聚合 A股、美股、加密货币、基金的个人投资看板，核心功能：
 1. 实时获取持仓标的价格（腾讯财经 / Playwright + 新浪 / CoinGlass / 天天基金）
 2. 记录交易流水，计算总市值和盈亏
 3. 计算简单年化回报率
-4. 净值走势追踪
+4. 净值走势追踪（净值快照 + 历史汇率冻结）
 
 ## 目录结构
 
@@ -34,31 +35,55 @@ AssetPilot/
 │   │   ├── api/
 │   │   │   ├── asset_quote_api.py   # 行情接口（A股/美股/加密货币/基金）
 │   │   │   ├── asset_holding_api.py # 持仓 CRUD 接口
-│   │   │   └── asset_variety_api.py # 品种目录接口
+│   │   │   ├── asset_variety_api.py # 品种目录接口
+│   │   │   ├── transaction_api.py   # 交易记录 CRUD
+│   │   │   ├── overview_api.py      # 概览统计（汇率换算聚合）
+│   │   │   ├── snapshot_api.py      # 净值快照（组合级 + 品种级）
+│   │   │   └── closed_holding_api.py# 历史持仓归档
 │   │   ├── models/
 │   │   │   ├── asset_quote.py       # AssetQuote (Pydantic)
-│   │   │   ├── asset_holding.py     # AssetHolding (Pydantic)
+│   │   │   ├── asset_holding.py     # AssetHolding / HoldingWithQuote (Pydantic)
 │   │   │   ├── asset_variety.py     # AssetVariety (Pydantic)
+│   │   │   ├── transaction.py       # Transaction / Create / Update (Pydantic)
+│   │   │   ├── overview.py          # OverviewStats / AllocationItem (Pydantic)
 │   │   │   └── orm/                 # SQLAlchemy ORM
 │   │   │       ├── asset_quote_orm.py
 │   │   │       ├── asset_holding_orm.py
-│   │   │       └── asset_variety_orm.py
+│   │   │       ├── asset_variety_orm.py
+│   │   │       ├── transaction_orm.py
+│   │   │       ├── asset_snapshot_orm.py
+│   │   │       ├── networth_snapshot_orm.py
+│   │   │       └── closed_holding_orm.py
 │   │   ├── repositories/
 │   │   │   ├── asset_quote_repository.py  # 行情 Repo（调用 DataSource）
 │   │   │   ├── asset_holding_repository.py# 持仓 CRUD
-│   │   │   └── asset_variety_repository.py# 品种目录 CRUD
-│   │   └── services/
-│   │       ├── asset_quote_service.py     # 行情业务逻辑
-│   │       ├── asset_holding_service.py   # 持仓业务逻辑
-│   │       └── asset_variety_service.py   # 品种目录业务逻辑
-│   ├── test/
-│   │   ├── test_stock_api.py        # 行情接口测试
-│   │   ├── test_us_quotes.py      # 美股行情测试
-│   │   └── test_xueqiu.py        # 雪球爬取测试
-├── frontend/                    # React SPA (规划中)
+│   │   │   ├── asset_variety_repository.py# 品种目录 CRUD
+│   │   │   ├── transaction_repository.py  # 交易记录 CRUD
+│   │   │   ├── snapshot_repository.py     # 净值快照读写
+│   │   │   └── closed_holding_repository.py# 历史持仓归档
+│   │   ├── services/
+│   │   │   ├── asset_quote_service.py     # 行情业务逻辑（基金 15min 缓存 + force_refresh）
+│   │   │   ├── asset_holding_service.py   # 持仓业务逻辑（含市值/盈亏/年化计算）
+│   │   │   ├── asset_variety_service.py   # 品种目录业务逻辑
+│   │   │   ├── transaction_service.py     # 交易业务逻辑（建仓基线 + 全量重算）
+│   │   │   ├── overview_service.py        # 概览（行情并发拉取 + 超时熔断 + 汇率聚合）
+│   │   │   ├── snapshot_service.py        # 净值快照（双表写 + 历史 FX 冻结）
+│   │   │   └── closed_holding_service.py  # 历史持仓归档
+│   │   └── utils/
+│   │       └── exchange_rate.py     # 汇率工具（四级兜底：内存→运行时缓存→种子文件）
+│   ├── script/                      # 数据导入/处理脚本
+│   └── test/                        # pytest + pytest-asyncio 单元测试（内存 SQLite）
+├── frontend/                        # React 19 SPA（已对接后端 API）
+│   └── src/
+│       ├── api/                     # Axios 客户端 + endpoints
+│       ├── hooks/                   # TanStack Query hooks
+│       ├── features/                # overview / holdings / transactions / quotes
+│       ├── components/ui/           # Base UI + Tailwind 组件
+│       └── routes/
 ├── data/
-│   └── database/
-│       └── assetpilot.db         # SQLite (自动创建)
+│   ├── database/assetpilot.db       # SQLite (自动创建)
+│   ├── dbjson/                      # 品种数据 JSON + 汇率种子兜底文件
+│   └── source/                      # 原始数据（受保护，不可动）
 ├── docs/
 │   ├── architecture.md
 │   ├── requirements.md
@@ -82,15 +107,19 @@ uv pip install playwright && playwright install chromium
 ### 启动服务
 
 ```bash
+# 后端
 uvicorn app.main:app --reload
-# 或 PyCharm Debug backend/app/main.py
+# 前端
+cd frontend && npm run dev
 ```
 
 ### 运行测试
 
 ```bash
-.venv/bin/python backend/test/test_stock_api.py    # 需先启动服务
-.venv/bin/python backend/test/test_fund_repo.py     # 直接运行，无需启动服务
+# 全套 pytest（内存 SQLite，无需启动服务）
+.venv/bin/python -m pytest backend/test/
+# 单个测试文件
+.venv/bin/python -m pytest backend/test/test_overview_service.py -v
 ```
 
 ## 四层架构
@@ -129,6 +158,7 @@ api (HTTP 路由) → services (业务逻辑) → repositories (数据访问) �
 - **讨论阶段不要写代码**：讨论方案、设计、重构策略时，没得到明确指令前不要动手写实现，更不要新增文件或修改现有代码。等我先确认方案再动。**先讨论，后实现。**
 - **新文件先审命名**：新增文件之前，先检查命名是否符合本规范的命名约定（文件命名、类命名、方法命名），确认后再创建。防止出现 `quote_api.py` 这种不遵循 `asset_quote_xxx.py` 模式的命名。
 - **ORM 审计字段必填**：新建 ORM 模型时必须包含完整的审计字段（`created_at`, `updated_at`, `created_by`, `updated_by`），与 database.md 中的约定一致。缺一个就是一级事故。
+- **受保护数据文件**：`data/source/` 整个目录、`data/dbjson/exchange_rates_fallback.json`（汇率种子兜底）不可擅自动。`data/source/` 只由用户手动管理；汇率种子文件更新需用户确认。
 
 ## 核心功能模块
 
@@ -150,3 +180,11 @@ api (HTTP 路由) → services (业务逻辑) → repositories (数据访问) �
 | `CoinGlassDataSource` | CRYPTO |
 | `EastMoneyFundDataSource` | FUND（天天基金 pingzhongdata） |
 | `AkshareFundDataSource` | FUND（akshare 备选） |
+
+汇率源（`app/utils/exchange_rate.py`）：GitHub raw（USD 为基准，每小时更新）。四级兜底保证可用性：**内存新鲜值（1h TTL）→ 内存过期旧值 → 运行时缓存 `data/exchange_rates_cache.json` → 种子文件 `data/dbjson/exchange_rates_fallback.json`（提交进仓库）**。详见 [architecture.md §5.7](docs/architecture.md)。
+
+## 关键机制
+
+- **行情缓存**：基金净值有 15 分钟 DB 缓存（`FUND_CACHE_MAX_AGE_MINUTES`），股票/加密货币每次走网络。手动刷新通过 `force_refresh=true` 参数绕过基金缓存。
+- **概览稳定性**：`overview_service` 行情组并发拉取 + 12s 超时熔断（`_QUOTE_FETCH_TIMEOUT`）+ 单组异常容错，单个数据源抽风不拖垮整个概览。
+- **交易→持仓反推**：交易记录通过建仓基线 + 全量重算（加权平均/卖超拒绝/事务原子）反推持仓，交易是辅助记录、持仓是事实源。

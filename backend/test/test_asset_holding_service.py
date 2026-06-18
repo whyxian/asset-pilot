@@ -138,7 +138,7 @@ async def test_list_holdings_with_quotes_uses_triple_key(Session, seed_holding, 
                        qty="100", cost="2", total="200", ensure_variety=True)
 
     # mock 行情:STOCK 返回 11.5, FUND 返回 2.5
-    async def fake_fetch(asset_class, market, tickers):
+    async def fake_fetch(asset_class, market, tickers, force_refresh=False):
         if asset_class == "STOCK":
             return [AssetQuote(
                 ticker="000001", asset_class="STOCK", market="CN",
@@ -171,7 +171,7 @@ async def test_list_holdings_with_quotes_pnl_calculation(Session, seed_holding, 
     # 100 股 @10 投入 1000;现价 12 → market_value 1200, pnl 200, pnl_pct 20%
     await seed_holding(qty="100", cost="10", total="1000", dt=date(2024, 1, 1))
 
-    async def fake_fetch(asset_class, market, tickers):
+    async def fake_fetch(asset_class, market, tickers, force_refresh=False):
         return [AssetQuote(
             ticker="TEST", asset_class="STOCK", market="CN",
             name="测试", price=Decimal("12"), currency="CNY",

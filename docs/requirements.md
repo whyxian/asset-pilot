@@ -1,7 +1,7 @@
 # AssetPilot 需求文档
 
-> 版本：v2.3
-> 最后更新：2026-06-11
+> 版本：v2.4
+> 最后更新：2026-06-19
 
 ---
 
@@ -26,9 +26,10 @@
 组合级别的数据总览：
 
 - ✅ **统计卡**：总市值、总成本、总盈亏（金额 + 百分比）、市值加权年化回报率
-  - 数据来源：`GET /api/v1/holdings/with-quotes`，前端 useMemo 实时计算
-- 📋 **净值走势图**：待 Phase 6 快照功能完成后接入 Recharts 折线图
+  - 数据来源：`GET /api/v1/overview`（后端聚合 + 汇率换算）
+- ✅ **净值走势图**：Recharts 折线图（基于 networth_snapshots 快照）
 - ✅ **资产配比**：按 market（CN/US/CRYPTO）分组的市值占比，进度条展示
+- ✅ **手动刷新**：刷新按钮强制拉最新行情（force_refresh=true 绕过基金 15min 缓存）
 
 ### 3.2 持仓页（`/holdings`）✅ 已实现
 
@@ -51,6 +52,7 @@
 - ✅ 新增持仓（对话框表单，自动联动市场→货币、数量×单价→总投入）
 - ✅ 编辑持仓（内联编辑，ticker/market/asset_class 不可改）
 - ✅ 删除持仓（确认横幅）
+- ✅ 手动刷新（force_refresh=true 强制拉最新行情，绕过基金 15min 缓存）
 - ✅ 加载态（骨架屏）、错误态（重试）、空态（引导按钮）
 
 **年化回报率公式：**
@@ -105,6 +107,12 @@
 | 基金 | 天天基金 pingzhongdata / akshare（备选） | httpx 异步请求 |
 
 > 美股数据源对比：腾讯源（HTTP API，~8 股/秒）显著快于新浪源（Playwright，~1 股/秒），默认使用腾讯源。新浪源仅作为备选或获取英文名时使用。
+
+| 数据 | 数据源 | 方式 |
+|------|--------|------|
+| 汇率 | GitHub raw（ExchangeRates） | httpx 异步，USD 为基准，每小时更新 |
+
+> 汇率四级兜底：内存新鲜值（1h TTL）→ 内存过期旧值 → 运行时缓存 `data/exchange_rates_cache.json` → 种子文件 `data/dbjson/exchange_rates_fallback.json`（提交进仓库）。详见 [architecture.md §5.7](architecture.md)。
 
 ---
 

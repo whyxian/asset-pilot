@@ -108,8 +108,11 @@ class AssetHoldingService:
                 await session.rollback()
                 raise
 
-    async def list_holdings_with_quotes(self) -> list[HoldingWithQuote]:
+    async def list_holdings_with_quotes(self, force_refresh: bool = False) -> list[HoldingWithQuote]:
         """获取持仓列表，合并实时行情并计算市值/盈亏/年化
+
+        Args:
+            force_refresh: True 时绕过基金 15 分钟缓存，强制拉取最新行情
 
         Returns:
             带实时行情的持仓列表
@@ -125,7 +128,9 @@ class AssetHoldingService:
 
         quote_map = {}
         for (ac, market), tickers in groups.items():
-            quotes = await self._quote_svc.fetch_quotes_by_asset_class(ac, market, tickers)
+            quotes = await self._quote_svc.fetch_quotes_by_asset_class(
+                ac, market, tickers, force_refresh=force_refresh
+            )
             for q in quotes:
                 # 行情按 (asset_class, market, ticker) 三元组定位，避免不同品种 ticker 冲突
                 quote_map[(ac, market, q.ticker)] = q

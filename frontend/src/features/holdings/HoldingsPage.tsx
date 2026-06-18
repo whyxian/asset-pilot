@@ -1,17 +1,19 @@
 import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useHoldings } from '@/hooks/useHoldings'
 import {
   useCreateHolding,
   useUpdateHolding,
 } from '@/hooks/useHoldingMutations'
 import { useCreateTransaction } from '@/hooks/useTransactionMutations'
+import { fetchHoldingsWithQuotes } from '@/api/endpoints'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { HoldingFormDialog } from './HoldingFormDialog'
 import { HoldingDetailDialog } from './HoldingDetailDialog'
 import { TransactionFormDialog } from '@/features/transactions/TransactionFormDialog'
-import { Plus, Pencil, Eye, HandCoins, Archive } from 'lucide-react'
+import { Plus, Pencil, Eye, HandCoins, Archive, RefreshCw } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useNavigate } from 'react-router-dom'
 import { formatPrice, formatPct } from '@/lib/utils'
@@ -65,6 +67,13 @@ export function HoldingsPage() {
   const updateMut = useUpdateHolding()
   const createTxnMut = useCreateTransaction()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  // 手动刷新：force_refresh=true 绕过基金 15 分钟缓存，强制拉最新行情后写回缓存
+  const refreshMut = useMutation({
+    mutationFn: () => fetchHoldingsWithQuotes(true),
+    onSuccess: (data) => queryClient.setQueryData(['holdings', 'with-quotes'], data),
+  })
 
   // 持仓增改对话框
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -246,6 +255,14 @@ export function HoldingsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">持仓</h1>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => refreshMut.mutate()}
+            disabled={refreshMut.isPending}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshMut.isPending ? 'animate-spin' : ''}`} />
+            {refreshMut.isPending ? '刷新中...' : '刷新'}
+          </Button>
           <Button variant="outline" onClick={() => navigate('/holdings/history')}>
             <Archive className="w-4 h-4 mr-2" />历史持仓
           </Button>

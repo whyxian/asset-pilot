@@ -1,6 +1,6 @@
 # AssetPilot 开发进度
 
-> 最后更新：2026-06-16
+> 最后更新：2026-06-19
 > 记录所有模块的完成状态、任务拆分和开发规划
 
 ---
@@ -29,6 +29,9 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | 单元测试补齐 | 65 个 pytest 用例覆盖 service/repo/data_source/exchange_rate | 2026-06-15 | ✅ |
 | Phase 6 净值快照 | networth_snapshots + asset_snapshots 双表 + 多币种 USD base 重构 + 历史 FX 冻结 + 折线图 | 2026-06-16 | ✅ |
 | 图表 | Recharts 折线图（净值走势） | 2026-06-16 | ✅ 部分 |
+| 手动刷新 | 持仓页/概览页刷新按钮 + 后端 force_refresh 绕过基金 15min 缓存 | 2026-06-19 | ✅ |
+| 概览行情并发+熔断 | overview 行情组并发拉取 + 12s 超时熔断 + 单组容错 + 汇率一次取回 | 2026-06-19 | ✅ |
+| 汇率四级兜底 | 内存新鲜→内存过期→运行时缓存→种子文件（data/dbjson/exchange_rates_fallback.json） | 2026-06-19 | ✅ |
 
 ---
 
@@ -52,7 +55,7 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/api/v1/overview?currency=` | 概览统计（按 currency 换算，默认 CNY） |
+| `GET` | `/api/v1/overview?currency=&force_refresh=` | 概览统计（按 currency 换算，默认 CNY；force_refresh=true 绕过基金缓存强制拉最新） |
 
 ### 净值快照
 
@@ -79,7 +82,7 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET` | `/api/v1/holdings` | 持仓列表 |
-| `GET` | `/api/v1/holdings/with-quotes` | 持仓 + 实时行情 + 市值/盈亏/年化 |
+| `GET` | `/api/v1/holdings/with-quotes?force_refresh=` | 持仓 + 实时行情 + 市值/盈亏/年化（force_refresh=true 绕过基金缓存强制拉最新） |
 | `GET` | `/api/v1/holdings/{ticker}` | 单个持仓 |
 | `POST` | `/api/v1/holdings` | 新增持仓（名称空时自动补填） |
 | `PUT` | `/api/v1/holdings/{ticker}` | 更新持仓 |
@@ -116,17 +119,17 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 
 ## 六、测试覆盖
 
-> 共 72 个 pytest 用例，全通过
+> 共 79 个 pytest 用例，全通过
 
 | 测试文件 | 用例数 | 覆盖模块 | 关键验证点 |
 |---------|--------|---------|-----------|
 | `test_transaction_recompute.py` | 8 | `recompute_holding` + `archive_holding` | 基线/买入/卖出/卖超/清仓/归档/白拿股票 |
 | `test_asset_holding_service.py` | 7 | `AssetHoldingService` | CRUD + initial_* 基线 + 级联删除 + 三元组行情分发 |
-| `test_transaction_service.py` | 9 | `TransactionService` | 校验链 + 事务回滚 + 归档触发 + 修改 ticker 双重重算 |
-| `test_exchange_rate.py` | 7 | `exchange_rate.py` | 缓存 TTL + 网络降级 + CNY 直通 + 货币缺失兜底 |
-| `test_overview_service.py` | 8 | `OverviewService` | `_calc_annualized` + USD 聚合 + 多币种返回 |
-| `test_asset_quote_service.py` | 8 | `AssetQuoteService` | 基金 15 分钟缓存 + 名称补全 + 路由分发 |
-| `test_data_sources.py` | 9 | 5 个 `DataSource` | 腾讯解析/前缀/过滤 + CoinGlass JSON + 天天基金 JS 正则 + akshare DataFrame |
+| `test_transaction_service.py` | 10 | `TransactionService` | 校验链 + 事务回滚 + 归档触发 + 修改 ticker 双重重算 |
+| `test_exchange_rate.py` | 11 | `exchange_rate.py` | 缓存 TTL + 网络降级 + 内存过期兜底 + 磁盘兜底 + 种子文件回退 + CNY 直通 + 货币缺失兜底 |
+| `test_overview_service.py` | 10 | `OverviewService` | `_calc_annualized` + USD 聚合 + 多币种返回 + 行情并发超时熔断 + 单组异常容错 |
+| `test_asset_quote_service.py` | 9 | `AssetQuoteService` | 基金 15 分钟缓存 + force_refresh 绕过缓存 + 名称补全 + 路由分发 |
+| `test_data_sources.py` | 8 | 5 个 `DataSource` | 腾讯解析/前缀/过滤 + CoinGlass JSON + 天天基金 JS 正则 + akshare DataFrame |
 | `test_asset_variety_repository.py` | 5 | `AssetVarietyRepository` | 搜索 4 级相关性排序 + limit + 空结果 |
 | `test_asset_quote_repository.py` | 4 | `AssetQuoteRepository` | INSERT OR IGNORE 去重 + `get_recent_quotes` 去重/时间窗口 |
 | `test_snapshot_service.py` | 6 | `SnapshotService` | 单事务双写 + 多币种聚合 + 当日幂等 + 历史 FX 冻结 + 升序返回 |
@@ -143,3 +146,4 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | P2 | 多币种切换 UI | 前端加币种切换器，调用 `?currency=USD/HKD/EUR` |
 | P3 | 定时任务 | APScheduler 每日自动抓取行情 + 汇率 + 快照 |
 | P4 | 定投计划 | 周期自动生成交易记录并更新持仓 |
+| P5 | 汇率源主备切换 | 当前仅 GitHub raw 单一汇率源，加备用源做主备；与磁盘/种子兜底正交 |

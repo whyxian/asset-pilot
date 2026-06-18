@@ -5,9 +5,11 @@ import type { AssetQuote, AssetSnapshot, AssetVariety, ClosedHolding, ClosedHold
 // 持仓
 // ═══════════════════════════════════════════
 
-/** 获取持仓 + 实时行情 + 市值/盈亏/年化 */
-export const fetchHoldingsWithQuotes = () =>
-  apiClient.get('/api/v1/holdings/with-quotes') as Promise<HoldingWithQuote[]>
+/** 获取持仓 + 实时行情 + 市值/盈亏/年化
+ *  forceRefresh=true 时绕过基金 15 分钟缓存，强制拉取最新行情
+ */
+export const fetchHoldingsWithQuotes = (forceRefresh: boolean = false) =>
+  apiClient.get('/api/v1/holdings/with-quotes', { params: { force_refresh: forceRefresh } }) as Promise<HoldingWithQuote[]>
 
 /** 新增持仓 */
 export const createHolding = (data: HoldingCreate) =>
@@ -25,9 +27,11 @@ export const deleteHolding = (ticker: string, asset_class: string, market: strin
 // 概览
 // ═══════════════════════════════════════════
 
-/** 获取概览统计 */
-export const fetchOverview = (currency: string = 'CNY') =>
-  apiClient.get('/api/v1/overview', { params: { currency } }) as Promise<OverviewStats>
+/** 获取概览统计
+ *  forceRefresh=true 时绕过基金 15 分钟缓存，强制拉取最新行情
+ */
+export const fetchOverview = (currency: string = 'CNY', forceRefresh: boolean = false) =>
+  apiClient.get('/api/v1/overview', { params: { currency, force_refresh: forceRefresh } }) as Promise<OverviewStats>
 
 // ═══════════════════════════════════════════
 // 品种目录

@@ -127,7 +127,7 @@ async def test_get_overview_with_holdings():
 
     # mock quote service
     mock_quote_svc = AsyncMock()
-    async def fake_fetch(asset_class, market, tickers):
+    async def fake_fetch(asset_class, market, tickers, force_refresh=False):
         if asset_class == "STOCK" and market == "US":
             return [AssetQuote(
                 ticker="AAPL", asset_class="STOCK", market="US",
@@ -141,28 +141,14 @@ async def test_get_overview_with_holdings():
         return []
     mock_quote_svc.fetch_quotes_by_asset_class = fake_fetch
 
-    # mock 汇率：USD→CNY=7, USD→USD=1, CNY→USD=1/7
-    async def fake_convert(amount, from_ccy, to_ccy):
-        if from_ccy == to_ccy:
-            return amount
-        if from_ccy == "USD" and to_ccy == "CNY":
-            return amount * Decimal("7")
-        if from_ccy == "CNY" and to_ccy == "USD":
-            return amount / Decimal("7")
-        return amount
-
-    async def fake_to_usd(amount, currency):
-        if currency == "USD":
-            return amount
-        if currency == "CNY":
-            return amount / Decimal("7")
-        return amount
+    # mock 汇率：USD 为基准，CNY=7（convert_with_rates 是纯同步函数，走真实实现）
+    async def fake_fetch_rates():
+        return {"USD": Decimal("1"), "CNY": Decimal("7")}
 
     mp = pytest.MonkeyPatch()
     mp.setattr(svc, "_holding_repo", mock_repo)
     mp.setattr(svc, "_quote_svc", mock_quote_svc)
-    mp.setattr("app.services.overview_service.to_usd", fake_to_usd)
-    mp.setattr("app.services.overview_service.convert", fake_convert)
+    mp.setattr("app.services.overview_service.fetch_rates", fake_fetch_rates)
 
     try:
         result = await svc.get_overview()
@@ -186,3 +172,65 @@ async def test_get_overview_with_holdings():
 
     # 年化应为非 None（两只持仓都有行情和日期）
     assert result.annualized_return is not None
+
+
+# ════════════════════════════════════════════════════
+# _fetch_quote_map — 并发拉取 + 超时熔断 + 单组容错
+# ════════════════════════════════════════════════════
+
+async def test_fetch_quote_map_timeout_drops_slow_group():
+    """某组超时未返回 → 丢弃该组，保留已完成的组行情"""
+    import asyncio
+    svc = OverviewService()
+
+    async def fake_fetch(ac, market, tickers, force_refresh=False):
+        if market == "US":
+            return [AssetQuote(
+                ticker="AAPL", asset_class="STOCK", market="US",
+                name="Apple", price=Decimal("170"), currency="USD",
+            )]
+        # 慢组：模拟数据源抽风
+        await asyncio.sleep(0.5)
+        return [AssetQuote(
+            ticker="000001", asset_class="FUND", market="CN",
+            name="华夏成长", price=Decimal("1.2"), currency="CNY",
+        )]
+
+    mp = pytest.MonkeyPatch()
+    mp.setattr(svc._quote_svc, "fetch_quotes_by_asset_class", fake_fetch)
+    # 把超时压到极小，让慢组必被丢弃
+    mp.setattr("app.services.overview_service._QUOTE_FETCH_TIMEOUT", 0.1)
+    try:
+        groups = {("STOCK", "US"): ["AAPL"], ("FUND", "CN"): ["000001"]}
+        quote_map = await svc._fetch_quote_map(groups, force_refresh=False)
+    finally:
+        mp.undo()
+
+    # 快组行情保留，慢组被丢弃
+    assert "AAPL" in quote_map
+    assert "000001" not in quote_map
+
+
+async def test_fetch_quote_map_swallows_group_exception():
+    """某组抛异常 → 不影响其他组，返回已成功组的行情"""
+    svc = OverviewService()
+
+    async def fake_fetch(ac, market, tickers, force_refresh=False):
+        if market == "US":
+            return [AssetQuote(
+                ticker="AAPL", asset_class="STOCK", market="US",
+                name="Apple", price=Decimal("170"), currency="USD",
+            )]
+        raise RuntimeError("coinglass down")
+
+    mp = pytest.MonkeyPatch()
+    mp.setattr(svc._quote_svc, "fetch_quotes_by_asset_class", fake_fetch)
+    try:
+        groups = {("STOCK", "US"): ["AAPL"], ("CRYPTO", "CRYPTO"): ["BTC"]}
+        quote_map = await svc._fetch_quote_map(groups, force_refresh=False)
+    finally:
+        mp.undo()
+
+    # 异常组被吞掉，正常组行情保留
+    assert "AAPL" in quote_map
+    assert "BTC" not in quote_map

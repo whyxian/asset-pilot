@@ -16,9 +16,11 @@ service = AssetHoldingService()
 
 
 @router.get("/holdings/with-quotes")
-async def list_holdings_with_quotes():
+async def list_holdings_with_quotes(
+    force_refresh: bool = Query(False, description="True 时绕过基金 15 分钟缓存，强制拉取最新行情"),
+):
     """获取持仓 + 实时行情 + 市值/盈亏/年化"""
-    data = await service.list_holdings_with_quotes()
+    data = await service.list_holdings_with_quotes(force_refresh=force_refresh)
     return success(data)
 
 

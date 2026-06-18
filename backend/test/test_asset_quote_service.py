@@ -101,6 +101,35 @@ async def test_fetch_fund_quotes_none_cached():
     mock_fund_repo.fetch_realtime_quote.assert_called_once_with(["000001"], market="CN")
 
 
+async def test_fetch_fund_quotes_force_refresh_skips_cache():
+    """force_refresh=True → 即使缓存命中也跳过，全部走网络拉最新"""
+    svc = AssetQuoteService()
+    cached = _make_quote("000001", asset_class="FUND", price="1.5")
+    fresh = _make_quote("000001", asset_class="FUND", price="1.6")
+
+    mock_fund_repo = AsyncMock()
+    mock_fund_repo.get_recent_quotes = AsyncMock(
+        return_value={"000001": cached},
+    )
+    mock_fund_repo.fetch_realtime_quote = AsyncMock(return_value=[fresh])
+    mock_fund_repo.save_asset_quotes = AsyncMock(return_value=1)
+
+    mp = pytest.MonkeyPatch()
+    mp.setattr(svc, "_fund_repo", mock_fund_repo)
+    try:
+        result = await svc.fetch_fund_quotes("CN", ["000001"], force_refresh=True)
+    finally:
+        mp.undo()
+
+    # 不查缓存
+    mock_fund_repo.get_recent_quotes.assert_not_called()
+    # 走网络拉全部
+    mock_fund_repo.fetch_realtime_quote.assert_called_once_with(["000001"], market="CN")
+    # 返回的是网络最新值而非缓存旧值
+    assert len(result) == 1
+    assert result[0].price == Decimal("1.6")
+
+
 # ════════════════════════════════════════════════════
 # fetch_stock_quotes
 # ════════════════════════════════════════════════════
