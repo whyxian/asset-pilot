@@ -270,6 +270,12 @@ export function HoldingsPage() {
         </div>
       </div>
 
+      {refreshMut.error && (
+        <p className="text-sm text-destructive">
+          刷新失败：{refreshMut.error.message}
+        </p>
+      )}
+
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead>

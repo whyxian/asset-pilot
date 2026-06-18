@@ -43,7 +43,9 @@ class OverviewService:
         quote_map = await self._fetch_quote_map(groups, force_refresh)
 
         # 汇率一次取回（命中 1h 缓存时无网络），循环内用同步换算避免 2N 次冗余 await
-        rates = await fetch_rates() or {}
+        # fetch_rates 五级兜底永不返回 None，最差也有硬编码汇率；snapshot 含日期+新鲜度供前端展示
+        rate_snapshot = await fetch_rates()
+        rates = rate_snapshot.rates
 
         today = date.today()
         total_value_usd = Decimal("0")
@@ -51,7 +53,7 @@ class OverviewService:
         market_values_usd: dict[str, Decimal] = defaultdict(Decimal)
 
         for h in holdings:
-            q = quote_map.get(h.ticker)
+            q = quote_map.get((h.asset_class, h.market, h.ticker))
             current_price = q.price if q else Decimal("0")
             market_value = h.quantity * current_price
 
@@ -75,7 +77,7 @@ class OverviewService:
         weighted_return = Decimal("0")
         total_weight = Decimal("0")
         for h in holdings:
-            q = quote_map.get(h.ticker)
+            q = quote_map.get((h.asset_class, h.market, h.ticker))
             current_price = q.price if q else Decimal("0")
             mv_usd = convert_with_rates(h.quantity * current_price, h.currency, "USD", rates)
             annualized = self._calc_annualized(current_price, h.cost_price, h.first_buy_date, today)
@@ -116,11 +118,13 @@ class OverviewService:
             total_pnl_pct=total_pnl_pct,
             annualized_return=avg_annualized,
             allocation=allocation,
+            rate_source_date=rate_snapshot.source_date,
+            rate_stale=rate_snapshot.is_stale,
         )
 
     async def _fetch_quote_map(
         self, groups: dict[tuple[str, str], list[str]], force_refresh: bool
-    ) -> dict[str, object]:
+    ) -> dict[tuple[str, str, str], object]:
         """各资产组并发拉取行情，整体超时熔断
 
         Args:
@@ -128,8 +132,9 @@ class OverviewService:
             force_refresh: 是否强制刷新绕过基金 15 分钟缓存
 
         Returns:
-            {ticker: AssetQuote}；超时或单组失败时返回已获取的部分结果，
-            缺失品种的后续价格兜底为 0，避免单个数据源抽风拖垮整个概览请求。
+            {(asset_class, market, ticker): AssetQuote}；超时或单组失败时返回已
+            获取的部分结果，缺失品种的后续价格兜底为 0，避免单个数据源抽风拖垮整个
+            概览请求。用三元组 key 避免不同品种 ticker 冲突（如 000001 同时是 A 股和基金）。
         """
         # 比前端 axios 15s 超时略早，给后续汇率换算留余量
         tasks = {
@@ -146,25 +151,28 @@ class OverviewService:
             logger.error(f"行情拉取异常: {e}")
             for t in tasks:
                 t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             return {}
 
-        # 取消超时未完成的组
+        # 取消超时未完成的组，并 await 收尾以消费 CancelledError、清理协程内连接
         for t in pending:
             t.cancel()
         if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
             logger.warning(
                 f"行情拉取超时({_QUOTE_FETCH_TIMEOUT}s)，丢弃组: "
                 f"{[tasks[t] for t in pending]}，已获取 {len(done)} 组"
             )
 
-        quote_map: dict[str, object] = {}
+        quote_map: dict[tuple[str, str, str], object] = {}
         for t in done:
             ac, market = tasks[t]
             if t.exception():
                 logger.error(f"行情组 {ac}/{market} 拉取失败: {t.exception()}")
                 continue
             for q in t.result():
-                quote_map[q.ticker] = q
+                # 三元组定位，避免不同品种 ticker 冲突
+                quote_map[(ac, market, q.ticker)] = q
         return quote_map
 
     @staticmethod

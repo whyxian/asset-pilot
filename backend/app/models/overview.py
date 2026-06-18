@@ -31,3 +31,5 @@ class OverviewStats(BaseModel):
     total_pnl_pct: float | str | None = None      # 零成本时为 "+∞%"
     annualized_return: float | str | None = None  # 零成本时为 "+∞%"
     allocation: list[AllocationItem] = []
+    rate_source_date: str | None = None  # 当前所用汇率的日期（前端展示）
+    rate_stale: bool = False             # 汇率是否走了兜底（旧汇率，前端警告）

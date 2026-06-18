@@ -115,6 +115,12 @@ export function OverviewPage() {
         </div>
       </div>
 
+      {refreshMut.error && (
+        <p className="text-sm text-destructive">
+          刷新失败：{refreshMut.error.message}
+        </p>
+      )}
+
       {createSnapshotMut.error && (
         <p className="text-sm text-destructive">
           快照失败：{createSnapshotMut.error.message}
@@ -258,8 +264,10 @@ export function OverviewPage() {
         </Card>
       )}
 
-      <p className="text-sm text-muted-foreground">
-        汇率数据由 exchangerates 提供 · 每小时更新 · 历史快照按当时汇率换算
+      <p className={`text-sm ${stats.rate_stale ? 'text-amber-600' : 'text-muted-foreground'}`}>
+        {stats.rate_stale
+          ? `⚠ 汇率非最新（来自 ${stats.rate_source_date ?? '未知日期'}），网络异常时使用历史汇率兜底 · 历史快照按当时汇率换算`
+          : `汇率数据由 exchangerates 提供 · 更新于 ${stats.rate_source_date ?? '未知'} · 历史快照按当时汇率换算`}
       </p>
     </div>
   )

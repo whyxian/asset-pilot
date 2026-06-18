@@ -69,6 +69,8 @@ export interface OverviewStats {
   total_pnl_pct: number | string | null
   annualized_return: number | string | null
   allocation: AllocationItem[]
+  rate_source_date: string | null   // 当前所用汇率的日期（YYYY-MM-DD）
+  rate_stale: boolean               // 汇率是否走了兜底（旧汇率，需警告）
 }
 
 export interface NetWorthSnapshot {

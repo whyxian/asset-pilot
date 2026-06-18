@@ -143,7 +143,12 @@ async def test_get_overview_with_holdings():
 
     # mock 汇率：USD 为基准，CNY=7（convert_with_rates 是纯同步函数，走真实实现）
     async def fake_fetch_rates():
-        return {"USD": Decimal("1"), "CNY": Decimal("7")}
+        from app.utils.exchange_rate import RatesSnapshot
+        return RatesSnapshot(
+            rates={"USD": Decimal("1"), "CNY": Decimal("7")},
+            source_date="2026-06-19",
+            is_stale=False,
+        )
 
     mp = pytest.MonkeyPatch()
     mp.setattr(svc, "_holding_repo", mock_repo)
@@ -172,6 +177,10 @@ async def test_get_overview_with_holdings():
 
     # 年化应为非 None（两只持仓都有行情和日期）
     assert result.annualized_return is not None
+
+    # 汇率元数据透传
+    assert result.rate_source_date == "2026-06-19"
+    assert result.rate_stale is False
 
 
 # ════════════════════════════════════════════════════
@@ -206,9 +215,9 @@ async def test_fetch_quote_map_timeout_drops_slow_group():
     finally:
         mp.undo()
 
-    # 快组行情保留，慢组被丢弃
-    assert "AAPL" in quote_map
-    assert "000001" not in quote_map
+    # 快组行情保留（三元组 key），慢组被丢弃
+    assert ("STOCK", "US", "AAPL") in quote_map
+    assert ("FUND", "CN", "000001") not in quote_map
 
 
 async def test_fetch_quote_map_swallows_group_exception():
@@ -231,6 +240,38 @@ async def test_fetch_quote_map_swallows_group_exception():
     finally:
         mp.undo()
 
-    # 异常组被吞掉，正常组行情保留
-    assert "AAPL" in quote_map
-    assert "BTC" not in quote_map
+    # 异常组被吞掉，正常组行情保留（三元组 key）
+    assert ("STOCK", "US", "AAPL") in quote_map
+    assert ("CRYPTO", "CRYPTO", "BTC") not in quote_map
+
+
+async def test_fetch_quote_map_avoids_cross_group_ticker_collision():
+    """跨组 ticker 相同（如 000001 既是 A 股又是基金）→ 三元组 key 互不覆盖"""
+    svc = OverviewService()
+
+    async def fake_fetch(ac, market, tickers, force_refresh=False):
+        if ac == "STOCK" and market == "CN":
+            return [AssetQuote(
+                ticker="000001", asset_class="STOCK", market="CN",
+                name="平安银行", price=Decimal("11.5"), currency="CNY",
+            )]
+        if ac == "FUND" and market == "CN":
+            return [AssetQuote(
+                ticker="000001", asset_class="FUND", market="CN",
+                name="华夏成长", price=Decimal("1.2"), currency="CNY",
+            )]
+        return []
+
+    mp = pytest.MonkeyPatch()
+    mp.setattr(svc._quote_svc, "fetch_quotes_by_asset_class", fake_fetch)
+    try:
+        groups = {("STOCK", "CN"): ["000001"], ("FUND", "CN"): ["000001"]}
+        quote_map = await svc._fetch_quote_map(groups, force_refresh=False)
+    finally:
+        mp.undo()
+
+    # 两条行情都保留，按三元组区分，不互相覆盖
+    assert ("STOCK", "CN", "000001") in quote_map
+    assert ("FUND", "CN", "000001") in quote_map
+    assert quote_map[("STOCK", "CN", "000001")].price == Decimal("11.5")
+    assert quote_map[("FUND", "CN", "000001")].price == Decimal("1.2")
