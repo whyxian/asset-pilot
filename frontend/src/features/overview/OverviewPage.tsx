@@ -45,27 +45,19 @@ export function OverviewPage() {
         <h1 className="text-2xl font-bold">概览</h1>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <Card
-              key={i}
-              className="animate-fade-in-up"
-              style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'backwards' }}
-            >
+            <Card key={i}>
               <CardHeader className="pb-2">
                 <Skeleton className="h-4 w-20" />
               </CardHeader>
               <CardContent>
-                <Skeleton className="h-8 w-32" style={{ animationDelay: '150ms' }} />
+                <Skeleton className="h-8 w-32" />
               </CardContent>
             </Card>
           ))}
         </div>
-        <Card className="animate-fade-in-up" style={{ animationDelay: '400ms', animationFillMode: 'backwards' }}>
+        <Card>
           <CardHeader><Skeleton className="h-5 w-24" /></CardHeader>
-          <CardContent>
-            <Skeleton className="h-8 w-full mb-2" />
-            <Skeleton className="h-8 w-3/4 mb-2" style={{ animationDelay: '100ms' }} />
-            <Skeleton className="h-8 w-1/2" style={{ animationDelay: '200ms' }} />
-          </CardContent>
+          <CardContent><Skeleton className="h-32 w-full" /></CardContent>
         </Card>
       </div>
     )
