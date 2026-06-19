@@ -56,3 +56,9 @@ export function useColors() {
   if (!ctx) return { upColor: 'text-green-600', downColor: 'text-red-600' }
   return { upColor: ctx.upColor, downColor: ctx.downColor }
 }
+
+export function useSettings() {
+  const ctx = useContext(SettingsContext)
+  if (!ctx) return { settings: DEFAULT, setColorScheme: () => {} }
+  return { settings: ctx.settings, setColorScheme: ctx.setColorScheme }
+}

@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { LayoutDashboard, Wallet, ArrowLeftRight, Search, Settings } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
+import { SettingsDialog } from '@/features/settings/SettingsDialog'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: '概览' },
@@ -10,6 +12,8 @@ const navItems = [
 ]
 
 export function SidebarLayout({ children }: { children: React.ReactNode }) {
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
   return (
     <div className="flex h-screen">
       {/* 侧边栏 */}
@@ -43,22 +47,17 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
 
         {/* 左下角设置 */}
         <div className="p-3 border-t">
-          <NavLink
-            to="/settings"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
-                isActive
-                  ? 'bg-accent text-accent-foreground font-medium'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-              )
-            }
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
           >
             <Settings className="w-4 h-4" />
             设置
-          </NavLink>
+          </button>
         </div>
       </aside>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       {/* 主内容区 */}
       <main className="flex-1 overflow-auto bg-background">
