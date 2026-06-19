@@ -8,6 +8,7 @@ import { ClosedHoldingDetailDialog } from './ClosedHoldingDetailDialog'
 import { Eye, ArrowLeft, Trash2 } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { formatPrice, formatPct } from '@/lib/utils'
+import { useColors } from '@/lib/settings'
 import type { ClosedHolding } from '@/types'
 
 const marketLabel: Record<string, string> = {
@@ -44,6 +45,7 @@ export function HistoryPage() {
   const { data, isLoading, isError, error, refetch } = useClosedHoldings()
   const deleteMut = useDeleteClosedHolding()
   const [detailId, setDetailId] = useState<number | null>(null)
+  const { upColor, downColor } = useColors()
   const [deleteConfirm, setDeleteConfirm] = useState<ClosedHolding | null>(null)
 
   function handleDeleteClick(h: ClosedHolding) {
@@ -179,7 +181,7 @@ export function HistoryPage() {
                   <td className="p-3 text-right whitespace-nowrap">{h.holding_days} 天</td>
                   <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.initial_total_invested, h.currency, 2)}</td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <span className={`font-medium ${positive ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`font-medium ${positive ? upColor : downColor}`}>
                       {formatPrice(h.realized_pnl, h.currency, 2)}
                     </span>
                   </td>
@@ -187,7 +189,7 @@ export function HistoryPage() {
                     {pct === null ? (
                       <span className="text-muted-foreground">N/A</span>
                     ) : (
-                      <span className={`font-medium ${positive ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className={`font-medium ${positive ? upColor : downColor}`}>
                         {formatPct(pct)}
                       </span>
                     )}

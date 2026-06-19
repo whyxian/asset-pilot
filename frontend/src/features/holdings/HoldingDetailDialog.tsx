@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTransactions } from '@/hooks/useTransactions'
 import { formatPrice, formatPct } from '@/lib/utils'
+import { useColors } from '@/lib/settings'
 import type { HoldingWithQuote } from '@/types'
 
 interface HoldingDetailDialogProps {
@@ -39,11 +40,13 @@ export function HoldingDetailDialog({ open, onOpenChange, holding }: HoldingDeta
     holding?.market,
   )
 
+  const { upColor, downColor } = useColors()
+
   if (!holding) return null
 
   const holdingDays = Math.floor((Date.now() - new Date(holding.first_buy_date).getTime()) / 86400000) + 1
   const pnlPositive = toNum(holding.pnl) >= 0
-  const pnlColor = pnlPositive ? 'text-green-600' : 'text-red-600'
+  const pnlColor = pnlPositive ? upColor : downColor
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -78,7 +81,7 @@ export function HoldingDetailDialog({ open, onOpenChange, holding }: HoldingDeta
           </div>
           <div className="rounded-lg border p-3">
             <div className="text-xs text-muted-foreground">年化回报</div>
-            <div className={`text-lg font-bold mt-0.5 ${(typeof holding.annualized_return === 'string' || (holding.annualized_return ?? 0) >= 0) ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`text-lg font-bold mt-0.5 ${(typeof holding.annualized_return === 'string' || (holding.annualized_return ?? 0) >= 0) ? upColor : downColor}`}>
               {formatPct(holding.annualized_return)}
             </div>
           </div>

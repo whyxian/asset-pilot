@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useClosedHolding } from '@/hooks/useClosedHoldings'
 import { formatPrice, formatPct } from '@/lib/utils'
+import { useColors } from '@/lib/settings'
 
 const marketLabel: Record<string, string> = {
   CN: 'A 股',
@@ -33,6 +34,7 @@ interface ClosedHoldingDetailDialogProps {
 
 export function ClosedHoldingDetailDialog({ id, open, onOpenChange }: ClosedHoldingDetailDialogProps) {
   const { data, isLoading } = useClosedHolding(id)
+  const { upColor, downColor } = useColors()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -76,7 +78,7 @@ export function ClosedHoldingDetailDialog({ id, open, onOpenChange }: ClosedHold
               <div className="text-muted-foreground">持仓天数</div>
               <div className="text-right">{data.holding_days} 天</div>
               <div className="text-muted-foreground font-medium">已实现盈亏</div>
-              <div className={`text-right font-medium ${toNum(data.realized_pnl) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className={`text-right font-medium ${toNum(data.realized_pnl) >= 0 ? upColor : downColor}`}>
                 {formatPrice(data.realized_pnl, data.currency, 2)}
                 {toNum(data.initial_total_invested) > 0 && (
                   <span className="ml-2">

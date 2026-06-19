@@ -183,10 +183,10 @@ export function OverviewPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">年化回报率</CardTitle>
-            <TrendingUp className="w-4 h-4 text-green-500" />
+            <TrendingUp className={`w-4 h-4 ${upColor}`} />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className={`text-2xl font-bold ${upColor}`}>
               {formatPct(stats.annualized_return)}
             </div>
           </CardContent>

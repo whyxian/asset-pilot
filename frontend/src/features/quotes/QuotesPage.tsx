@@ -13,6 +13,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { useQuoteSearch } from '@/hooks/useQuote'
 import { cn, formatPrice } from '@/lib/utils'
+import { useColors } from '@/lib/settings'
 import type { AssetQuote } from '@/types'
 
 // 已知加密货币符号
@@ -68,6 +69,7 @@ const sourceBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = 
 }
 
 function QuoteCard({ quote }: { quote: AssetQuote }) {
+  const { upColor, downColor } = useColors()
   const price = typeof quote.price === 'string' ? parseFloat(quote.price as unknown as string) : quote.price
   const changePrice = quote.change_price != null
     ? (typeof quote.change_price === 'string' ? parseFloat(quote.change_price as unknown as string) : quote.change_price)
@@ -75,8 +77,8 @@ function QuoteCard({ quote }: { quote: AssetQuote }) {
   const changeColor =
     quote.change_ratio != null
       ? quote.change_ratio >= 0
-        ? 'text-green-600'
-        : 'text-red-600'
+        ? upColor
+        : downColor
       : 'text-muted-foreground'
 
   return (
