@@ -153,12 +153,34 @@ api (HTTP 路由) → services (业务逻辑) → repositories (数据访问) �
 - **异步优先**：所有 IO 操作用 `async/await`
 - **导入路径**：统一用 `from app.xxx import YYY`，不用 `backend.app.xxx`
 
+### 外部请求超时规范
+
+> 起因：2026-06-19 概览接口超时事故——汇率请求 20s 超时 > 前端 15s 超时，导致前端反复超时报错。详见 [docs/code_review/incident_2026-06-19_overview_timeout.md](docs/code_review/incident_2026-06-19_overview_timeout.md)。
+
+外部请求（httpx / Playwright 等）的超时**必须按数据特性 + 兜底情况设定，不得拍脑袋**：
+
+| 类型 | 原则 | 参考值 |
+|------|------|--------|
+| 小 JSON / API（有兜底） | 兜底充足就敢设短，失败立刻回退 | 3-5s |
+| 小 JSON / API（无兜底） | 按用户耐心 | 5-8s |
+| 行情批量（多数据源并发） | 整体熔断阈值 | 10-12s |
+| 浏览器渲染（Playwright） | 渲染本就慢 | 15-20s |
+
+**铁律：任何后端外部请求超时不得大于前端超时（当前 axios 15s）。** 否则后端慢点必然导致前端超时。
+
+配套要求：
+- **兜底与超时配套**：有内存/磁盘/种子兜底的外部资源，超时应激进（几秒），让失败快速回退；无兜底才保守。
+- **单飞**：会被高频并发调用、且每次打同一外部慢资源的函数，必须加单飞（single-flight，如 `exchange_rate.fetch_rates` 的 `_inflight` task），N 个请求只发 1 个网络请求。
+- **独立资源并发化**：service 层多个互不依赖的外部调用，默认 `asyncio.gather` 并发，不得串行 `await`（最坏耗时取 max 而非累加）。
+- **端到端超时链校验**：单接口最坏耗时（串行外部调用超时之和 / 并发取最大）必须 < 前端超时。code review 时检查。
+
 ### 协作流程
 
 - **讨论阶段不要写代码**：讨论方案、设计、重构策略时，没得到明确指令前不要动手写实现，更不要新增文件或修改现有代码。等我先确认方案再动。**先讨论，后实现。**
 - **新文件先审命名**：新增文件之前，先检查命名是否符合本规范的命名约定（文件命名、类命名、方法命名），确认后再创建。防止出现 `quote_api.py` 这种不遵循 `asset_quote_xxx.py` 模式的命名。
 - **ORM 审计字段必填**：新建 ORM 模型时必须包含完整的审计字段（`created_at`, `updated_at`, `created_by`, `updated_by`），与 database.md 中的约定一致。缺一个就是一级事故。
 - **受保护数据文件**：`data/source/` 整个目录、`data/dbjson/exchange_rates_fallback.json`（汇率种子兜底）不可擅自动。`data/source/` 只由用户手动管理；汇率种子文件更新需用户确认。
+- **代码审查用 checklist**：审查（含自审）时按 [docs/code_review/CHECKLIST.md](docs/code_review/CHECKLIST.md) 逐条检查，不得靠「扫代码」凭感觉。重点：超时链（§一）、并行机会（§二）这两类需跨层对比才能发现的问题，是历史事故高发区，必须强制过。
 
 ## 核心功能模块
 
