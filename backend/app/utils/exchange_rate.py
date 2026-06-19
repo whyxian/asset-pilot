@@ -292,26 +292,29 @@ async def _fetch_rates_uncached() -> RatesSnapshot:
         )
 
 
-async def fetch_rates() -> RatesSnapshot:
+async def fetch_rates(force_refresh: bool = False) -> RatesSnapshot:
     """获取实时汇率（USD 为基准），五级兜底 + 单飞
 
     兜底链：内存新鲜值（未过 TTL）→ 网络拉取 → 内存旧值（过期）→ 磁盘旧值
             （运行时缓存 + 种子文件）→ 硬编码常量
 
-    单飞：N 个并发请求同时触发网络拉取时，只发 1 个请求，其余复用结果，
-    避免概览 60s 轮询 + 前端重试叠加时各自卡满超时。
+    单飞：N 个并发请求同时触发网络拉取时，只发 1 个请求，其余复用结果。
+
+    Args:
+        force_refresh: True 时跳过内存缓存，强制走网络（调度器定时刷新用）
 
     Returns:
         RatesSnapshot（rates 永不为空）；is_stale=True 表示走了兜底、汇率可能过时
     """
     now = time.time()
-    # TTL 内缓存命中：新鲜（网络本就每小时更新，1h 内可接受），直接返回
-    if _cache["rates"] and (now - _cache["fetched_at"]) < _CACHE_TTL:
-        return RatesSnapshot(
-            rates=_cache["rates"],
-            source_date=_cache["source_date"],
-            is_stale=_cache.get("is_stale", False),
-        )
+    # TTL 内缓存命中（force_refresh 跳过）
+    if not force_refresh:
+        if _cache["rates"] and (now - _cache["fetched_at"]) < _CACHE_TTL:
+            return RatesSnapshot(
+                rates=_cache["rates"],
+                source_date=_cache["source_date"],
+                is_stale=_cache.get("is_stale", False),
+            )
 
     # 单飞：已有进行中的拉取任务则等它，否则自己发起
     global _inflight

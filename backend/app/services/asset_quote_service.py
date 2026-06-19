@@ -10,7 +10,7 @@ from app.repositories.asset_quote_repository import (
     StockQuoteRepository,
 )
 from app.repositories.asset_variety_repository import AssetVarietyRepository
-from app.utils.quote_cache import QuoteCache
+from app.utils.quote_cache import QuoteCache, quote_cache
 
 # 行情并发拉取的整体超时阈值（秒）——比前端 axios 15s 略早，给后续业务处理留余量
 QUOTE_FETCH_TIMEOUT = 12
@@ -23,8 +23,8 @@ class AssetQuoteService:
         self._stock_repo = StockQuoteRepository()
         self._crypto_repo = CryptoQuoteRepository()
         self._fund_repo = FundQuoteRepository()
-        # 行情内存缓存（单 ticker + 部分命中），进程级
-        self._cache = QuoteCache()
+        # 行情内存缓存（进程级单例，定时任务和请求处理共享）
+        self._cache = quote_cache
 
     async def fetch_quote_map_concurrent(
         self,
@@ -134,15 +134,14 @@ class AssetQuoteService:
         Args:
             market: "CN" / "US"
             codes: 标的代码列表
-            force_refresh: True 时跳过缓存，强制全部走网络拉最新行情（不写缓存）
-        """
-        # 1) 部分命中缓存（force_refresh 时全部视为缺失）
-        hit, missing = ({}, codes) if force_refresh else self._cache.get(market, codes)
+            force_refresh: True 时跳过缓存，强制全部走网络拉最新行情        """
+        # 1) 部分命中缓存（force_refresh 时全部视为缺失；过期数据照常返回不触网）
+        hit, missing, _stale = ({}, codes, set()) if force_refresh else self._cache.get(market, codes)
         if not missing:
             logger.info(f"STOCK({market}) 全部 {len(hit)} 只命中缓存，跳过网络")
             return list(hit.values())
 
-        # 2) 未命中部分走网络
+        # 2) 未命中部分走网络（仅从未缓存过的 ticker，调度器正常时走不到）
         fresh = await self._stock_repo.fetch_realtime_quote(missing, market=market)
         if market == "US" and fresh:
             await self._enrich_names(fresh)
@@ -152,8 +151,7 @@ class AssetQuoteService:
         if fresh:
             saved = await self._stock_repo.save_asset_quotes(fresh)
             logger.info(f"已保存 {saved} 条 STOCK({market}) 行情")
-            if not force_refresh:
-                self._cache.set(market, fresh)
+            self._cache.set(market, fresh)  # force_refresh 也写缓存
 
         if hit:
             logger.info(f"STOCK({market}) 命中缓存 {len(hit)} 只，未命中 {len(missing)} 只走网络")
@@ -181,9 +179,8 @@ class AssetQuoteService:
 
         Args:
             codes: 标的代码列表
-            force_refresh: True 时跳过缓存，强制全部走网络（不写缓存）
-        """
-        hit, missing = ({}, codes) if force_refresh else self._cache.get("CRYPTO", codes)
+            force_refresh: True 时跳过缓存，强制全部走网络        """
+        hit, missing, _stale = ({}, codes, set()) if force_refresh else self._cache.get("CRYPTO", codes)
         if not missing:
             logger.info(f"CRYPTO 全部 {len(hit)} 只命中缓存，跳过网络")
             return list(hit.values())
@@ -194,8 +191,7 @@ class AssetQuoteService:
         if fresh:
             saved = await self._crypto_repo.save_asset_quotes(fresh)
             logger.info(f"已保存 {saved} 条 CRYPTO 行情")
-            if not force_refresh:
-                self._cache.set("CRYPTO", fresh)
+            self._cache.set("CRYPTO", fresh)  # force_refresh 也写缓存
 
         if hit:
             logger.info(f"CRYPTO 命中缓存 {len(hit)} 只，未命中 {len(missing)} 只走网络")
@@ -213,10 +209,9 @@ class AssetQuoteService:
         Args:
             market: "CN" / "US"
             codes: 基金代码列表
-            force_refresh: True 时跳过 15 分钟缓存，强制全部走网络拉最新净值（不写缓存）
-        """
+            force_refresh: True 时跳过 15 分钟缓存，强制全部走网络拉最新净值        """
         # 1) 部分命中内存缓存（force_refresh 时全部视为缺失）
-        hit, missing = ({}, codes) if force_refresh else self._cache.get("FUND", codes)
+        hit, missing, _stale = ({}, codes, set()) if force_refresh else self._cache.get("FUND", codes)
         if not missing:
             logger.info(f"FUND({market}) 全部 {len(hit)} 只命中缓存，跳过网络请求")
             return list(hit.values())
@@ -228,8 +223,7 @@ class AssetQuoteService:
         if fresh:
             saved = await self._fund_repo.save_asset_quotes(fresh)
             logger.info(f"已保存 {saved} 条 FUND({market}) 行情")
-            if not force_refresh:
-                self._cache.set("FUND", fresh)
+            self._cache.set("FUND", fresh)  # force_refresh 也写缓存
 
         if hit:
             logger.info(f"FUND({market}) 命中缓存 {len(hit)} 只，未命中 {len(missing)} 只走网络")

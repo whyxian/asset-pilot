@@ -1,9 +1,11 @@
 """AssetPilot 后端入口"""
 
+import asyncio
 import time
 from contextlib import asynccontextmanager
 
 import uvicorn
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -19,13 +21,43 @@ from app.api.transaction_api import router as transaction_router
 from app.core.database import engine, init_db
 from app.core.exceptions import BusinessError
 from app.core.logger import logger
+from app.scheduler.quote_scheduler import QuoteScheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """启动时初始化数据库，关闭时释放资源"""
+    """启动时初始化数据库 + 行情定时任务，关闭时释放资源"""
     await init_db()
+    scheduler = AsyncIOScheduler()
+    quote_refresher = QuoteScheduler()
+    scheduler.add_job(
+        quote_refresher.refresh_quotes,
+        trigger="interval",
+        seconds=30,
+        id="refresh_quotes",
+        misfire_grace_time=10,
+    )
+    scheduler.add_job(
+        quote_refresher.refresh_rates,
+        trigger="interval",
+        seconds=3300,  # 55min，略低于 1h 缓存 TTL，保证用户请求永远命中
+        id="refresh_rates",
+        misfire_grace_time=60,
+    )
+    # 启动时预热缓存（避免前 30s 用户请求直打网络）
+    try:
+        await asyncio.gather(
+            quote_refresher.refresh_quotes(),
+            quote_refresher.refresh_rates(),
+        )
+        logger.info("[lifespan] 缓存预热完成")
+    except Exception as e:
+        logger.warning(f"[lifespan] 缓存预热失败（不影响启动）: {e}")
+    scheduler.start()
+    logger.info("[lifespan] 定时任务已启动（行情30s + 汇率55min）")
     yield
+    scheduler.shutdown(wait=False)
+    logger.info("[lifespan] 行情定时任务已停止")
     await engine.dispose()
 
 

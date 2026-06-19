@@ -72,20 +72,15 @@ def test_unknown_market_not_trading():
 # quote_cache_ttl
 # ════════════════════════════════════════════════════
 
-def test_ttl_fund_fixed_15min():
-    """基金固定 15min（900s），无交易时段概念"""
-    assert quote_cache_ttl("FUND") == 900
+def test_ttl_uniform_5min_safety_net():
+    """TTL 统一 5min 兜底（定时任务 30s 刷新保证新鲜度，TTL 仅调度器故障时触发）"""
+    assert quote_cache_ttl("FUND") == 300
+    assert quote_cache_ttl("CRYPTO") == 300
+    assert quote_cache_ttl("CN") == 300
+    assert quote_cache_ttl("US") == 300
 
 
-def test_ttl_crypto_30s():
-    """加密货币恒为交易时段，TTL 30s"""
-    assert quote_cache_ttl("CRYPTO") == 30
-
-
-def test_ttl_cn_trading_vs_non_trading():
-    """A股交易时段 30s，非交易时段 30min（1800s）"""
-    # 周一上午盘内
-    assert quote_cache_ttl("CN") in (30, 1800)  # 取决于真实当前时间，只校验合法值
-    # 显式构造时段验证
+def test_trading_hours_cn():
+    """A股时段判定（与 TTL 无关，仍用于 scheduler 频率决策）"""
     assert is_trading_hours("CN", datetime(2026, 6, 15, 10, 0))  # 交易中
     assert not is_trading_hours("CN", datetime(2026, 6, 15, 16, 0))  # 收盘后

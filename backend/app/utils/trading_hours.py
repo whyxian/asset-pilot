@@ -34,15 +34,16 @@ def is_trading_hours(market: str, now: datetime | None = None) -> bool:
 
 
 def quote_cache_ttl(market: str) -> int:
-    """返回该市场行情缓存的 TTL（秒）
+    """返回该市场行情缓存的 TTL（秒）— 兜底值
+
+    缓存由后台定时任务（APScheduler）主动刷新，用户请求只读缓存。
+    此 TTL 只是兜底——若调度器长期故障，超过 TTL 的旧缓存会被丢弃，
+    降级到 DB 历史行情或 UNAVAILABLE。
 
     Args:
         market: "CN" / "US" / "CRYPTO" / "FUND"
 
     Returns:
-        交易时段 30s（看板场景足够新鲜），非交易时段 30min（价格不动）；
-        基金固定 15min（净值日更，无交易时段概念）。
+        统一 5min（300s）。交易/非交易时段不再区分——调度器统一 30s 间隔保证新鲜度。
     """
-    if market == "FUND":
-        return 900  # 15min
-    return 30 if is_trading_hours(market) else 1800
+    return 300  # 5min 兜底

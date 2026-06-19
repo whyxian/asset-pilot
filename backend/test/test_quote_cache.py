@@ -25,28 +25,31 @@ def _make_quote(ticker: str, price: str = "10") -> AssetQuote:
 def test_miss_when_empty():
     """空缓存 → 全部缺失"""
     cache = QuoteCache()
-    hit, missing = cache.get("CN", ["000001", "000002"])
+    hit, missing, stale = cache.get("CN", ["000001", "000002"])
     assert hit == {}
     assert missing == ["000001", "000002"]
+    assert stale == set()
 
 
 def test_hit_after_set():
-    """写入后命中"""
+    """写入后命中，不 stale"""
     cache = QuoteCache()
     cache.set("CN", [_make_quote("000001", "1.5")])
-    hit, missing = cache.get("CN", ["000001"])
+    hit, missing, stale = cache.get("CN", ["000001"])
     assert "000001" in hit
     assert hit["000001"].price == Decimal("1.5")
     assert missing == []
+    assert stale == set()
 
 
 def test_partial_hit():
     """部分命中：3 只里 1 只命中，2 只缺失"""
     cache = QuoteCache()
     cache.set("CN", [_make_quote("000001", "1.5")])
-    hit, missing = cache.get("CN", ["000001", "000002", "000003"])
+    hit, missing, stale = cache.get("CN", ["000001", "000002", "000003"])
     assert set(hit.keys()) == {"000001"}
     assert set(missing) == {"000002", "000003"}
+    assert stale == set()
 
 
 def test_cross_market_isolation():
@@ -59,29 +62,32 @@ def test_cross_market_isolation():
     cache.set("CN", [stock_q])
     cache.set("FUND", [fund_q])
 
-    hit_cn, _ = cache.get("CN", ["000001"])
-    hit_fund, _ = cache.get("FUND", ["000001"])
+    hit_cn, _, _ = cache.get("CN", ["000001"])
+    hit_fund, _, _ = cache.get("FUND", ["000001"])
     assert hit_cn["000001"].price == Decimal("11.5")
     assert hit_fund["000001"].price == Decimal("1.2")
 
 
 # ════════════════════════════════════════════════════
-# 过期
+# 过期 — 用户请求不丢数据，标记 stale 即可
 # ════════════════════════════════════════════════════
 
-def test_expired_entry_treated_as_missing():
-    """过期项视为缺失，且被清除"""
+def test_expired_still_hit_not_missing():
+    """过期数据仍返回（hit），标记为 stale，不丢进 missing 触发网络"""
     cache = QuoteCache()
     cache.set("CN", [_make_quote("000001", "1.5")])
     # 手动把过期时间改到过去
     key = ("CN", "000001")
     cache._store[key] = (cache._store[key][0], time.time() - 1)
 
-    hit, missing = cache.get("CN", ["000001"])
-    assert hit == {}
-    assert missing == ["000001"]
-    # 过期项应被清除
-    assert key not in cache._store
+    hit, missing, stale = cache.get("CN", ["000001"])
+    # 过期仍在 hit 中
+    assert "000001" in hit
+    assert hit["000001"].price == Decimal("1.5")
+    # 不进 missing（不触发网络）
+    assert missing == []
+    # 标记为 stale
+    assert stale == {"000001"}
 
 
 # ════════════════════════════════════════════════════
@@ -94,6 +100,6 @@ def test_clear_empties_cache():
     cache.set("CN", [_make_quote("000001")])
     cache.set("FUND", [_make_quote("000002")])
     cache.clear()
-    hit, missing = cache.get("CN", ["000001"])
+    hit, missing, _ = cache.get("CN", ["000001"])
     assert hit == {}
     assert missing == ["000001"]

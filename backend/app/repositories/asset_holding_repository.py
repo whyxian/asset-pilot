@@ -129,6 +129,26 @@ class AssetHoldingRepository:
             await session.commit()
             return True
 
+    async def list_all_tickers(self) -> dict[tuple[str, str], list[str]]:
+        """查询所有活跃持仓的 ticker，按 (asset_class, market) 分组
+
+        供定时任务拉取行情使用。去重，已清仓的品种不参与。
+        """
+        from collections import defaultdict
+        async with async_session() as session:
+            rows = (await session.execute(
+                select(
+                    AssetHoldingRecord.asset_class,
+                    AssetHoldingRecord.market,
+                    AssetHoldingRecord.ticker,
+                ).where(AssetHoldingRecord.liquidated_at.is_(None))
+            )).all()
+        groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+        for ac, market, ticker in rows:
+            if ticker not in groups[(ac, market)]:
+                groups[(ac, market)].append(ticker)
+        return dict(groups)
+
 
 def _record_to_holding(r: AssetHoldingRecord) -> AssetHolding:
     """ORM 记录转 Pydantic 模型"""
