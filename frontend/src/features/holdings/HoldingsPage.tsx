@@ -18,6 +18,7 @@ import { Plus, Pencil, Eye, HandCoins, Archive, RefreshCw } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useNavigate } from 'react-router-dom'
 import { formatPrice, formatPct } from '@/lib/utils'
+import { useColors } from '@/lib/settings'
 import type { HoldingCreate, HoldingUpdate, HoldingWithQuote, TransactionCreate } from '@/types'
 
 const marketLabel: Record<string, string> = {
@@ -48,31 +49,34 @@ function sortByMarketThenValue(holdings: HoldingWithQuote[]): HoldingWithQuote[]
 }
 
 function PnlPctCell({ holding }: { holding: HoldingWithQuote }) {
+  const { upColor, downColor } = useColors()
   const pct = formatPct(holding.pnl_pct)
   if (pct === 'N/A') return <span className="text-muted-foreground">N/A</span>
   const positive = holding.pnl >= 0
   return (
-    <span className={`font-medium ${positive ? 'text-green-600' : 'text-red-600'}`}>
+    <span className={`font-medium ${positive ? upColor : downColor}`}>
       {pct}
     </span>
   )
 }
 
 function PnlAmountCell({ holding }: { holding: HoldingWithQuote }) {
+  const { upColor, downColor } = useColors()
   if (holding.pnl == null) return <span className="text-muted-foreground">N/A</span>
   const positive = toNum(holding.pnl) >= 0
   return (
-    <span className={`font-medium ${positive ? 'text-green-600' : 'text-red-600'}`}>
+    <span className={`font-medium ${positive ? upColor : downColor}`}>
       {formatPrice(holding.pnl, holding.currency, 2)}
     </span>
   )
 }
 
 function AnnualizedCell({ holding }: { holding: HoldingWithQuote }) {
+  const { upColor, downColor } = useColors()
   if (holding.annualized_return == null) return <span className="text-muted-foreground">N/A</span>
   const positive = typeof holding.annualized_return === 'string' || holding.annualized_return >= 0
   return (
-    <span className={positive ? 'text-green-600' : 'text-red-600'}>
+    <span className={positive ? upColor : downColor}>
       {formatPct(holding.annualized_return)}
     </span>
   )
@@ -243,10 +247,10 @@ export function HoldingsPage() {
           <Skeleton className="h-9 w-28" />
         </div>
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
             <thead>
               <tr className="bg-muted">
-                {['代码','名称','市场','类型','持仓量','成本价','现价','市值','盈亏金额','盈亏率','年化回报','持仓天数','操作'].map((h) => (
+                {['代码','名称','市场','类型','市值','持仓量','成本价','现价','盈亏金额','盈亏率','年化回报','持仓天数','操作'].map((h) => (
                   <th key={h} className={`text-${h==='操作'?'center':'left'} p-3 whitespace-nowrap`}>{h}</th>
                 ))}
               </tr>
@@ -360,17 +364,17 @@ export function HoldingsPage() {
       </div>
 
       <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm tabular-nums">
           <thead>
             <tr className="bg-muted">
               <th className="text-left p-3 whitespace-nowrap">代码</th>
               <th className="text-left p-3">名称</th>
               {marketFilter === 'ALL' && <th className="text-left p-3 whitespace-nowrap">市场</th>}
-	              <th className="text-left p-3 whitespace-nowrap">类型</th>
+              <th className="text-left p-3 whitespace-nowrap">类型</th>
+              <th className="text-right p-3 whitespace-nowrap">市值</th>
               <th className="text-right p-3 whitespace-nowrap">持仓量</th>
               <th className="text-right p-3 whitespace-nowrap">成本价</th>
               <th className="text-right p-3 whitespace-nowrap">现价</th>
-              <th className="text-right p-3 whitespace-nowrap">市值</th>
               <th className="text-right p-3 whitespace-nowrap">盈亏金额</th>
               <th className="text-right p-3 whitespace-nowrap">盈亏率</th>
               <th className="text-right p-3 whitespace-nowrap">年化回报</th>
@@ -391,10 +395,10 @@ export function HoldingsPage() {
                   <td className="p-3 whitespace-nowrap"><Badge variant="outline">{marketLabel[h.market] || h.market}</Badge></td>
                 )}
 	                <td className="p-3 text-muted-foreground whitespace-nowrap">{h.asset_class}</td>
-                <td className="p-3 text-right whitespace-nowrap">{toNum(h.quantity).toLocaleString()}</td>
+                <td className="p-3 text-right whitespace-nowrap"><QuoteValueCell value={toNum(h.market_value)} currency={h.currency} status={h.quote_status} /></td>
+                <td className="p-3 text-right whitespace-nowrap">{toNum(h.quantity).toString()}</td>
                 <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.cost_price, h.currency)}</td>
                 <td className="p-3 text-right whitespace-nowrap"><QuoteValueCell value={toNum(h.current_price)} currency={h.currency} status={h.quote_status} /></td>
-                <td className="p-3 text-right whitespace-nowrap"><QuoteValueCell value={toNum(h.market_value)} currency={h.currency} status={h.quote_status} /></td>
                 <td className="p-3 text-right whitespace-nowrap"><PnlAmountCell holding={h} /></td>
                 <td className="p-3 text-right whitespace-nowrap"><PnlPctCell holding={h} /></td>
                 <td className="p-3 text-right whitespace-nowrap"><AnnualizedCell holding={h} /></td>

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wallet, ArrowLeftRight, Search } from 'lucide-react'
+import { LayoutDashboard, Wallet, ArrowLeftRight, Search, Settings } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
@@ -40,6 +40,24 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
             </NavLink>
           ))}
         </nav>
+
+        {/* 左下角设置 */}
+        <div className="p-3 border-t">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                isActive
+                  ? 'bg-accent text-accent-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+              )
+            }
+          >
+            <Settings className="w-4 h-4" />
+            设置
+          </NavLink>
+        </div>
       </aside>
 
       {/* 主内容区 */}

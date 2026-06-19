@@ -64,10 +64,10 @@ export function HistoryPage() {
       <div className="space-y-6">
         <PageHeader />
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm tabular-nums">
             <thead>
               <tr className="bg-muted/50">
-                {['代码', '名称', '市场', '首买日', '清仓日', '持仓天数', '总投入', '已实现盈亏', '盈亏率', '操作'].map((h) => (
+                {['代码', '名称', '市场', '类型', '首买日', '清仓日', '持仓天数', '总投入', '已实现盈亏', '盈亏率', '操作'].map((h) => (
                   <th key={h} className="text-left p-3 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -142,12 +142,13 @@ export function HistoryPage() {
       )}
 
       <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm tabular-nums">
           <thead>
             <tr className="bg-muted/50">
               <th className="text-left p-3 whitespace-nowrap">代码</th>
               <th className="text-left p-3">名称</th>
               <th className="text-left p-3 whitespace-nowrap">市场</th>
+              <th className="text-left p-3 whitespace-nowrap">类型</th>
               <th className="text-left p-3 whitespace-nowrap">首买日</th>
               <th className="text-left p-3 whitespace-nowrap">清仓日</th>
               <th className="text-right p-3 whitespace-nowrap">持仓天数</th>
@@ -172,6 +173,7 @@ export function HistoryPage() {
                   <td className="p-3 whitespace-nowrap">
                     <Badge variant="outline">{marketLabel[h.market] || h.market}</Badge>
                   </td>
+                  <td className="p-3 whitespace-nowrap text-muted-foreground">{h.asset_class}</td>
                   <td className="p-3 whitespace-nowrap text-muted-foreground">{h.first_buy_date}</td>
                   <td className="p-3 whitespace-nowrap text-muted-foreground">{h.closed_at}</td>
                   <td className="p-3 text-right whitespace-nowrap">{h.holding_days} 天</td>

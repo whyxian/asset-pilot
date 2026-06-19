@@ -6,6 +6,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowLeft } from 'lucide-react'
 import { toNum, formatPrice } from '@/lib/utils'
 
+const marketLabel: Record<string, string> = {
+  CN: 'A 股',
+  US: '美股',
+  CRYPTO: '加密',
+}
+
 const typeLabel: Record<string, string> = {
   buy: '买入',
   sell: '卖出',
@@ -33,10 +39,10 @@ export function ClosedTransactionsPage() {
       <div className="space-y-6">
         <PageHeader />
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm tabular-nums">
             <thead>
               <tr className="bg-muted/50">
-                {['日期', '代码', '方向', '数量', '成交价', '金额', '备注'].map((h) => (
+                {['日期', '代码', '市场', '类型', '方向', '数量', '成交价', '金额', '备注'].map((h) => (
                   <th key={h} className="text-left p-3">{h}</th>
                 ))}
               </tr>
@@ -91,11 +97,13 @@ export function ClosedTransactionsPage() {
       </div>
 
       <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm tabular-nums">
           <thead>
             <tr className="bg-muted/50">
               <th className="text-left p-3">日期</th>
               <th className="text-left p-3">代码</th>
+              <th className="text-left p-3">市场</th>
+              <th className="text-left p-3">类型</th>
               <th className="text-left p-3">方向</th>
               <th className="text-right p-3">数量</th>
               <th className="text-right p-3">成交价</th>
@@ -108,6 +116,8 @@ export function ClosedTransactionsPage() {
               <tr key={t.id} className="border-t hover:bg-muted/30">
                 <td className="p-3">{t.transaction_date}</td>
                 <td className="p-3 font-medium">{t.ticker}</td>
+                <td className="p-3"><Badge variant="outline">{marketLabel[t.market] || t.market}</Badge></td>
+                <td className="p-3 text-muted-foreground">{t.asset_class}</td>
                 <td className="p-3">
                   <Badge variant={t.type === 'buy' ? 'default' : 'destructive'}>
                     {typeLabel[t.type] || t.type}

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Camera, RefreshCw, TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
 import { formatPrice, formatPct } from '@/lib/utils'
+import { useColors } from '@/lib/settings'
 import {
   CartesianGrid,
   Line,
@@ -96,10 +97,11 @@ export function OverviewPage() {
   }
 
   const isPositive = stats.total_pnl >= 0
+  const { upColor, downColor } = useColors()
 
   // ---- 正常渲染 ----
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 tabular-nums">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">概览</h1>
         <div className="flex gap-2">
@@ -164,17 +166,17 @@ export function OverviewPage() {
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">总盈亏</CardTitle>
             {isPositive
-              ? <TrendingUp className="w-4 h-4 text-green-500" />
-              : <TrendingDown className="w-4 h-4 text-red-500" />
+              ? <TrendingUp className={`w-4 h-4 ${upColor}`} />
+              : <TrendingDown className={`w-4 h-4 ${downColor}`} />
             }
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-              {formatPct(stats.total_pnl_pct)}
+            <div className={`${isPositive ? upColor : downColor} inline-flex items-baseline gap-2`}>
+              <span className="text-2xl font-bold">{isPositive ? '+' : ''}{formatPrice(stats.total_pnl, stats.currency, 2)}</span>
+              <span className="text-sm text-muted-foreground">
+                {formatPct(stats.total_pnl_pct)}
+              </span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {formatPrice(stats.total_pnl, stats.currency, 2)}
-            </p>
           </CardContent>
         </Card>
 

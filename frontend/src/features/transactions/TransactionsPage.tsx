@@ -136,7 +136,7 @@ export function TransactionsPage() {
           </div>
         </div>
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm tabular-nums">
             <thead>
               <tr className="bg-muted/50">
                 {['日期', '代码', '市场', '类型', '方向', '数量', '成交价', '金额', '备注', '操作'].map((h) => (
@@ -245,7 +245,7 @@ export function TransactionsPage() {
       )}
 
       <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm tabular-nums">
           <thead>
             <tr className="bg-muted/50">
               <th className="text-left p-3">日期</th>
