@@ -29,6 +29,7 @@ AssetPilot/
 │   │   ├── core/                    # 基础设施
 │   │   │   ├── database.py          # SQLAlchemy 引擎 + init_db
 │   │   │   ├── data_sources.py      # 数据源层：腾讯/新浪/CoinGlass/天天基金/akshare
+│   │   │   ├── scheduler_config.py  # 统一配置：调度间隔/缓存TTL/网络超时（SchedulerConfig）
 │   │   │   ├── exceptions.py        # BusinessError 自定义异常
 │   │   │   ├── logger.py            # 统一日志模块
 │   │   │   └── response.py          # ApiResponse 统一返回格式
@@ -70,7 +71,11 @@ AssetPilot/
 │   │   │   ├── snapshot_service.py        # 净值快照（双表写 + 历史 FX 冻结）
 │   │   │   └── closed_holding_service.py  # 历史持仓归档
 │   │   └── utils/
-│   │       └── exchange_rate.py     # 汇率工具（四级兜底：内存→运行时缓存→种子文件）
+│   │       ├── exchange_rate.py     # 汇率工具（五级兜底 + 单飞）
+│   │       ├── quote_cache.py       # 行情内存缓存（进程级单例）
+│   │       └── trading_hours.py     # 交易时段判定
+│   ├── scheduler/                   # 后台定时任务（APScheduler）
+│   │   └── quote_scheduler.py       # 行情30s + 汇率55min 定时预热
 │   ├── script/                      # 数据导入/处理脚本
 │   └── test/                        # pytest + pytest-asyncio 单元测试（内存 SQLite）
 ├── frontend/                        # React 19 SPA（已对接后端 API）
@@ -166,7 +171,7 @@ api (HTTP 路由) → services (业务逻辑) → repositories (数据访问) �
 | 行情批量（多数据源并发） | 整体熔断阈值 | 10-12s |
 | 浏览器渲染（Playwright） | 渲染本就慢 | 15-20s |
 
-**铁律：任何后端外部请求超时不得大于前端超时（当前 axios 15s）。** 否则后端慢点必然导致前端超时。
+**铁律：任何后端外部请求超时不得大于前端超时（当前 axios 15s）。** 否则后端慢点必然导致前端超时。所有超时值统一在 [SchedulerConfig](backend/app/core/scheduler_config.py) 管理，不得散落硬编码。
 
 配套要求：
 - **兜底与超时配套**：有内存/磁盘/种子兜底的外部资源，超时应激进（几秒），让失败快速回退；无兜底才保守。
@@ -203,10 +208,14 @@ api (HTTP 路由) → services (业务逻辑) → repositories (数据访问) �
 | `EastMoneyFundDataSource` | FUND（天天基金 pingzhongdata） |
 | `AkshareFundDataSource` | FUND（akshare 备选） |
 
-汇率源（`app/utils/exchange_rate.py`）：GitHub raw（USD 为基准，每小时更新）。四级兜底保证可用性：**内存新鲜值（1h TTL）→ 内存过期旧值 → 运行时缓存 `data/exchange_rates_cache.json` → 种子文件 `data/dbjson/exchange_rates_fallback.json`（提交进仓库）**。详见 [architecture.md §5.7](docs/architecture.md)。
+汇率源（`app/utils/exchange_rate.py`）：GitHub raw（USD 为基准，每小时更新）。五级兜底 + 单飞保证可用性：**内存新鲜值（1h TTL）→ 网络拉取 → 内存过期旧值 → 运行时缓存 → 种子文件 → 硬编码常量**，`fetch_rates` 永不返回 None。详见 [architecture.md §5.7](docs/architecture.md)。
 
 ## 关键机制
 
-- **行情缓存**：基金净值有 15 分钟 DB 缓存（`FUND_CACHE_MAX_AGE_MINUTES`），股票/加密货币每次走网络。手动刷新通过 `force_refresh=true` 参数绕过基金缓存。
-- **概览稳定性**：`overview_service` 行情组并发拉取 + 12s 超时熔断（`_QUOTE_FETCH_TIMEOUT`）+ 单组异常容错，单个数据源抽风不拖垮整个概览。
+- **后台定时预热**（`app/scheduler/quote_scheduler.py`）：APScheduler 后台定时拉行情(30s)+汇率(55min)写缓存，**用户请求永远只读缓存**，与数据源彻底解耦。调度器失败查 DB 历史兜底，保证缓存永不过期。详见 [architecture.md §5.11](docs/architecture.md)。
+- **行情缓存层**（`app/utils/quote_cache.py`）：进程级单例，单 ticker 粒度 + 部分命中，过期数据不丢弃（用户请求永不触网）。
+- **行情降级兜底**：实时失败 → DB 历史兜底（`QuoteStatus` 三态 REALTIME/HISTORICAL/UNAVAILABLE），前端按状态标记。
+- **统一配置**（`app/core/scheduler_config.py`）：`SchedulerConfig` 集中管理调度间隔/缓存TTL/网络超时，铁律「后端外部请求超时 ≤ 前端 axios 15s」。
+- **手动刷新**：`force_refresh=true` 跳过缓存读 + 走网络 + **写缓存**（保持刷新后读取一致）。
+- **概览稳定性**：`overview_service` 行情组并发拉取 + 12s 超时熔断 + 单组异常容错，单个数据源抽风不拖垮整个概览。
 - **交易→持仓反推**：交易记录通过建仓基线 + 全量重算（加权平均/卖超拒绝/事务原子）反推持仓，交易是辅助记录、持仓是事实源。

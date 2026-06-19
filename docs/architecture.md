@@ -1,7 +1,7 @@
 # AssetPilot V2 架构设计
 
-> 版本：v2.7
-> 最后更新：2026-06-19
+> 版本：v2.8
+> 最后更新：2026-06-20
 
 ---
 
@@ -22,6 +22,7 @@
 | 状态管理 | Zustand | 布局偏好等客户端状态 |
 | 服务端缓存 | TanStack Query | API 数据缓存 |
 | 后端 | FastAPI (Python 3.11+) | 异步 API 框架 |
+| 定时任务 | APScheduler (AsyncIOScheduler) | 行情/汇率后台定时预热 |
 | ORM | SQLAlchemy 2.0 (async) | 数据库抽象层 |
 | 数据库 | SQLite (aiosqlite) | 单用户无需部署服务 |
 | 行情源 | 腾讯财经 / 新浪+Playwright / CoinGlass / 天天基金 | 四市场行情 |
@@ -62,7 +63,8 @@ backend/
 │   │   ├── data_sources.py        # 5 个数据源类（腾讯/新浪/CoinGlass/天天基金/akshare）
 │   │   ├── exceptions.py          # BusinessError
 │   │   ├── logger.py              # 统一日志
-│   │   └── response.py            # ApiResponse 统一返回格式
+│   │   ├── response.py            # ApiResponse 统一返回格式
+│   │   └── scheduler_config.py    # 统一配置：调度间隔/缓存TTL/网络超时（SchedulerConfig）
 │   ├── api/                       # HTTP 路由层
 │   │   ├── asset_quote_api.py     # 行情接口（A股/美股/加密货币/基金）
 │   │   ├── asset_holding_api.py   # 持仓 CRUD
@@ -85,13 +87,17 @@ backend/
 │   │   ├── asset_variety_repository.py# 品种目录 CRUD
 │   │   └── transaction_repository.py  # 交易记录 CRUD
 │   └── services/                  # 业务逻辑层
-│       ├── asset_quote_service.py # 行情业务逻辑（基金 15min 缓存 + force_refresh 绕过）
+│       ├── asset_quote_service.py # 行情业务逻辑（QuoteCache 缓存 + force_refresh 绕过 + DB 历史降级）
 │       ├── asset_holding_service.py# 持仓业务逻辑（含计算）
 │       ├── asset_variety_service.py# 品种目录业务逻辑
 │       ├── overview_service.py    # 概览统计（行情并发拉取 + 12s 超时熔断 + 汇率换算聚合）
 │       └── transaction_service.py # 交易记录业务逻辑
+├── scheduler/                # 后台定时任务（APScheduler）
+│   └── quote_scheduler.py     # 行情30s + 汇率55min 定时预热，写全局 QuoteCache
 ├── utils/                     # 工具模块
-│   └── exchange_rate.py       # 汇率获取（GitHub 源 + 四级兜底：内存1h→内存过期→运行时缓存→种子文件）
+│   ├── exchange_rate.py       # 汇率获取（GitHub 源 + 五级兜底 + 单飞）
+│   ├── quote_cache.py         # 行情内存缓存（进程级单例，单ticker+部分命中）
+│   └── trading_hours.py       # 交易时段判定（A股/美股/加密/基金）
 ├── script/                   # 数据导入/处理脚本
 │   ├── json_tools.py          # JSON 工具（拆分/合并/重命名 key / 区分股基）
 │   ├── seed_varieties.py      # 导入 JSON 品种数据到 DB
@@ -244,33 +250,71 @@ quotes = await repo.fetch_realtime_quote(["166002"], source="akshare")  # ak sha
 - 每 1000 条输出一次进度
 - 支持分文件逐个导入
 
-### 5.7 汇率四级兜底
+### 5.7 汇率五级兜底 + 单飞
 
-`utils/exchange_rate.py` 以 USD 为枢轴做币种换算，汇率来源单一（GitHub raw），故采用四级兜底保证可用性：
+`utils/exchange_rate.py` 以 USD 为枢轴做币种换算，汇率来源单一（GitHub raw），故采用五级兜底 + 单飞保证可用性：
 
 ```
-内存新鲜值（1h TTL 内）→ 网络拉取 → 内存过期旧值 → 磁盘兜底 → None
+内存新鲜值（1h TTL 内）→ 网络拉取 → 内存过期旧值 → 磁盘旧值（运行时缓存→种子文件）→ 硬编码常量
 ```
 
-磁盘兜底两层（`_load_persisted` 优先读前者，没有读后者）：
-- `data/exchange_rates_cache.json` — 运行时缓存，每次网络成功后覆盖写（gitignore，不进仓库）
-- `data/dbjson/exchange_rates_fallback.json` — 种子文件，提交进仓库，全新环境/容器无持久卷 + 断网时的终极兜底
-
-最坏情况（重启 + 长时间断网）也用上次成功的汇率兜底，避免概览因汇率缺失把 CNY/USD 当同币种静默算错。
+- 磁盘兜底两层（`_load_persisted` 优先读前者）：`data/exchange_rates_cache.json`（运行时，gitignore）→ `data/dbjson/exchange_rates_fallback.json`（种子，提交进仓库）
+- 硬编码常量 `_HARDCODED_RATES`（嵌入 exchange_rate.py）：种子文件也被删时的终极兜底，`fetch_rates` 永不返回 None
+- **单飞**（`_inflight` task）：N 个并发请求同时触发网络拉取时只发 1 个请求，其余复用结果
+- **日期+新鲜度透传**：`fetch_rates` 返回 `RatesSnapshot{rates, source_date, is_stale}`，概览页脚展示汇率日期，兜底时变橙色警告
 
 ### 5.8 概览行情并发拉取与熔断
 
-`OverviewService.get_overview` 拉行情时的两个稳定性设计：
+`OverviewService.get_overview` 拉行情时的稳定性设计：
 
 - **组间并发**：按 `(asset_class, market)` 分组后用 `asyncio.wait` 并发拉取，总耗时 ≈ 最慢一组而非串行累加
-- **整体超时熔断**（`_QUOTE_FETCH_TIMEOUT = 12s`，比前端 axios 15s 略早）：超时组被取消丢弃，单组异常被吞掉，缺失品种价格兜底为 0——单个数据源抽风不拖垮整个概览，返回部分行情而非整体失败
+- **整体超时熔断**（`SchedulerConfig.QUOTE_FETCH_TIMEOUT = 12s`，比前端 axios 15s 略早）：超时组取消，单组异常吞掉
 - **汇率一次取回**：循环外 `fetch_rates()` 取一次，循环内用同步 `convert_with_rates`，消除 2N 次冗余 await
 
-### 5.9 手动强制刷新
+### 5.9 行情降级兜底（QuoteStatus 三态）
 
-持仓页/概览页刷新按钮通过 `force_refresh=true` query 参数强制拉最新行情：
+`fetch_quote_map_concurrent` 拉行情时部分 ticker 失败的处理：反推失败 codes → 查 DB 最新历史兜底，返回带状态的行情：
 
-- 后端 `force_refresh` 从 API 一路透传到 `fetch_fund_quotes`，为 True 时跳过基金 15 分钟 DB 缓存全部走网络（股票/加密货币本就无缓存）
-- 前端用 `useMutation` + `setQueryData` 实现一次性强制刷新，不污染 queryKey，60s 自动轮询仍走正常缓存
+- `REALTIME`：实时行情（数据源刚拉的）
+- `HISTORICAL`：DB 历史兜底（实时失败，回查 `get_latest_quotes` 不限时间最新一条）
+- `UNAVAILABLE`：连历史都没有（建仓后从未成功落库的极端情况）
+
+建仓时强制拉行情落库（`create_holding`），保证 DB 永远有该 ticker 的历史兜底。前端持仓页现价/市值按状态标记：HISTORICAL 追加"历史"小字，UNAVAILABLE 显示"—"。
+
+### 5.10 行情缓存层（QuoteCache）
+
+`utils/quote_cache.py` 进程级单例，单 ticker 粒度 + 部分命中：
+
+- 按 `(market, ticker)` 单条缓存，跨用户/跨页面复用（A、B 用户都查 600519 共享）
+- 部分命中：codes 里命中若干只、缺若干只时只拉缺失的
+- **过期不丢弃**：TTL 过期的数据仍返回（进 hit 标记 stale），用户请求永远不触网——避免调度器故障时 N 个并发请求轰数据源
+
+### 5.11 后台定时预热（APScheduler）
+
+`scheduler/quote_scheduler.py` 后台定时拉数据写缓存，**用户请求永远只读缓存**，彻底解耦用户请求与数据源：
+
+- 行情 30s + 汇率 55min，启动时预热（`asyncio.gather` 并发拉一次）
+- 行情按市场+交易时段判断是否真刷新：交易时段必刷，非交易 30min 一次，基金 15min 一次
+- 调度器失败时查 DB 历史兜底写缓存，保证缓存永不过期
+- 配置统一在 `SchedulerConfig`（见 5.12）
+
+### 5.12 统一配置（SchedulerConfig）
+
+`core/scheduler_config.py` 集中管理调度间隔/缓存TTL/网络超时，消除散落硬编码：
+
+- 调度器间隔：行情 30s、汇率 55min
+- 各市场刷新间隔：基金 15min、非交易 30min
+- 缓存兜底 TTL：行情 5min、汇率 1h
+- 网络超时：汇率 5s、行情熔断 12s、腾讯 10s、基金 15s、CoinGlass 10s、Playwright 20s/10s
+
+铁律：任何后端外部请求超时 ≤ 前端 axios 15s。改一处全局生效。
+
+### 5.13 手动强制刷新
+
+持仓页/概览页刷新按钮通过 `force_refresh=true` 强制拉最新行情：
+
+- 跳过缓存读、走网络、**也写缓存**（保持手动刷新后读取一致，不再出现"刷新看到价格B、切回看到价格A"）
+- 前端用 `useMutation` + `setQueryData` 一次性触发，60s 轮询仍走正常缓存
+- 汇率不 force（1h 才更新，刷新按钮只针对行情）
 
 API 端点：`GET /api/v1/holdings/with-quotes?force_refresh=true`、`GET /api/v1/overview?currency=CNY&force_refresh=true`
