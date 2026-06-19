@@ -13,6 +13,7 @@ import httpx
 from playwright.async_api import async_playwright
 
 from app.core.logger import logger
+from app.core.scheduler_config import SchedulerConfig
 from app.models.asset_quote import AssetQuote
 
 # 腾讯 API 返回状态码：200 表示成功获取数据
@@ -81,7 +82,7 @@ class TencentDataSource(QuoteDataSource):
 
         url = "https://qt.gtimg.cn/q=" + ",".join(prefixed)
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=SchedulerConfig.STOCK_API_TIMEOUT)
             data = resp.text
 
         now = datetime.now()
@@ -109,7 +110,7 @@ class TencentDataSource(QuoteDataSource):
         prefixed = ",".join(f"us{c}" for c in codes)
         url = f"https://qt.gtimg.cn/q={prefixed}"
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=SchedulerConfig.STOCK_API_TIMEOUT)
             data = resp.text
 
         now = datetime.now()
@@ -182,8 +183,8 @@ class SinaDataSource(QuoteDataSource):
             page = None
             try:
                 page = await browser.new_page()
-                await page.goto(url, timeout=20000)
-                await page.wait_for_selector("#hqPrice", timeout=10000, state="attached")
+                await page.goto(url, timeout=SchedulerConfig.PLAYWRIGHT_GOTO_TIMEOUT)
+                await page.wait_for_selector("#hqPrice", timeout=SchedulerConfig.PLAYWRIGHT_SELECTOR_TIMEOUT, state="attached")
                 price_el = await page.query_selector("#hqPrice")
                 price_text = (await price_el.inner_text()).strip() if price_el else ""
                 name_el = await page.query_selector(".s_name")
@@ -237,7 +238,7 @@ class CoinGlassDataSource(QuoteDataSource):
             try:
                 async with httpx.AsyncClient() as client:
                     resp = await client.get(
-                        f"{self.BASE_URL}?symbol={symbol}", headers=HEADERS, timeout=10,
+                        f"{self.BASE_URL}?symbol={symbol}", headers=HEADERS, timeout=SchedulerConfig.CRYPTO_API_TIMEOUT,
                     )
                     data = resp.json()
                 if data.get("code") != "0":
@@ -278,7 +279,7 @@ class EastMoneyFundDataSource(QuoteDataSource):
             try:
                 url = self.BASE_URL.format(code=code)
                 async with httpx.AsyncClient() as client:
-                    resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+                    resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=SchedulerConfig.FUND_API_TIMEOUT)
                     text = resp.text
                 name = ""
                 m = re.search(r'var fS_name\s*=\s*["\']([^"\']+)["\']', text)

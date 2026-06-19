@@ -18,6 +18,7 @@ from pathlib import Path
 import httpx
 
 from app.core.logger import logger
+from app.core.scheduler_config import SchedulerConfig
 
 
 @dataclass
@@ -32,8 +33,9 @@ class RatesSnapshot:
     is_stale: bool
 
 _RATES_URL = "https://raw.githubusercontent.com/Sunny-DotNet/ExchangeRates/main/mini.json"
-_CACHE_TTL = 3600  # 内存缓存 1 小时（数据源每小时更新），过期后触发重拉但旧值仍可兜底
-_FETCH_TIMEOUT = 5  # 网络超时秒数——五级兜底充足，不必久等，失败立刻走兜底
+# 缓存 TTL 与超时统一在 SchedulerConfig 管理
+_CACHE_TTL = SchedulerConfig.RATE_CACHE_TTL          # 1h（数据源每小时更新）
+_FETCH_TIMEOUT = SchedulerConfig.RATE_FETCH_TIMEOUT  # 5s（五级兜底充足，失败立刻走兜底）
 
 # 单飞：N 个并发请求同时触发 fetch_rates 时，只发 1 个网络请求，其余等结果复用
 # 避免概览 60s 轮询 + 前端重试叠加时发 N 个慢请求各自卡满超时

@@ -3,6 +3,7 @@
 import asyncio
 
 from app.core.logger import logger
+from app.core.scheduler_config import SchedulerConfig
 from app.models.asset_quote import AssetQuote, QuoteStatus
 from app.repositories.asset_quote_repository import (
     CryptoQuoteRepository,
@@ -12,8 +13,8 @@ from app.repositories.asset_quote_repository import (
 from app.repositories.asset_variety_repository import AssetVarietyRepository
 from app.utils.quote_cache import QuoteCache, quote_cache
 
-# 行情并发拉取的整体超时阈值（秒）——比前端 axios 15s 略早，给后续业务处理留余量
-QUOTE_FETCH_TIMEOUT = 12
+# 行情并发拉取整体熔断阈值（统一在 SchedulerConfig.QUOTE_FETCH_TIMEOUT）
+QUOTE_FETCH_TIMEOUT = SchedulerConfig.QUOTE_FETCH_TIMEOUT
 
 
 class AssetQuoteService:

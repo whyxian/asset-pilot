@@ -21,6 +21,7 @@ from app.api.transaction_api import router as transaction_router
 from app.core.database import engine, init_db
 from app.core.exceptions import BusinessError
 from app.core.logger import logger
+from app.core.scheduler_config import SchedulerConfig
 from app.scheduler.quote_scheduler import QuoteScheduler
 
 
@@ -33,14 +34,14 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         quote_refresher.refresh_quotes,
         trigger="interval",
-        seconds=30,
+        seconds=SchedulerConfig.QUOTE_REFRESH_INTERVAL,
         id="refresh_quotes",
         misfire_grace_time=10,
     )
     scheduler.add_job(
         quote_refresher.refresh_rates,
         trigger="interval",
-        seconds=3300,  # 55min，略低于 1h 缓存 TTL，保证用户请求永远命中
+        seconds=SchedulerConfig.RATE_REFRESH_INTERVAL,  # 55min，略低于 1h 缓存 TTL
         id="refresh_rates",
         misfire_grace_time=60,
     )

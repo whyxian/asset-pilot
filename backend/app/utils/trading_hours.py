@@ -44,6 +44,8 @@ def quote_cache_ttl(market: str) -> int:
         market: "CN" / "US" / "CRYPTO" / "FUND"
 
     Returns:
-        统一 5min（300s）。交易/非交易时段不再区分——调度器统一 30s 间隔保证新鲜度。
+        统一 QUOTE_CACHE_TTL（默认 5min）。交易/非交易时段不再区分——
+        调度器统一 30s 间隔保证新鲜度。
     """
-    return 300  # 5min 兜底
+    from app.core.scheduler_config import SchedulerConfig
+    return SchedulerConfig.QUOTE_CACHE_TTL
