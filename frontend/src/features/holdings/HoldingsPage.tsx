@@ -22,12 +22,28 @@ import type { HoldingCreate, HoldingUpdate, HoldingWithQuote, TransactionCreate 
 const marketLabel: Record<string, string> = {
   CN: 'A 股',
   US: '美股',
-  CRYPTO: '加密货币',
+  CRYPTO: '加密',
 }
+
+// 市场固定展示顺序：A 股 → 美股 → 加密货币
+const marketOrder: Record<string, number> = { CN: 0, US: 1, CRYPTO: 2 }
+// 品种展示顺序：股票 → 基金（同市场内股票在前）
+const assetClassOrder: Record<string, number> = { STOCK: 0, FUND: 1 }
 
 /** 把 string|number 安全转 number（用于来自后端的 Decimal 字段） */
 function toNum(v: number | string): number {
   return typeof v === 'string' ? parseFloat(v) : v
+}
+
+/** 排序：市场（A 股→美股→加密）→ 品种（股票→基金）→ 市值降序 */
+function sortByMarketThenValue(holdings: HoldingWithQuote[]): HoldingWithQuote[] {
+  return [...holdings].sort((a, b) => {
+    const mo = (marketOrder[a.market] ?? 99) - (marketOrder[b.market] ?? 99)
+    if (mo !== 0) return mo
+    const ac = (assetClassOrder[a.asset_class] ?? 99) - (assetClassOrder[b.asset_class] ?? 99)
+    if (ac !== 0) return ac
+    return toNum(b.market_value) - toNum(a.market_value)
+  })
 }
 
 function PnlPctCell({ holding }: { holding: HoldingWithQuote }) {
@@ -62,7 +78,9 @@ function AnnualizedCell({ holding }: { holding: HoldingWithQuote }) {
 }
 
 export function HoldingsPage() {
-  const { data: holdings, isLoading, isError, error, refetch } = useHoldings()
+  const { data, isLoading, isError, error, refetch } = useHoldings()
+  const holdings = data?.holdings
+  const marketSummary = data?.market_summary ?? []
   const createMut = useCreateHolding()
   const updateMut = useUpdateHolding()
   const createTxnMut = useCreateTransaction()
@@ -81,6 +99,12 @@ export function HoldingsPage() {
   const [detailHolding, setDetailHolding] = useState<HoldingWithQuote | null>(null)
   const [editingHolding, setEditingHolding] = useState<HoldingWithQuote | undefined>(undefined)
 
+  // 市场筛选 Tab：ALL / CN / US / CRYPTO
+  const [marketFilter, setMarketFilter] = useState<string>('ALL')
+  const allHoldings = holdings ?? []
+  const filteredHoldings = marketFilter === 'ALL'
+    ? allHoldings
+    : allHoldings.filter((h) => h.market === marketFilter)
   // 主表"清仓"对话框 — 复用 TransactionFormDialog，传入预填数据
   const [liquidating, setLiquidating] = useState<HoldingWithQuote | null>(null)
 
@@ -191,7 +215,7 @@ export function HoldingsPage() {
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-muted/50">
+              <tr className="bg-muted">
                 {['代码','名称','市场','类型','持仓量','成本价','现价','市值','盈亏金额','盈亏率','年化回报','持仓天数','操作'].map((h) => (
                   <th key={h} className={`text-${h==='操作'?'center':'left'} p-3 whitespace-nowrap`}>{h}</th>
                 ))}
@@ -227,7 +251,7 @@ export function HoldingsPage() {
   }
 
   // ---- 空持仓 ----
-  if (!holdings || holdings.length === 0) {
+  if (allHoldings.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -276,13 +300,42 @@ export function HoldingsPage() {
         </p>
       )}
 
+      {/* 市场筛选 Tab（标注各市场市值占比） */}
+      <div className="flex gap-1 border-b">
+        {([
+          { key: 'ALL', label: '全部' },
+          { key: 'CN', label: 'A 股' },
+          { key: 'US', label: '美股' },
+          { key: 'CRYPTO', label: '加密' },
+        ] as const).map((tab) => {
+          // 各市场 Tab 标注市值占比；全部 Tab 不显示占比
+          const summary = marketSummary.find((m) => m.market === tab.key)
+          const pctText = tab.key === 'ALL' || !summary ? '' : `${summary.pct.toFixed(1)}%`
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setMarketFilter(tab.key)}
+              className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors flex items-baseline gap-1.5 ${
+                marketFilter === tab.key
+                  ? 'border-primary text-foreground font-medium'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab.label}
+              {pctText && <span className="text-xs opacity-60">{pctText}</span>}
+            </button>
+          )
+        })}
+      </div>
+
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-muted/50">
+            <tr className="bg-muted">
               <th className="text-left p-3 whitespace-nowrap">代码</th>
               <th className="text-left p-3">名称</th>
-              <th className="text-left p-3 whitespace-nowrap">市场</th>
+              {marketFilter === 'ALL' && <th className="text-left p-3 whitespace-nowrap">市场</th>}
 	              <th className="text-left p-3 whitespace-nowrap">类型</th>
               <th className="text-right p-3 whitespace-nowrap">持仓量</th>
               <th className="text-right p-3 whitespace-nowrap">成本价</th>
@@ -292,11 +345,11 @@ export function HoldingsPage() {
               <th className="text-right p-3 whitespace-nowrap">盈亏率</th>
               <th className="text-right p-3 whitespace-nowrap">年化回报</th>
               <th className="text-right p-3 whitespace-nowrap">持仓天数</th>
-              <th className="p-3 w-24 whitespace-nowrap sticky right-0 bg-muted/50">操作</th>
+              <th className="p-3 w-24 whitespace-nowrap sticky right-0 bg-muted">操作</th>
             </tr>
           </thead>
           <tbody>
-            {holdings.map((h) =>
+            {sortByMarketThenValue(filteredHoldings).map((h) =>
               <tr key={h.ticker} className="border-t hover:bg-muted/30">
                 <td className="p-3 font-medium whitespace-nowrap">{h.ticker}</td>
                 <td className="p-3">
@@ -304,7 +357,9 @@ export function HoldingsPage() {
                     <span className="block max-w-40 truncate">{h.name}</span>
                   </Tooltip>
                 </td>
-                <td className="p-3 whitespace-nowrap"><Badge variant="outline">{marketLabel[h.market] || h.market}</Badge></td>
+                {marketFilter === 'ALL' && (
+                  <td className="p-3 whitespace-nowrap"><Badge variant="outline">{marketLabel[h.market] || h.market}</Badge></td>
+                )}
 	                <td className="p-3 text-muted-foreground whitespace-nowrap">{h.asset_class}</td>
                 <td className="p-3 text-right whitespace-nowrap">{toNum(h.quantity).toLocaleString()}</td>
                 <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.cost_price, h.currency)}</td>
@@ -331,11 +386,18 @@ export function HoldingsPage() {
                 </td>
               </tr>
             )}
+            {filteredHoldings.length === 0 && (
+              <tr>
+                <td colSpan={marketFilter === 'ALL' ? 13 : 12} className="p-8 text-center text-muted-foreground">
+                  该市场暂无持仓
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
-      <p className="text-sm text-muted-foreground">共 {holdings.length} 个品种</p>
+      <p className="text-sm text-muted-foreground">共 {filteredHoldings.length} 个品种</p>
 
       <HoldingFormDialog
         open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleFormSubmit}

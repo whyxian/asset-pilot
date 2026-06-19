@@ -4,6 +4,7 @@
 所有按品种操作的函数都必须传完整三元组。
 """
 
+import asyncio
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
@@ -12,11 +13,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BusinessError
-from app.models.asset_holding import AssetHolding, AssetHoldingCreate, AssetHoldingUpdate, HoldingWithQuote
+from app.models.asset_holding import (
+    AssetHolding,
+    AssetHoldingCreate,
+    AssetHoldingUpdate,
+    HoldingsWithQuotesResponse,
+    HoldingWithQuote,
+    MarketSummary,
+)
 from app.models.orm.transaction_orm import TransactionRecord
 from app.repositories.asset_holding_repository import AssetHoldingRepository
 from app.repositories.asset_variety_repository import AssetVarietyRepository
 from app.services.asset_quote_service import AssetQuoteService
+from app.utils.exchange_rate import convert_with_rates, fetch_rates
 
 
 class AssetHoldingService:
@@ -108,34 +117,46 @@ class AssetHoldingService:
                 await session.rollback()
                 raise
 
-    async def list_holdings_with_quotes(self, force_refresh: bool = False) -> list[HoldingWithQuote]:
-        """获取持仓列表，合并实时行情并计算市值/盈亏/年化
+    async def list_holdings_with_quotes(
+        self, force_refresh: bool = False
+    ) -> HoldingsWithQuotesResponse:
+        """获取持仓列表 + 市场汇总，合并实时行情并计算市值/盈亏/年化
 
         Args:
             force_refresh: True 时绕过基金 15 分钟缓存，强制拉取最新行情
 
         Returns:
-            带实时行情的持仓列表
+            HoldingsWithQuotesResponse（holdings 持仓列表 + market_summary 各市场 USD 市值占比）
         """
         holdings = await self._repo.list_holdings()
         if not holdings:
-            return []
+            return HoldingsWithQuotesResponse()
 
         # 按 (asset_class, market) 分组，批量获取行情（已清仓品种 quantity=0 也参与，便于前端展示历史价格）
         groups = defaultdict(list)
         for h in holdings:
             groups[(h.asset_class, h.market)].append(h.ticker)
 
-        # 各资产组并发拉取（超时熔断 + 单组容错），三元组 key 避免 ticker 冲突
-        quote_map = await self._quote_svc.fetch_quote_map_concurrent(groups, force_refresh=force_refresh)
+        # 行情与汇率无依赖，并发拉取（fetch_rates 有缓存+单飞，命中时几乎无开销）
+        quote_map_task = asyncio.create_task(
+            self._quote_svc.fetch_quote_map_concurrent(groups, force_refresh=force_refresh)
+        )
+        rate_snapshot_task = asyncio.create_task(fetch_rates())
+        quote_map, rate_snapshot = await asyncio.gather(quote_map_task, rate_snapshot_task)
+        rates = rate_snapshot.rates
 
         today = date.today()
         results = []
+        # 各市场 USD 市值累加，用于 market_summary 占比
+        market_value_usd_by_market: dict[str, Decimal] = defaultdict(Decimal)
         for h in holdings:
             q = quote_map.get((h.asset_class, h.market, h.ticker))
             current_price = q.price if q else Decimal("0")
             market_value = h.quantity * current_price
             pnl = market_value - h.total_invested
+            market_value_usd_by_market[h.market] += convert_with_rates(
+                market_value, h.currency, "USD", rates
+            )
 
             # 盈亏百分比
             pnl_pct: float | str | None = None
@@ -173,7 +194,24 @@ class AssetHoldingService:
                 annualized_return=annualized,
             ))
 
-        return results
+        # 市场汇总：按市场聚合 USD 市值，算占比（市值降序排列）
+        market_label = {"CN": "A 股", "US": "美股", "CRYPTO": "加密货币"}
+        total_value_usd = sum(market_value_usd_by_market.values(), Decimal("0"))
+        market_summary = []
+        for market, value_usd in sorted(
+            market_value_usd_by_market.items(), key=lambda x: x[1], reverse=True
+        ):
+            count = sum(1 for h in holdings if h.market == market)
+            pct = float((value_usd / total_value_usd) * 100) if total_value_usd > 0 else 0.0
+            market_summary.append(MarketSummary(
+                market=market,
+                label=market_label.get(market, market),
+                count=count,
+                value_usd=value_usd,
+                pct=round(pct, 2),
+            ))
+
+        return HoldingsWithQuotesResponse(holdings=results, market_summary=market_summary)
 
 
 async def recompute_holding(

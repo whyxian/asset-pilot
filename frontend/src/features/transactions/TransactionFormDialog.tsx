@@ -93,7 +93,8 @@ export function TransactionFormDialog({
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   // 持仓清单作为 ticker 下拉来源（含已清仓品种，便于补录历史交易）
-  const { data: holdings } = useHoldings()
+  const { data } = useHoldings()
+  const holdings = data?.holdings ?? []
 
   // 对话框打开/关闭时重置表单内容 + 清空错误
   useEffect(() => {
@@ -167,7 +168,7 @@ export function TransactionFormDialog({
   }
 
   // 编辑模式下当前 ticker 不在持仓中（理论上不应发生），添加 disabled 占位避免 select 显示空
-  const tickerOptions = (holdings ?? []).map((h) => ({
+  const tickerOptions = holdings.map((h) => ({
     ticker: h.ticker,
     name: h.name,
     market: h.market,

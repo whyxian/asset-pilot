@@ -44,7 +44,7 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
 
       {/* 主内容区 */}
       <main className="flex-1 overflow-auto bg-background">
-        <div className="p-6 max-w-6xl mx-auto">
+        <div className="py-8 px-10">
           {children}
         </div>
       </main>

@@ -50,6 +50,19 @@ export interface HoldingWithQuote {
   annualized_return: number | string | null // 零成本时为 "∞"
 }
 
+export interface MarketSummary {
+  market: string            // "CN" / "US" / "CRYPTO"
+  label: string             // 显示名，如 "A 股"
+  count: number             // 该市场持仓品种数
+  value_usd: number         // 该市场总市值（USD，跨币种聚合用）
+  pct: number               // 占组合总市值百分比
+}
+
+export interface HoldingsWithQuotesResponse {
+  holdings: HoldingWithQuote[]
+  market_summary: MarketSummary[]
+}
+
 // ═══════════════════════════════════════════
 // 概览（来自后端 API）
 // ═══════════════════════════════════════════

@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AssetQuote, AssetSnapshot, AssetVariety, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
+import type { AssetQuote, AssetSnapshot, AssetVariety, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingsWithQuotesResponse, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
 
 // ═══════════════════════════════════════════
 // 持仓
@@ -9,7 +9,7 @@ import type { AssetQuote, AssetSnapshot, AssetVariety, ClosedHolding, ClosedHold
  *  forceRefresh=true 时绕过基金 15 分钟缓存，强制拉取最新行情
  */
 export const fetchHoldingsWithQuotes = (forceRefresh: boolean = false) =>
-  apiClient.get('/api/v1/holdings/with-quotes', { params: { force_refresh: forceRefresh } }) as Promise<HoldingWithQuote[]>
+  apiClient.get('/api/v1/holdings/with-quotes', { params: { force_refresh: forceRefresh } }) as Promise<HoldingsWithQuotesResponse>
 
 /** 新增持仓 */
 export const createHolding = (data: HoldingCreate) =>

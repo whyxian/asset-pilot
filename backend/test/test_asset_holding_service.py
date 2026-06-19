@@ -154,10 +154,16 @@ async def test_list_holdings_with_quotes_uses_triple_key(Session, seed_holding, 
     svc = AssetHoldingService()
     monkeypatch.setattr(svc._quote_svc, "fetch_quotes_by_asset_class", fake_fetch)
 
-    result = await svc.list_holdings_with_quotes()
-    assert len(result) == 2
+    # mock 汇率（避免测试真连网），CNY=7
+    from app.utils.exchange_rate import RatesSnapshot
+    async def fake_fetch_rates():
+        return RatesSnapshot(rates={"USD": 1.0, "CNY": 7.0}, source_date="2026-06-19", is_stale=False)
+    monkeypatch.setattr("app.services.asset_holding_service.fetch_rates", fake_fetch_rates)
 
-    by_class = {r.asset_class: r for r in result}
+    result = await svc.list_holdings_with_quotes()
+    assert len(result.holdings) == 2
+
+    by_class = {r.asset_class: r for r in result.holdings}
     # STOCK 拿到 11.5,不被 FUND 的 2.5 串扰
     assert approx(by_class["STOCK"].current_price, "11.5")
     # FUND 拿到 2.5
@@ -180,10 +186,22 @@ async def test_list_holdings_with_quotes_pnl_calculation(Session, seed_holding, 
     svc = AssetHoldingService()
     monkeypatch.setattr(svc._quote_svc, "fetch_quotes_by_asset_class", fake_fetch)
 
+    # mock 汇率（避免测试真连网），CNY=7
+    from app.utils.exchange_rate import RatesSnapshot
+    async def fake_fetch_rates():
+        return RatesSnapshot(rates={"USD": 1.0, "CNY": 7.0}, source_date="2026-06-19", is_stale=False)
+    monkeypatch.setattr("app.services.asset_holding_service.fetch_rates", fake_fetch_rates)
+
     result = await svc.list_holdings_with_quotes()
-    assert len(result) == 1
-    h = result[0]
+    assert len(result.holdings) == 1
+    h = result.holdings[0]
     assert approx(h.current_price, "12")
     assert approx(h.market_value, "1200")
     assert approx(h.pnl, "200")
     assert h.pnl_pct is not None and abs(h.pnl_pct - 20.0) < 0.01
+
+    # market_summary：单市场 CN，count=1，占比 100%
+    assert len(result.market_summary) == 1
+    assert result.market_summary[0].market == "CN"
+    assert result.market_summary[0].count == 1
+    assert result.market_summary[0].pct == 100.0

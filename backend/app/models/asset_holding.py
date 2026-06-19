@@ -61,3 +61,18 @@ class HoldingWithQuote(BaseModel):
     pnl: Decimal = Decimal("0")
     pnl_pct: float | str | None = None       # 零成本时为 "∞"
     annualized_return: float | str | None = None  # 零成本时为 "∞"
+
+
+class MarketSummary(BaseModel):
+    """单市场汇总——供持仓页展示市场占比"""
+    market: str                          # "CN" / "US" / "CRYPTO"
+    label: str                           # 显示名，如 "A 股"
+    count: int                           # 该市场持仓品种数
+    value_usd: Decimal = Decimal("0")    # 该市场总市值（USD，用于跨币种聚合算占比）
+    pct: float = 0.0                     # 占组合总市值百分比
+
+
+class HoldingsWithQuotesResponse(BaseModel):
+    """持仓列表 + 市场汇总（with-quotes 接口返回结构）"""
+    holdings: list[HoldingWithQuote] = []
+    market_summary: list[MarketSummary] = []
