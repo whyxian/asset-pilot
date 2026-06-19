@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { createSnapshot, fetchAssetSnapshots, fetchSnapshots } from '@/api/endpoints'
 
 /** 获取组合级快照列表（折线图数据源） */
@@ -34,6 +35,10 @@ export function useCreateSnapshot() {
       // 失效快照相关缓存
       qc.invalidateQueries({ queryKey: ['snapshots'] })
       qc.invalidateQueries({ queryKey: ['asset-snapshots'] })
+      toast.success('快照已记录')
     },
+    onError: (e: unknown) => toast.error('快照失败', {
+      description: e instanceof Error ? e.message : '未知错误',
+    }),
   })
 }

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { createTransaction, updateTransaction, deleteTransaction } from '@/api/endpoints'
 import { ApiError } from '@/api/types'
 import type { Transaction, TransactionCreate, TransactionUpdate } from '@/types'
@@ -25,7 +26,11 @@ export function useCreateTransaction() {
   const qc = useQueryClient()
   return useMutation<Transaction, ApiError, TransactionCreate>({
     mutationFn: createTransaction,
-    onSuccess: () => invalidateTransactionRelated(qc),
+    onSuccess: async () => {
+      await invalidateTransactionRelated(qc)
+      toast.success('交易已记录')
+    },
+    onError: (e) => toast.error('记录失败', { description: e.message }),
   })
 }
 
@@ -34,7 +39,11 @@ export function useUpdateTransaction() {
   const qc = useQueryClient()
   return useMutation<Transaction, ApiError, { id: number; data: TransactionUpdate }>({
     mutationFn: ({ id, data }) => updateTransaction(id, data),
-    onSuccess: () => invalidateTransactionRelated(qc),
+    onSuccess: async () => {
+      await invalidateTransactionRelated(qc)
+      toast.success('交易已更新')
+    },
+    onError: (e) => toast.error('更新失败', { description: e.message }),
   })
 }
 
@@ -43,6 +52,10 @@ export function useDeleteTransaction() {
   const qc = useQueryClient()
   return useMutation<void, ApiError, number>({
     mutationFn: deleteTransaction,
-    onSuccess: () => invalidateTransactionRelated(qc),
+    onSuccess: async () => {
+      await invalidateTransactionRelated(qc)
+      toast.success('交易已删除')
+    },
+    onError: (e) => toast.error('删除失败', { description: e.message }),
   })
 }

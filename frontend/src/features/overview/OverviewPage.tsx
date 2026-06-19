@@ -2,6 +2,7 @@ import { useOverview } from '@/hooks/useOverview'
 import { useCreateSnapshot, useSnapshots } from '@/hooks/useSnapshots'
 import { fetchOverview } from '@/api/endpoints'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,7 +29,13 @@ export function OverviewPage() {
   // 手动刷新：force_refresh=true 绕过基金 15 分钟缓存，强制拉最新行情后写回缓存
   const refreshMut = useMutation({
     mutationFn: () => fetchOverview(CURRENCY, true),
-    onSuccess: (data) => queryClient.setQueryData(['overview', CURRENCY], data),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['overview', CURRENCY], data)
+      toast.success('行情已刷新')
+    },
+    onError: (e: unknown) => toast.error('刷新失败', {
+      description: e instanceof Error ? e.message : '未知错误',
+    }),
   })
 
   // ---- 加载态 ----
@@ -38,19 +45,27 @@ export function OverviewPage() {
         <h1 className="text-2xl font-bold">概览</h1>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <Card key={i}>
+            <Card
+              key={i}
+              className="animate-fade-in-up"
+              style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'backwards' }}
+            >
               <CardHeader className="pb-2">
                 <Skeleton className="h-4 w-20" />
               </CardHeader>
               <CardContent>
-                <Skeleton className="h-8 w-32" />
+                <Skeleton className="h-8 w-32" style={{ animationDelay: '150ms' }} />
               </CardContent>
             </Card>
           ))}
         </div>
-        <Card>
+        <Card className="animate-fade-in-up" style={{ animationDelay: '400ms', animationFillMode: 'backwards' }}>
           <CardHeader><Skeleton className="h-5 w-24" /></CardHeader>
-          <CardContent><Skeleton className="h-32 w-full" /></CardContent>
+          <CardContent>
+            <Skeleton className="h-8 w-full mb-2" />
+            <Skeleton className="h-8 w-3/4 mb-2" style={{ animationDelay: '100ms' }} />
+            <Skeleton className="h-8 w-1/2" style={{ animationDelay: '200ms' }} />
+          </CardContent>
         </Card>
       </div>
     )
@@ -117,13 +132,13 @@ export function OverviewPage() {
 
       {refreshMut.error && (
         <p className="text-sm text-destructive">
-          刷新失败：{refreshMut.error.message}
+          刷新失败：{refreshMut.error instanceof Error ? refreshMut.error.message : '未知错误'}
         </p>
       )}
 
       {createSnapshotMut.error && (
         <p className="text-sm text-destructive">
-          快照失败：{createSnapshotMut.error.message}
+          快照失败：{createSnapshotMut.error instanceof Error ? createSnapshotMut.error.message : '未知错误'}
         </p>
       )}
 
@@ -264,7 +279,7 @@ export function OverviewPage() {
         </Card>
       )}
 
-      <p className={`text-sm ${stats.rate_stale ? 'text-amber-600' : 'text-muted-foreground'}`}>
+      <p className={`text-sm text-center ${stats.rate_stale ? 'text-amber-600' : 'text-muted-foreground'}`}>
         {stats.rate_stale
           ? `⚠ 汇率非最新（来自 ${stats.rate_source_date ?? '未知日期'}），网络异常时使用历史汇率兜底 · 历史快照按当时汇率换算`
           : `汇率数据由 exchangerates 提供 · 更新于 ${stats.rate_source_date ?? '未知'} · 历史快照按当时汇率换算`}

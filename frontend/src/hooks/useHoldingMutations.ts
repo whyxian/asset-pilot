@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { createHolding, updateHolding, deleteHolding } from '@/api/endpoints'
 import { ApiError } from '@/api/types'
 import type { HoldingCreate, HoldingUpdate, HoldingWithQuote } from '@/types'
@@ -23,7 +24,11 @@ export function useCreateHolding() {
   const qc = useQueryClient()
   return useMutation<HoldingWithQuote, ApiError, HoldingCreate>({
     mutationFn: createHolding,
-    onSuccess: () => invalidateHoldingRelated(qc),
+    onSuccess: async () => {
+      await invalidateHoldingRelated(qc)
+      toast.success('持仓已新增')
+    },
+    onError: (e) => toast.error('新增失败', { description: e.message }),
   })
 }
 
@@ -37,7 +42,11 @@ export function useUpdateHolding() {
   >({
     mutationFn: ({ ticker, asset_class, market, data }) =>
       updateHolding(ticker, asset_class, market, data),
-    onSuccess: () => invalidateHoldingRelated(qc),
+    onSuccess: async () => {
+      await invalidateHoldingRelated(qc)
+      toast.success('持仓已更新')
+    },
+    onError: (e) => toast.error('更新失败', { description: e.message }),
   })
 }
 
@@ -51,12 +60,16 @@ export function useDeleteHolding() {
   >({
     mutationFn: ({ ticker, asset_class, market }) =>
       deleteHolding(ticker, asset_class, market),
-    onSuccess: () => Promise.all([
-      qc.invalidateQueries({ queryKey: ['holdings'] }),
-      qc.invalidateQueries({ queryKey: ['overview'] }),
-      qc.invalidateQueries({ queryKey: ['transactions'] }),
-      qc.invalidateQueries({ queryKey: ['closed-holdings'] }),
-      qc.invalidateQueries({ queryKey: ['closed-transactions'] }),
-    ]).then(() => undefined),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['holdings'] }),
+        qc.invalidateQueries({ queryKey: ['overview'] }),
+        qc.invalidateQueries({ queryKey: ['transactions'] }),
+        qc.invalidateQueries({ queryKey: ['closed-holdings'] }),
+        qc.invalidateQueries({ queryKey: ['closed-transactions'] }),
+      ])
+      toast.success('持仓已删除')
+    },
+    onError: (e) => toast.error('删除失败', { description: e.message }),
   })
 }

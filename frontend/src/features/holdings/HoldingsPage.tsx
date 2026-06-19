@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { useHoldings } from '@/hooks/useHoldings'
 import {
   useCreateHolding,
@@ -90,7 +91,13 @@ export function HoldingsPage() {
   // 手动刷新：force_refresh=true 绕过基金 15 分钟缓存，强制拉最新行情后写回缓存
   const refreshMut = useMutation({
     mutationFn: () => fetchHoldingsWithQuotes(true),
-    onSuccess: (data) => queryClient.setQueryData(['holdings', 'with-quotes'], data),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['holdings', 'with-quotes'], data)
+      toast.success('行情已刷新')
+    },
+    onError: (e: unknown) => toast.error('刷新失败', {
+      description: e instanceof Error ? e.message : '未知错误',
+    }),
   })
 
   // 持仓增改对话框
@@ -296,7 +303,7 @@ export function HoldingsPage() {
 
       {refreshMut.error && (
         <p className="text-sm text-destructive">
-          刷新失败：{refreshMut.error.message}
+          刷新失败：{refreshMut.error instanceof Error ? refreshMut.error.message : '未知错误'}
         </p>
       )}
 

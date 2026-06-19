@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { deleteClosedHolding, fetchClosedHolding, fetchClosedHoldings, fetchClosedTransactions } from '@/api/endpoints'
 
 /** 获取全部归档持仓 */
@@ -34,6 +35,10 @@ export function useDeleteClosedHolding() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['closed-holdings'] })
       qc.invalidateQueries({ queryKey: ['closed-transactions'] })
+      toast.success('历史持仓已删除')
     },
+    onError: (e: unknown) => toast.error('删除失败', {
+      description: e instanceof Error ? e.message : '未知错误',
+    }),
   })
 }
