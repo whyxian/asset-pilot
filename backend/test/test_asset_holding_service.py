@@ -16,18 +16,33 @@ from test.conftest import approx
 # create_holding
 # ════════════════════════════════════════════════════
 
-async def test_create_holding_writes_initial(Session, seed_variety, read_holding):
-    """新建持仓 → initial_* 等于当前 quantity/cost_price/total_invested"""
+async def test_create_holding_writes_initial(Session, seed_variety, read_holding, monkeypatch):
+    """新建持仓 → initial_* 等于当前 quantity/cost_price/total_invested；建仓拉行情校验"""
     from app.services.asset_holding_service import AssetHoldingService
 
     await seed_variety(ticker="TEST")
+    svc = AssetHoldingService()
+
+    # mock 建仓时的行情拉取（返回 TEST 的行情，触发缓存预热 + 校验可用性）
+    async def fake_fetch(ac, market, tickers, force_refresh=False):
+        return [AssetQuote(
+            ticker="TEST", asset_class="STOCK", market="CN",
+            name="测试品种", price=Decimal("12"), currency="CNY", source="TEST",
+        )]
+    monkeypatch.setattr(svc._quote_svc, "fetch_quotes_by_asset_class", fake_fetch)
+
     payload = AssetHoldingCreate(
         ticker="TEST", name="测试品种", market="CN", asset_class="STOCK",
         currency="CNY",
         quantity=Decimal("100"), cost_price=Decimal("10"), total_invested=Decimal("1000"),
         first_buy_date=date(2024, 1, 1),
     )
-    await AssetHoldingService().create_holding(payload)
+    result = await svc.create_holding(payload)
+
+    # 返回带行情的 HoldingWithQuote
+    assert result.ticker == "TEST"
+    assert approx(result.current_price, "12")
+    assert approx(result.market_value, "1200")  # 100 × 12
 
     h = await read_holding()
     assert approx(h.quantity, "100")
@@ -48,6 +63,58 @@ async def test_create_holding_unknown_variety_fails(Session):
     )
     with pytest.raises(BusinessError, match="未识别的品种"):
         await AssetHoldingService().create_holding(payload)
+
+
+async def test_create_holding_quote_unavailable_fails(Session, seed_variety, read_holding, monkeypatch):
+    """建仓时拉不到行情（退市/数据源不可用）→ 建仓失败，不写 DB"""
+    from app.services.asset_holding_service import AssetHoldingService
+
+    await seed_variety(ticker="TEST")
+    svc = AssetHoldingService()
+
+    # mock 行情拉取返回空（拉不到该 ticker）
+    async def fake_fetch(ac, market, tickers, force_refresh=False):
+        return []
+    monkeypatch.setattr(svc._quote_svc, "fetch_quotes_by_asset_class", fake_fetch)
+
+    payload = AssetHoldingCreate(
+        ticker="TEST", name="", market="CN", asset_class="STOCK",
+        currency="CNY",
+        quantity=Decimal("100"), cost_price=Decimal("10"), total_invested=Decimal("1000"),
+        first_buy_date=date(2024, 1, 1),
+    )
+    with pytest.raises(BusinessError, match="无法获取.*实时行情"):
+        await svc.create_holding(payload)
+
+    # 建仓失败 → 不应写入 DB
+    h = await read_holding()
+    assert h is None
+
+
+async def test_create_holding_name_from_quote(Session, seed_variety, read_holding, monkeypatch):
+    """name 为空时从行情名补填"""
+    from app.services.asset_holding_service import AssetHoldingService
+
+    await seed_variety(ticker="TEST")
+    svc = AssetHoldingService()
+
+    async def fake_fetch(ac, market, tickers, force_refresh=False):
+        return [AssetQuote(
+            ticker="TEST", asset_class="STOCK", market="CN",
+            name="从行情来的名字", price=Decimal("12"), currency="CNY", source="TEST",
+        )]
+    monkeypatch.setattr(svc._quote_svc, "fetch_quotes_by_asset_class", fake_fetch)
+
+    payload = AssetHoldingCreate(
+        ticker="TEST", name="", market="CN", asset_class="STOCK",
+        currency="CNY",
+        quantity=Decimal("100"), cost_price=Decimal("10"), total_invested=Decimal("1000"),
+        first_buy_date=date(2024, 1, 1),
+    )
+    await svc.create_holding(payload)
+
+    h = await read_holding()
+    assert h.name == "从行情来的名字"
 
 
 # ════════════════════════════════════════════════════

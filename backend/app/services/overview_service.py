@@ -50,8 +50,8 @@ class OverviewService:
         market_values_usd: dict[str, Decimal] = defaultdict(Decimal)
 
         for h in holdings:
-            q = quote_map.get((h.asset_class, h.market, h.ticker))
-            current_price = q.price if q else Decimal("0")
+            entry = quote_map.get((h.asset_class, h.market, h.ticker))
+            current_price = entry[0].price if entry else Decimal("0")
             market_value = h.quantity * current_price
 
             mv_usd = convert_with_rates(market_value, h.currency, "USD", rates)
@@ -74,8 +74,8 @@ class OverviewService:
         weighted_return = Decimal("0")
         total_weight = Decimal("0")
         for h in holdings:
-            q = quote_map.get((h.asset_class, h.market, h.ticker))
-            current_price = q.price if q else Decimal("0")
+            entry = quote_map.get((h.asset_class, h.market, h.ticker))
+            current_price = entry[0].price if entry else Decimal("0")
             mv_usd = convert_with_rates(h.quantity * current_price, h.currency, "USD", rates)
             annualized = self._calc_annualized(current_price, h.cost_price, h.first_buy_date, today)
             if annualized == "+∞%":

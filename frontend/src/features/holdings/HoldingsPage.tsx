@@ -78,6 +78,29 @@ function AnnualizedCell({ holding }: { holding: HoldingWithQuote }) {
   )
 }
 
+/** 行情数值 + 状态标记 — HISTORICAL 时追加小字"历史"，UNAVAILABLE 时显示"—" */
+function QuoteValueCell({
+  value,
+  currency,
+  status,
+}: {
+  value: number
+  currency: string
+  status: string
+}) {
+  if (status === 'UNAVAILABLE') {
+    return <span className="text-muted-foreground">—</span>
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      {formatPrice(value, currency, 2)}
+      {status === 'HISTORICAL' && (
+        <span className="text-xs text-muted-foreground opacity-50">历史</span>
+      )}
+    </span>
+  )
+}
+
 export function HoldingsPage() {
   const { data, isLoading, isError, error, refetch } = useHoldings()
   const holdings = data?.holdings
@@ -370,8 +393,8 @@ export function HoldingsPage() {
 	                <td className="p-3 text-muted-foreground whitespace-nowrap">{h.asset_class}</td>
                 <td className="p-3 text-right whitespace-nowrap">{toNum(h.quantity).toLocaleString()}</td>
                 <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.cost_price, h.currency)}</td>
-                <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.current_price, h.currency)}</td>
-                <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.market_value, h.currency, 2)}</td>
+                <td className="p-3 text-right whitespace-nowrap"><QuoteValueCell value={toNum(h.current_price)} currency={h.currency} status={h.quote_status} /></td>
+                <td className="p-3 text-right whitespace-nowrap"><QuoteValueCell value={toNum(h.market_value)} currency={h.currency} status={h.quote_status} /></td>
                 <td className="p-3 text-right whitespace-nowrap"><PnlAmountCell holding={h} /></td>
                 <td className="p-3 text-right whitespace-nowrap"><PnlPctCell holding={h} /></td>
                 <td className="p-3 text-right whitespace-nowrap"><AnnualizedCell holding={h} /></td>

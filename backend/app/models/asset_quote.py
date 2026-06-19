@@ -1,8 +1,16 @@
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+
+class QuoteStatus(str, Enum):
+    """行情获取状态 — 供前端区分实时/降级/不可用"""
+    REALTIME = "REALTIME"          # 实时行情（数据源刚拉的）
+    HISTORICAL = "HISTORICAL"      # DB 历史兜底（实时失败，回查 DB 最新一条）
+    UNAVAILABLE = "UNAVAILABLE"    # 连历史都没有（现价 0，建仓后从未成功落库的极端情况）
 
 
 class AssetQuote(BaseModel):

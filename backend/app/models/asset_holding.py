@@ -61,6 +61,7 @@ class HoldingWithQuote(BaseModel):
     pnl: Decimal = Decimal("0")
     pnl_pct: float | str | None = None       # 零成本时为 "∞"
     annualized_return: float | str | None = None  # 零成本时为 "∞"
+    quote_status: str = "REALTIME"           # 行情状态：REALTIME / HISTORICAL / UNAVAILABLE
 
 
 class MarketSummary(BaseModel):

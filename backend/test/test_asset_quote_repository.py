@@ -85,3 +85,36 @@ async def test_get_recent_quotes_cutoff(Session, seed_quote):
 
     result = await repo.get_recent_quotes("STOCK", "CN", ["600519"], max_age_minutes=15)
     assert "600519" not in result
+
+
+# ════════════════════════════════════════════════════
+# get_latest_quotes — 不限时间历史查询兜底
+# ════════════════════════════════════════════════════
+
+async def test_get_latest_quotes_returns_latest(Session, seed_quote):
+    """多时间记录 → 返回每个 ticker 最新一条（不限时间窗口）"""
+    now = datetime.now()
+    # 两条旧记录（超过 15min） + 一条新记录，都在同一 ticker
+    await seed_quote(ticker="600519", price="1700", created_at=now - timedelta(hours=2))
+    await seed_quote(ticker="600519", price="1800", created_at=now - timedelta(hours=1))
+    await seed_quote(ticker="600519", price="1900", created_at=now - timedelta(minutes=5))
+
+    repo = StockQuoteRepository()
+    repo._tencent.fetch = AsyncMock(return_value=[])
+    repo._sina.fetch = AsyncMock(return_value=[])
+
+    result = await repo.get_latest_quotes("STOCK", "CN", ["600519"])
+    assert "600519" in result
+    # 最新的一条（price=1900）
+    assert result["600519"].price == Decimal("1900")
+
+
+async def test_get_latest_quotes_missing_ticker(Session, seed_quote):
+    """DB 里没有的 ticker 不在返回 dict 中"""
+    repo = StockQuoteRepository()
+    repo._tencent.fetch = AsyncMock(return_value=[])
+    repo._sina.fetch = AsyncMock(return_value=[])
+
+    result = await repo.get_latest_quotes("STOCK", "CN", ["NONEXISTENT"])
+    assert "NONEXISTENT" not in result
+    assert result == {}

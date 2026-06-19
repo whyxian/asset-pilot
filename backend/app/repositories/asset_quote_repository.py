@@ -132,6 +132,56 @@ class AssetQuoteRepository(abc.ABC):
             )
         return result
 
+    async def get_latest_quotes(
+        self,
+        asset_class: str,
+        market: str,
+        tickers: list[str],
+    ) -> dict[str, AssetQuote]:
+        """查询每个 ticker 的最新一条历史行情（不限时间，用于实时失败时兜底）
+
+        与 get_recent_quotes 的区别：不限 created_at 窗口，取每个 ticker 入库最新的一条。
+        建仓时强制落库保证 DB 有该 ticker 的历史行情，实时拉取失败时回查此处兜底。
+
+        Args:
+            asset_class: 资产类别
+            market: 市场
+            tickers: 代码列表
+
+        Returns:
+            {ticker: AssetQuote}，DB 里没有的 ticker 不在 dict 中
+        """
+        if not tickers:
+            return {}
+        async with async_session() as session:
+            records = (await session.execute(
+                select(AssetQuoteRecord)
+                .where(
+                    AssetQuoteRecord.asset_class == asset_class,
+                    AssetQuoteRecord.market == market,
+                    AssetQuoteRecord.ticker.in_(tickers),
+                )
+                .order_by(AssetQuoteRecord.ticker, desc(AssetQuoteRecord.created_at))
+            )).scalars().all()
+        # 同一 ticker 可能有多条；按 created_at desc，第一次见到就是最新
+        result: dict[str, AssetQuote] = {}
+        for r in records:
+            if r.ticker in result:
+                continue
+            result[r.ticker] = AssetQuote(
+                ticker=r.ticker,
+                asset_class=r.asset_class,
+                market=r.market,
+                name=r.name,
+                price=Decimal(str(r.price)),
+                currency=r.currency,
+                change_price=Decimal(str(r.change_price)) if r.change_price is not None else None,
+                change_ratio=r.change_ratio,
+                updated_at=r.timestamp,
+                source=r.source,
+            )
+        return result
+
 
 class StockQuoteRepository(AssetQuoteRepository):
     """股票行情数据访问 — A 股 + 美股"""

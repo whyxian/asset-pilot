@@ -64,8 +64,8 @@ class SnapshotService:
         has_inf = False
 
         for h in holdings:
-            q = quote_map.get((h.asset_class, h.market, h.ticker))
-            current_price = q.price if q else Decimal("0")
+            entry = quote_map.get((h.asset_class, h.market, h.ticker))
+            current_price = entry[0].price if entry else Decimal("0")
             market_value = h.quantity * current_price
             unrealized_pnl = market_value - h.total_invested
 

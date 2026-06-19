@@ -21,6 +21,7 @@ from app.models.asset_holding import (
     HoldingWithQuote,
     MarketSummary,
 )
+from app.models.asset_quote import AssetQuote, QuoteStatus
 from app.models.orm.transaction_orm import TransactionRecord
 from app.repositories.asset_holding_repository import AssetHoldingRepository
 from app.repositories.asset_variety_repository import AssetVarietyRepository
@@ -46,15 +47,39 @@ class AssetHoldingService:
         """按三元组获取持仓"""
         return await self._repo.get_holding(ticker, asset_class, market)
 
-    async def create_holding(self, data: AssetHoldingCreate) -> AssetHolding:
-        """新增持仓（建仓 = 设定基线，校验品种是否存在，名称空时从品种记录自动补填）"""
+    async def create_holding(self, data: AssetHoldingCreate) -> HoldingWithQuote:
+        """新增持仓（建仓 = 设定基线 + 拉取行情校验可用性 + 缓存预热）
+
+        业务约束：建仓时必须能拉到该 ticker 的实时行情，拉不到（退市/代码错/数据源不可用）
+        则建仓失败——保证持仓数据可用性，同时预热行情缓存（建仓后列表刷新直接命中）。
+        名称空时从行情名或品种记录补填。返回带行情的 HoldingWithQuote。
+        """
+        # 1. 校验品种存在
         variety = await self._variety_repo.get_variety(data.ticker, data.asset_class, data.market)
         if not variety:
             raise BusinessError(40001, f"未识别的品种代码 '{data.ticker}'，请先通过 /api/v1/varieties 添加该品种")
-        # 前端可能未传 name，从品种记录补填
+
+        # 2. 拉取该 ticker 行情（先拉后建仓，失败直接抛错不写 DB；同时预热缓存）
+        quotes = await self._quote_svc.fetch_quotes_by_asset_class(
+            data.asset_class, data.market, [data.ticker],
+        )
+        quote = next((q for q in quotes if q.ticker == data.ticker), None)
+        if quote is None:
+            raise BusinessError(
+                40002,
+                f"无法获取 '{data.ticker}' 的实时行情，请检查代码是否正确或稍后重试",
+            )
+
+        # 3. 名称补填：行情名优先，其次品种记录名
         if not data.name:
-            data = data.model_copy(update={"name": variety.name})
-        return await self._repo.create_holding(data)
+            name = quote.name or variety.name
+            data = data.model_copy(update={"name": name})
+
+        # 4. 建仓写 DB
+        holding = await self._repo.create_holding(data)
+
+        # 5. 返回带行情的 HoldingWithQuote
+        return self._build_holding_with_quote(holding, (quote, QuoteStatus.REALTIME), date.today())
 
     async def update_holding(
         self, ticker: str, asset_class: str, market: str, data: AssetHoldingUpdate
@@ -151,48 +176,11 @@ class AssetHoldingService:
         market_value_usd_by_market: dict[str, Decimal] = defaultdict(Decimal)
         for h in holdings:
             q = quote_map.get((h.asset_class, h.market, h.ticker))
-            current_price = q.price if q else Decimal("0")
-            market_value = h.quantity * current_price
-            pnl = market_value - h.total_invested
+            hwq = self._build_holding_with_quote(h, q, today)
             market_value_usd_by_market[h.market] += convert_with_rates(
-                market_value, h.currency, "USD", rates
+                hwq.market_value, h.currency, "USD", rates
             )
-
-            # 盈亏百分比
-            pnl_pct: float | str | None = None
-            if h.total_invested > 0:
-                pnl_pct = float((pnl / h.total_invested) * 100)
-            elif h.total_invested == 0 and market_value > 0:
-                pnl_pct = "+∞%"  # 零成本持有，盈亏率无穷大
-
-            # 简单年化回报率 = 总收益率 × (365 / 持有天数)
-            # 持有天数 = (今日 - 首次买入日) + 1，当天买入也算持有 1 天
-            annualized: float | str | None = None
-            if h.cost_price > 0 and h.first_buy_date:
-                holding_days = (today - h.first_buy_date).days + 1
-                if holding_days >= 1:
-                    total_return_pct = float((current_price - h.cost_price) / h.cost_price) * 100
-                    annualized = round(total_return_pct * (365 / holding_days), 4)
-            elif h.cost_price == 0 and current_price > 0 and h.first_buy_date:
-                annualized = "+∞%"  # 零成本持有，年化无穷大
-
-            results.append(HoldingWithQuote(
-                ticker=h.ticker,
-                name=h.name,
-                market=h.market,
-                asset_class=h.asset_class,
-                currency=h.currency,
-                quantity=h.quantity,
-                cost_price=h.cost_price,
-                total_invested=h.total_invested,
-                first_buy_date=h.first_buy_date,
-                liquidated_at=h.liquidated_at,
-                current_price=current_price,
-                market_value=market_value,
-                pnl=pnl,
-                pnl_pct=pnl_pct,
-                annualized_return=annualized,
-            ))
+            results.append(hwq)
 
         # 市场汇总：按市场聚合 USD 市值，算占比（市值降序排列）
         market_label = {"CN": "A 股", "US": "美股", "CRYPTO": "加密货币"}
@@ -212,6 +200,71 @@ class AssetHoldingService:
             ))
 
         return HoldingsWithQuotesResponse(holdings=results, market_summary=market_summary)
+
+    @staticmethod
+    def _build_holding_with_quote(
+        h: AssetHolding,
+        q_with_status: tuple[AssetQuote, QuoteStatus] | None,
+        today: date,
+    ) -> HoldingWithQuote:
+        """单条持仓 + 行情 → HoldingWithQuote（算现价/市值/盈亏/年化 + 透传状态）
+
+        供建仓返回和列表聚合复用。行情缺失（None）时现价兜底 0 + 状态 UNAVAILABLE。
+
+        Args:
+            h: 持仓基线
+            q_with_status: (行情, 状态)，None 时现价按 0、状态 UNAVAILABLE
+            today: 今日（算年化用）
+
+        Returns:
+            带实时计算字段 + quote_status 的 HoldingWithQuote
+        """
+        if q_with_status is None:
+            current_price = Decimal("0")
+            quote_status = QuoteStatus.UNAVAILABLE.value
+        else:
+            q, status = q_with_status
+            current_price = q.price
+            quote_status = status.value
+        market_value = h.quantity * current_price
+        pnl = market_value - h.total_invested
+
+        # 盈亏百分比
+        pnl_pct: float | str | None = None
+        if h.total_invested > 0:
+            pnl_pct = float((pnl / h.total_invested) * 100)
+        elif h.total_invested == 0 and market_value > 0:
+            pnl_pct = "+∞%"  # 零成本持有，盈亏率无穷大
+
+        # 简单年化回报率 = 总收益率 × (365 / 持有天数)
+        # 持有天数 = (今日 - 首次买入日) + 1，当天买入也算持有 1 天
+        annualized: float | str | None = None
+        if h.cost_price > 0 and h.first_buy_date:
+            holding_days = (today - h.first_buy_date).days + 1
+            if holding_days >= 1:
+                total_return_pct = float((current_price - h.cost_price) / h.cost_price) * 100
+                annualized = round(total_return_pct * (365 / holding_days), 4)
+        elif h.cost_price == 0 and current_price > 0 and h.first_buy_date:
+            annualized = "+∞%"  # 零成本持有，年化无穷大
+
+        return HoldingWithQuote(
+            ticker=h.ticker,
+            name=h.name,
+            market=h.market,
+            asset_class=h.asset_class,
+            currency=h.currency,
+            quantity=h.quantity,
+            cost_price=h.cost_price,
+            total_invested=h.total_invested,
+            first_buy_date=h.first_buy_date,
+            liquidated_at=h.liquidated_at,
+            current_price=current_price,
+            market_value=market_value,
+            pnl=pnl,
+            pnl_pct=pnl_pct,
+            annualized_return=annualized,
+            quote_status=quote_status,
+        )
 
 
 async def recompute_holding(

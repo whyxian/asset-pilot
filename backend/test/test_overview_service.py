@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.models.asset_holding import AssetHolding
-from app.models.asset_quote import AssetQuote
+from app.models.asset_quote import AssetQuote, QuoteStatus
 from app.models.overview import OverviewStats
 from app.services.overview_service import OverviewService
 
@@ -125,18 +125,18 @@ async def test_get_overview_with_holdings():
     mock_repo = AsyncMock()
     mock_repo.list_holdings = AsyncMock(return_value=[h1, h2])
 
-    # mock quote service：直接返回并发拉取后的 quote_map（三元组 key）
+    # mock quote service：直接返回并发拉取后的 quote_map（三元组 key → (行情, 状态)）
     mock_quote_svc = AsyncMock()
     async def fake_fetch_quote_map(groups, force_refresh=False, timeout=None):
         return {
-            ("STOCK", "US", "AAPL"): AssetQuote(
+            ("STOCK", "US", "AAPL"): (AssetQuote(
                 ticker="AAPL", asset_class="STOCK", market="US",
                 name="Apple", price=Decimal("170"), currency="USD",
-            ),
-            ("STOCK", "CN", "600519"): AssetQuote(
+            ), QuoteStatus.REALTIME),
+            ("STOCK", "CN", "600519"): (AssetQuote(
                 ticker="600519", asset_class="STOCK", market="CN",
                 name="贵州茅台", price=Decimal("1900"), currency="CNY",
-            ),
+            ), QuoteStatus.REALTIME),
         }
     mock_quote_svc.fetch_quote_map_concurrent = fake_fetch_quote_map
 

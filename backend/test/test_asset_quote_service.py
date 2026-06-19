@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.asset_quote import AssetQuote
+from app.models.asset_quote import AssetQuote, QuoteStatus
 from app.services.asset_quote_service import AssetQuoteService
 
 
@@ -29,14 +29,14 @@ def _make_quote(ticker: str, price: str = "10", **kw) -> AssetQuote:
 # ════════════════════════════════════════════════════
 
 async def test_fetch_fund_quotes_all_cached():
-    """全部命中 15 分钟缓存 → 不调网络，返回缓存数据"""
+    """全部命中内存缓存 → 不调网络，返回缓存数据"""
     svc = AssetQuoteService()
+    svc._cache.clear()
+    # 预填内存缓存
     cached_quote = _make_quote("000001", asset_class="FUND", price="1.5")
+    svc._cache.set("FUND", [cached_quote])
 
     mock_fund_repo = AsyncMock()
-    mock_fund_repo.get_recent_quotes = AsyncMock(
-        return_value={"000001": cached_quote},
-    )
     mock_fund_repo.fetch_realtime_quote = AsyncMock(return_value=[])
     mock_fund_repo.save_asset_quotes = AsyncMock(return_value=0)
 
@@ -46,6 +46,7 @@ async def test_fetch_fund_quotes_all_cached():
         result = await svc.fetch_fund_quotes("CN", ["000001"])
     finally:
         mp.undo()
+        svc._cache.clear()
 
     assert len(result) == 1
     assert result[0].ticker == "000001"
@@ -54,15 +55,14 @@ async def test_fetch_fund_quotes_all_cached():
 
 
 async def test_fetch_fund_quotes_partial_cache():
-    """部分缓存 + 部分走网络 → 合并返回"""
+    """部分缓存 + 部分走网络 → 合并返回，只拉缺失的"""
     svc = AssetQuoteService()
+    svc._cache.clear()
     cached = _make_quote("000001", asset_class="FUND", price="1.5")
+    svc._cache.set("FUND", [cached])
     fresh = _make_quote("000002", asset_class="FUND", price="2.0")
 
     mock_fund_repo = AsyncMock()
-    mock_fund_repo.get_recent_quotes = AsyncMock(
-        return_value={"000001": cached},
-    )
     mock_fund_repo.fetch_realtime_quote = AsyncMock(return_value=[fresh])
     mock_fund_repo.save_asset_quotes = AsyncMock(return_value=1)
 
@@ -72,6 +72,7 @@ async def test_fetch_fund_quotes_partial_cache():
         result = await svc.fetch_fund_quotes("CN", ["000001", "000002"])
     finally:
         mp.undo()
+        svc._cache.clear()
 
     assert len(result) == 2
     tickers = {q.ticker for q in result}
@@ -83,10 +84,10 @@ async def test_fetch_fund_quotes_partial_cache():
 async def test_fetch_fund_quotes_none_cached():
     """无缓存 → 全走网络"""
     svc = AssetQuoteService()
+    svc._cache.clear()
     fresh = [_make_quote("000001", asset_class="FUND", price="1.5")]
 
     mock_fund_repo = AsyncMock()
-    mock_fund_repo.get_recent_quotes = AsyncMock(return_value={})
     mock_fund_repo.fetch_realtime_quote = AsyncMock(return_value=fresh)
     mock_fund_repo.save_asset_quotes = AsyncMock(return_value=1)
 
@@ -96,21 +97,21 @@ async def test_fetch_fund_quotes_none_cached():
         result = await svc.fetch_fund_quotes("CN", ["000001"])
     finally:
         mp.undo()
+        svc._cache.clear()
 
     assert len(result) == 1
     mock_fund_repo.fetch_realtime_quote.assert_called_once_with(["000001"], market="CN")
 
 
 async def test_fetch_fund_quotes_force_refresh_skips_cache():
-    """force_refresh=True → 即使缓存命中也跳过，全部走网络拉最新"""
+    """force_refresh=True → 即使缓存命中也跳过，全部走网络拉最新，且不写缓存"""
     svc = AssetQuoteService()
+    svc._cache.clear()
     cached = _make_quote("000001", asset_class="FUND", price="1.5")
+    svc._cache.set("FUND", [cached])
     fresh = _make_quote("000001", asset_class="FUND", price="1.6")
 
     mock_fund_repo = AsyncMock()
-    mock_fund_repo.get_recent_quotes = AsyncMock(
-        return_value={"000001": cached},
-    )
     mock_fund_repo.fetch_realtime_quote = AsyncMock(return_value=[fresh])
     mock_fund_repo.save_asset_quotes = AsyncMock(return_value=1)
 
@@ -120,9 +121,8 @@ async def test_fetch_fund_quotes_force_refresh_skips_cache():
         result = await svc.fetch_fund_quotes("CN", ["000001"], force_refresh=True)
     finally:
         mp.undo()
+        svc._cache.clear()
 
-    # 不查缓存
-    mock_fund_repo.get_recent_quotes.assert_not_called()
     # 走网络拉全部
     mock_fund_repo.fetch_realtime_quote.assert_called_once_with(["000001"], market="CN")
     # 返回的是网络最新值而非缓存旧值
@@ -280,6 +280,8 @@ async def test_fetch_quote_map_concurrent_timeout_drops_slow_group():
 
     mp = pytest.MonkeyPatch()
     mp.setattr(svc, "fetch_quotes_by_asset_class", fake_fetch)
+    # mock 降级查 DB 返回空（模拟 DB 也无历史）
+    mp.setattr(svc._fund_repo, "get_latest_quotes", AsyncMock(return_value={}))
     try:
         groups = {("STOCK", "US"): ["AAPL"], ("FUND", "CN"): ["000001"]}
         quote_map = await svc.fetch_quote_map_concurrent(groups, timeout=0.1)
@@ -287,6 +289,8 @@ async def test_fetch_quote_map_concurrent_timeout_drops_slow_group():
         mp.undo()
 
     assert ("STOCK", "US", "AAPL") in quote_map
+    assert quote_map[("STOCK", "US", "AAPL")][1] == QuoteStatus.REALTIME
+    # 超时组降级查 DB 也无 → 不在 map
     assert ("FUND", "CN", "000001") not in quote_map
 
 
@@ -304,13 +308,18 @@ async def test_fetch_quote_map_concurrent_swallows_group_exception():
 
     mp = pytest.MonkeyPatch()
     mp.setattr(svc, "fetch_quotes_by_asset_class", fake_fetch)
+    # mock 降级查 DB 返回空（模拟 DB 也无历史）
+    mp.setattr(svc._crypto_repo, "get_latest_quotes", AsyncMock(return_value={}))
     try:
         groups = {("STOCK", "US"): ["AAPL"], ("CRYPTO", "CRYPTO"): ["BTC"]}
         quote_map = await svc.fetch_quote_map_concurrent(groups)
     finally:
         mp.undo()
 
+    # 实时成功的标 REALTIME
     assert ("STOCK", "US", "AAPL") in quote_map
+    assert quote_map[("STOCK", "US", "AAPL")][1] == QuoteStatus.REALTIME
+    # 抛异常组降级查 DB 也无 → 不在 map
     assert ("CRYPTO", "CRYPTO", "BTC") not in quote_map
 
 
@@ -341,5 +350,100 @@ async def test_fetch_quote_map_concurrent_avoids_cross_group_ticker_collision():
 
     assert ("STOCK", "CN", "000001") in quote_map
     assert ("FUND", "CN", "000001") in quote_map
-    assert quote_map[("STOCK", "CN", "000001")].price == Decimal("11.5")
-    assert quote_map[("FUND", "CN", "000001")].price == Decimal("1.2")
+    assert quote_map[("STOCK", "CN", "000001")][0].price == Decimal("11.5")
+    assert quote_map[("FUND", "CN", "000001")][0].price == Decimal("1.2")
+
+
+# ════════════════════════════════════════════════════
+# 行情内存缓存命中（stock/crypto 第二次调用走缓存）
+# ════════════════════════════════════════════════════
+
+async def test_fetch_stock_quotes_second_call_hits_cache():
+    """同一 service 实例第二次拉相同 codes → 命中内存缓存，不调网络"""
+    svc = AssetQuoteService()
+    svc._cache.clear()
+    raw_quote = _make_quote("600519", market="CN", price="1800")
+
+    mock_stock_repo = AsyncMock()
+    mock_stock_repo.fetch_realtime_quote = AsyncMock(return_value=[raw_quote])
+    mock_stock_repo.save_asset_quotes = AsyncMock(return_value=1)
+
+    mp = pytest.MonkeyPatch()
+    mp.setattr(svc, "_stock_repo", mock_stock_repo)
+    try:
+        # 第一次：走网络，写缓存
+        r1 = await svc.fetch_stock_quotes("CN", ["600519"])
+        assert len(r1) == 1
+        assert mock_stock_repo.fetch_realtime_quote.call_count == 1
+        # 第二次：命中缓存，不再调网络
+        r2 = await svc.fetch_stock_quotes("CN", ["600519"])
+        assert len(r2) == 1
+        assert r2[0].ticker == "600519"
+        assert mock_stock_repo.fetch_realtime_quote.call_count == 1  # 仍只调 1 次
+    finally:
+        mp.undo()
+        svc._cache.clear()
+
+
+async def test_fetch_crypto_quotes_second_call_hits_cache():
+    """加密货币第二次拉相同 codes → 命中缓存"""
+    svc = AssetQuoteService()
+    svc._cache.clear()
+    raw_quote = _make_quote("bitcoin", market="CRYPTO", price="100000", currency="USD")
+
+    mock_crypto_repo = AsyncMock()
+    mock_crypto_repo.fetch_realtime_quote = AsyncMock(return_value=[raw_quote])
+    mock_crypto_repo.save_asset_quotes = AsyncMock(return_value=1)
+
+    mp = pytest.MonkeyPatch()
+    mp.setattr(svc, "_crypto_repo", mock_crypto_repo)
+    try:
+        await svc.fetch_crypto_quotes(["bitcoin"])
+        await svc.fetch_crypto_quotes(["bitcoin"])
+        # 第二次命中缓存，网络只调 1 次
+        assert mock_crypto_repo.fetch_realtime_quote.call_count == 1
+    finally:
+        mp.undo()
+        svc._cache.clear()
+
+
+async def test_fetch_quote_map_concurrent_partial_fallback_to_db():
+    """部分 code 实时失败 → 走 DB 历史降级（HISTORICAL），成功的仍是 REALTIME"""
+    import app.utils.quote_cache as qc  # 防止缓存干扰
+    svc = AssetQuoteService()
+    svc._cache.clear()
+
+    async def fake_fetch(ac, market, tickers, force_refresh=False):
+        # 只有 000001 成功，000002 失败（返回空）
+        if "000002" in tickers:
+            return [AssetQuote(
+                ticker="000001", asset_class="STOCK", market="CN",
+                name="平安银行", price=Decimal("11.5"), currency="CNY",
+            )]
+        return [AssetQuote(
+            ticker="000001", asset_class="STOCK", market="CN",
+            name="平安银行", price=Decimal("11.5"), currency="CNY",
+        )]
+
+    mp = pytest.MonkeyPatch()
+    mp.setattr(svc, "fetch_quotes_by_asset_class", fake_fetch)
+    # mock DB 历史兜底：000002 有历史行情 price=10
+    historical_quote = _make_quote("000002", price="10.0")
+    mp.setattr(svc._stock_repo, "get_latest_quotes", AsyncMock(
+        return_value={"000002": historical_quote},
+    ))
+    try:
+        groups = {("STOCK", "CN"): ["000001", "000002"]}
+        quote_map = await svc.fetch_quote_map_concurrent(groups)
+    finally:
+        mp.undo()
+        svc._cache.clear()
+
+    # 000001 实时成功 → REALTIME
+    assert ("STOCK", "CN", "000001") in quote_map
+    assert quote_map[("STOCK", "CN", "000001")][1] == QuoteStatus.REALTIME
+    assert quote_map[("STOCK", "CN", "000001")][0].price == Decimal("11.5")
+    # 000002 实时失败 → DB 历史降级 → HISTORICAL
+    assert ("STOCK", "CN", "000002") in quote_map
+    assert quote_map[("STOCK", "CN", "000002")][1] == QuoteStatus.HISTORICAL
+    assert quote_map[("STOCK", "CN", "000002")][0].price == Decimal("10.0")

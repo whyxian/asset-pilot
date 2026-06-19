@@ -48,6 +48,7 @@ export interface HoldingWithQuote {
   pnl: number
   pnl_pct: number | string | null // 零成本时为 "∞"
   annualized_return: number | string | null // 零成本时为 "∞"
+  quote_status: 'REALTIME' | 'HISTORICAL' | 'UNAVAILABLE' // 行情状态
 }
 
 export interface MarketSummary {

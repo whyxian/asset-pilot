@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models.asset_holding import AssetHolding
-from app.models.asset_quote import AssetQuote
+from app.models.asset_quote import AssetQuote, QuoteStatus
 from app.models.orm.networth_snapshot_orm import NetWorthSnapshotRecord
 from app.services.snapshot_service import SnapshotService
 from test.conftest import approx
@@ -35,7 +35,7 @@ async def _setup_snapshot_mocks(svc: SnapshotService, mp: pytest.MonkeyPatch,
         quote_map = {}
         for (ac, market), _tickers in groups.items():
             for q in quotes_map.get((ac, market), []):
-                quote_map[(ac, market, q.ticker)] = q
+                quote_map[(ac, market, q.ticker)] = (q, QuoteStatus.REALTIME)
         return quote_map
 
     mock_quote_svc = AsyncMock()
@@ -152,7 +152,7 @@ async def test_take_snapshot_multi_currency(Session, seed_variety):
         quote_map = {}
         for (ac, market), _tickers in groups.items():
             for q in quotes_map.get((ac, market), []):
-                quote_map[(ac, market, q.ticker)] = q
+                quote_map[(ac, market, q.ticker)] = (q, QuoteStatus.REALTIME)
         return quote_map
 
     mp.setattr(svc._quote_svc, "fetch_quote_map_concurrent", fake_fetch_quote_map)
@@ -206,7 +206,7 @@ async def test_take_snapshot_idempotent_same_day(Session, seed_holding):
         quote_map = {}
         for (ac, market), _tickers in groups.items():
             for q in quotes_map.get((ac, market), []):
-                quote_map[(ac, market, q.ticker)] = q
+                quote_map[(ac, market, q.ticker)] = (q, QuoteStatus.REALTIME)
         return quote_map
 
     mp.setattr(svc._quote_svc, "fetch_quote_map_concurrent", fake_fetch_quote_map)
