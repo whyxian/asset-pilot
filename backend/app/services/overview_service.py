@@ -1,5 +1,6 @@
 """概览业务逻辑 — 内部 USD 聚合，按 currency 参数换算返回"""
 
+import asyncio
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
@@ -35,11 +36,12 @@ class OverviewService:
         for h in holdings:
             groups[(h.asset_class, h.market)].append(h.ticker)
 
-        quote_map = await self._quote_svc.fetch_quote_map_concurrent(groups, force_refresh=force_refresh)
-
-        # 汇率一次取回（命中 1h 缓存时无网络），循环内用同步换算避免 2N 次冗余 await
-        # fetch_rates 五级兜底永不返回 None，最差也有硬编码汇率；snapshot 含日期+新鲜度供前端展示
-        rate_snapshot = await fetch_rates()
+        # 行情与汇率无依赖，并发拉取，避免串行累加耗时（行情最多 12s + 汇率最多 5s → 并发后取较大值）
+        quote_map_task = asyncio.create_task(
+            self._quote_svc.fetch_quote_map_concurrent(groups, force_refresh=force_refresh)
+        )
+        rate_snapshot_task = asyncio.create_task(fetch_rates())
+        quote_map, rate_snapshot = await asyncio.gather(quote_map_task, rate_snapshot_task)
         rates = rate_snapshot.rates
 
         today = date.today()

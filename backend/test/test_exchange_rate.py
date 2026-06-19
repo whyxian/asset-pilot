@@ -81,6 +81,40 @@ async def test_fetch_rates_success():
     assert persist_calls[0][1] == "2026-06-15"
 
 
+async def test_fetch_rates_single_flight():
+    """N 个并发请求同时触发网络拉取 → 单飞，只发 1 个网络请求"""
+    import asyncio
+    import app.utils.exchange_rate as er
+
+    er._cache = {"rates": None, "fetched_at": 0, "source_date": None, "is_stale": False}
+    er._inflight = None
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"datas": {"CNY": 6.7674, "USD": 1.0}, "date": "2026-06-15"}
+    mock_client = AsyncMock()
+    get_call_count = 0
+    async def slow_get(*a, **kw):
+        nonlocal get_call_count
+        get_call_count += 1
+        await asyncio.sleep(0.05)  # 模拟慢请求，让并发请求有时间叠加
+        return mock_response
+    mock_client.get = slow_get
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with pytest.MonkeyPatch.context() as m:
+        m.setattr("httpx.AsyncClient", lambda **kw: mock_client)
+        m.setattr("app.utils.exchange_rate._persist", lambda rates, src: None)
+        # 5 个并发请求
+        results = await asyncio.gather(*[fetch_rates() for _ in range(5)])
+
+    # 5 个请求都拿到结果
+    assert all(isinstance(r, RatesSnapshot) for r in results)
+    assert all(r.source_date == "2026-06-15" for r in results)
+    # 但网络只被调用 1 次（单飞）
+    assert get_call_count == 1
+
+
 async def test_fetch_rates_cache_hit():
     """缓存未过期 → 直接返回 RatesSnapshot，不再请求网络"""
     import app.utils.exchange_rate as er

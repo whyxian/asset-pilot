@@ -8,6 +8,7 @@
   网络失败时按此链路回退，保证全新环境 + 断网 + 种子被删也有兜底，永不返回 None
 """
 
+import asyncio
 import json
 import time
 from dataclasses import dataclass
@@ -32,6 +33,11 @@ class RatesSnapshot:
 
 _RATES_URL = "https://raw.githubusercontent.com/Sunny-DotNet/ExchangeRates/main/mini.json"
 _CACHE_TTL = 3600  # 内存缓存 1 小时（数据源每小时更新），过期后触发重拉但旧值仍可兜底
+_FETCH_TIMEOUT = 5  # 网络超时秒数——五级兜底充足，不必久等，失败立刻走兜底
+
+# 单飞：N 个并发请求同时触发 fetch_rates 时，只发 1 个网络请求，其余等结果复用
+# 避免概览 60s 轮询 + 前端重试叠加时发 N 个慢请求各自卡满超时
+_inflight: asyncio.Task | None = None
 
 # 运行时磁盘缓存（gitignore，运行时成功拉取后覆盖更新）
 _PERSIST_PATH = Path(__file__).resolve().parents[3] / "data" / "exchange_rates_cache.json"
@@ -239,26 +245,14 @@ def _persist(rates: dict[str, float], source_date: str | None) -> None:
         logger.warning(f"写入磁盘汇率兜底失败: {e}")
 
 
-async def fetch_rates() -> RatesSnapshot:
-    """获取实时汇率（USD 为基准），五级兜底
+async def _fetch_rates_uncached() -> RatesSnapshot:
+    """实际网络拉取 + 兜底逻辑（不含缓存命中检查，不含单飞）
 
-    兜底链：内存新鲜值（未过 TTL）→ 网络拉取 → 内存旧值（过期）→ 磁盘旧值
-            （运行时缓存 + 种子文件）→ 硬编码常量
-
-    Returns:
-        RatesSnapshot（rates 永不为空）；is_stale=True 表示走了兜底、汇率可能过时
+    被 fetch_rates 在缓存未命中时调用，多个并发请求通过单飞锁复用同一调用结果。
     """
     now = time.time()
-    # TTL 内缓存命中：新鲜（网络本就每小时更新，1h 内可接受），直接返回
-    if _cache["rates"] and (now - _cache["fetched_at"]) < _CACHE_TTL:
-        return RatesSnapshot(
-            rates=_cache["rates"],
-            source_date=_cache["source_date"],
-            is_stale=_cache.get("is_stale", False),
-        )
-
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=_FETCH_TIMEOUT) as client:
             resp = await client.get(_RATES_URL)
             data = resp.json()
         rates = data.get("datas")
@@ -296,6 +290,34 @@ async def fetch_rates() -> RatesSnapshot:
         return RatesSnapshot(
             rates=_HARDCODED_RATES, source_date=_HARDCODED_SOURCE_DATE, is_stale=True
         )
+
+
+async def fetch_rates() -> RatesSnapshot:
+    """获取实时汇率（USD 为基准），五级兜底 + 单飞
+
+    兜底链：内存新鲜值（未过 TTL）→ 网络拉取 → 内存旧值（过期）→ 磁盘旧值
+            （运行时缓存 + 种子文件）→ 硬编码常量
+
+    单飞：N 个并发请求同时触发网络拉取时，只发 1 个请求，其余复用结果，
+    避免概览 60s 轮询 + 前端重试叠加时各自卡满超时。
+
+    Returns:
+        RatesSnapshot（rates 永不为空）；is_stale=True 表示走了兜底、汇率可能过时
+    """
+    now = time.time()
+    # TTL 内缓存命中：新鲜（网络本就每小时更新，1h 内可接受），直接返回
+    if _cache["rates"] and (now - _cache["fetched_at"]) < _CACHE_TTL:
+        return RatesSnapshot(
+            rates=_cache["rates"],
+            source_date=_cache["source_date"],
+            is_stale=_cache.get("is_stale", False),
+        )
+
+    # 单飞：已有进行中的拉取任务则等它，否则自己发起
+    global _inflight
+    if _inflight is None or _inflight.done():
+        _inflight = asyncio.create_task(_fetch_rates_uncached())
+    return await _inflight
 
 
 async def fetch_rates_snapshot() -> dict[str, float]:
