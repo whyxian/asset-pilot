@@ -16,6 +16,8 @@ function invalidateHoldingRelated(qc: QueryClient): Promise<void> {
   return Promise.all([
     qc.invalidateQueries({ queryKey: ['holdings'] }),
     qc.invalidateQueries({ queryKey: ['overview'] }),
+    // 建仓/勘误自动生成的交易，让交易页也能立即看到
+    qc.invalidateQueries({ queryKey: ['transactions'] }),
   ]).then(() => undefined)
 }
 

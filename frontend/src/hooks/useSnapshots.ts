@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { createSnapshot, fetchAssetSnapshots, fetchSnapshots } from '@/api/endpoints'
+import { STALE_TIME } from '@/lib/config'
 
 /** 获取组合级快照列表（折线图数据源） */
 export function useSnapshots(currency: string = 'CNY', limit: number = 365) {
   return useQuery({
     queryKey: ['snapshots', currency, limit],
     queryFn: () => fetchSnapshots(currency, limit),
-    staleTime: 60_000,
+    staleTime: STALE_TIME,
   })
 }
 
@@ -22,7 +23,7 @@ export function useAssetSnapshots(
   return useQuery({
     queryKey: ['asset-snapshots', currency, ticker || 'all', asset_class || 'all', market || 'all', limit],
     queryFn: () => fetchAssetSnapshots(currency, ticker, asset_class, market, limit),
-    staleTime: 60_000,
+    staleTime: STALE_TIME,
   })
 }
 

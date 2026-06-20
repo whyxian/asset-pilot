@@ -31,9 +31,7 @@ class ClosedHolding(BaseModel):
     market: str
     asset_class: str
     currency: str
-    initial_quantity: Decimal
-    initial_cost_price: Decimal
-    initial_total_invested: Decimal
+    total_buy_amount: Decimal             # 该周期总买入金额（sum(buy.amount)）
     first_buy_date: date
     closed_at: date
     holding_days: int

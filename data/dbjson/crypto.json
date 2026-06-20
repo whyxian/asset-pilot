@@ -1,0 +1,666 @@
+[
+  {
+    "ticker": "BTC",
+    "name": "Bitcoin",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ETH",
+    "name": "Ethereum",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "DOGE",
+    "name": "Dogecoin",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "LTC",
+    "name": "Litecoin",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "SHIB",
+    "name": "Shiba Inu",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ZRX",
+    "name": "0x Protocol",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "AAVE",
+    "name": "Aave",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "AERO",
+    "name": "Aerodrome Finance",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ALGO",
+    "name": "Algorand",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ARB",
+    "name": "Arbitrum",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ASTER",
+    "name": "Aster",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "AVAX",
+    "name": "Avalanche",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "AVNT",
+    "name": "Avantis",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "AXS",
+    "name": "Axie Infinity",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "BAT",
+    "name": "Basic Attention Token",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "BIO",
+    "name": "Bio Protocol",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "BCH",
+    "name": "Bitcoin Cash",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "BNB",
+    "name": "BNB",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "BONK",
+    "name": "BONK",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "CC",
+    "name": "Canton Coin",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ADA",
+    "name": "Cardano",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "MEW",
+    "name": "cat in a dogs world",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "LINK",
+    "name": "Chainlink",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "COMP",
+    "name": "Compound",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ATOM",
+    "name": "Cosmos",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "CRV",
+    "name": "Curve DAO",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "WIF",
+    "name": "Dogwifhat",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "EIGEN",
+    "name": "EigenCloud",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ENA",
+    "name": "Ethena",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ETC",
+    "name": "Ethereum Classic",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "FLR",
+    "name": "Flare",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "FLOKI",
+    "name": "Floki",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "USDG",
+    "name": "Global Dollar",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "GRAM",
+    "name": "Gram",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "HBAR",
+    "name": "Hedera",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "HYPE",
+    "name": "Hyperliquid",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "IMX",
+    "name": "Immutable",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "JTO",
+    "name": "Jito",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ZRO",
+    "name": "LayerZero",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "LDO",
+    "name": "Lido DAO",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "LIT",
+    "name": "Lighter",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "MNT",
+    "name": "Mantle",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "SYRUP",
+    "name": "Maple Finance",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "MEGA",
+    "name": "MegaETH",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "MOODENG",
+    "name": "Moo Deng",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "NEAR",
+    "name": "NEAR Protocol",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "TRUMP",
+    "name": "OFFICIAL TRUMP",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ONDO",
+    "name": "Ondo",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "XCN",
+    "name": "Onyxcoin",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "OP",
+    "name": "Optimism",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ORCA",
+    "name": "Orca",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "PAXG",
+    "name": "Pax Gold",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "PNUT",
+    "name": "Peanut the Squirrel",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "PEPE",
+    "name": "Pepecoin",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "XPL",
+    "name": "Plasma",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "DOT",
+    "name": "Polkadot",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "POPCAT",
+    "name": "Popcat",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "PENGU",
+    "name": "Pudgy Penguins",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "PYTH",
+    "name": "Pyth Network",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "QNT",
+    "name": "Quant",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "RAY",
+    "name": "Raydium",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "RE",
+    "name": "RE",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "RENDER",
+    "name": "Render",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "SKR",
+    "name": "Seeker",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "SEI",
+    "name": "SEI",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "SKY",
+    "name": "Sky",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "SOL",
+    "name": "Solana",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "STRK",
+    "name": "Starknet",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "SUI",
+    "name": "SUI",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "XLM",
+    "name": "Stellar Lumens",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "SNX",
+    "name": "Synthetix",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "XTZ",
+    "name": "Tezos",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "GRT",
+    "name": "The Graph",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "UNI",
+    "name": "Uniswap",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "USDC",
+    "name": "USD Coin",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "CHIP",
+    "name": "USD.AI",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "VVV",
+    "name": "Venice Token",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "VIRTUAL",
+    "name": "Virtuals Protocol",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "WLFI",
+    "name": "World Liberty Financial",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "W",
+    "name": "Wormhole",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "XRP",
+    "name": "XRP",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ZEC",
+    "name": "Zcash",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  },
+  {
+    "ticker": "ZORA",
+    "name": "Zora",
+    "market": "CRYPTO",
+    "asset_class": "CRYPTO",
+    "sub_category": null,
+    "currency": "USD"
+  }
+]

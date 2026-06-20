@@ -41,8 +41,7 @@
 
 ### 2.2 asset_holdings（持仓表）
 
-直接记录当前持仓状态，是持仓计算的事实源。定投等批量操作自动更新此表。
-使用 ticker 直接作为品种标识，不通过 asset_varieties 外键关联。
+记录当前持仓状态。派生字段（quantity / cost_price / total_invested）由 `recompute_holding` 从 0 起点回放该品种全部交易记录算出——交易记录是唯一现金流事实源（为 XIRR 铺路）。建仓时自动生成一笔 buy 交易，持仓页手动改份额/成本自动生成勘误交易（日期=建仓日）。
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -50,14 +49,15 @@
 | ticker | VARCHAR(30) | NOT NULL, UNIQUE | 标的代码，如 "600519" / "AAPL" / "166002" |
 | name | VARCHAR(200) | NOT NULL DEFAULT '' | 名称 |
 | market | VARCHAR(10) | NOT NULL | 市场，"CN" / "US" / "CRYPTO" |
-| asset_class | VARCHAR(10) | NOT NULL | 资产类别，"STOCK" / "FUND" |
+| asset_class | VARCHAR(10) | NOT NULL | 资产类别，"STOCK" / "FUND" / "CRYPTO" |
 | currency | VARCHAR(3) | NOT NULL DEFAULT 'CNY' | 计价货币 |
-| quantity | DECIMAL(18,4) | NOT NULL | 持仓量 |
-| cost_price | DECIMAL(18,4) | NOT NULL | 加权平均成本价 |
-| total_invested | DECIMAL(18,4) | NOT NULL | 总投入金额 |
-| first_buy_date | DATE | NOT NULL | 首次买入日期 |
+| quantity | DECIMAL(18,4) | NOT NULL | 持仓量（recompute 算出） |
+| cost_price | DECIMAL(18,4) | NOT NULL | 加权平均成本价（recompute 算出） |
+| total_invested | DECIMAL(18,4) | NOT NULL | 总投入金额（recompute 算出） |
+| first_buy_date | DATE | NOT NULL | 首次买入日期（建仓交易决定，不可改） |
+| liquidated_at | DATE | NULLABLE | 清仓日期（recompute 写入，归档后行被搬走） |
 
-约束：UNIQUE(ticker)
+约束：UNIQUE(asset_class, market, ticker)
 
 ### 2.3 asset_snapshots（品种快照表）✅ 已创建
 
@@ -108,18 +108,20 @@
 
 ### 2.5 transactions（交易记录表）✅ 已创建
 
-每一笔买入/卖出操作，作为持仓变动的辅助记录。股票按数量+成交价录入，基金按金额录入。
+每一笔买入/卖出操作，是现金流的唯一事实源（为 XIRR 铺路）。建仓时自动生成一笔 buy 交易（notes="建仓"），持仓页手动改份额/成本自动生成勘误交易（notes="手动调整:..."，日期=建仓日）。recompute_holding 从 0 起点回放该品种全部交易反推持仓派生字段。
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | INTEGER | PK, AUTOINCREMENT | 主键 |
 | ticker | VARCHAR(30) | NOT NULL | 标的代码 |
+| asset_class | VARCHAR(10) | NOT NULL | 资产类别 |
+| market | VARCHAR(10) | NOT NULL | 市场 |
 | transaction_date | DATE | NOT NULL | 交易日期 |
 | type | VARCHAR(4) | NOT NULL, CHECK('buy','sell') | 方向，买入/卖出 |
-| quantity | DECIMAL(18,4) | | 数量（股票必填，基金可空） |
-| unit_price | DECIMAL(18,4) | | 成交价（股票必填，基金可空） |
-| amount | DECIMAL(18,4) | | 交易金额（基金必填，股票自动计算） |
-| notes | TEXT | | 备注 |
+| quantity | DECIMAL(18,4) | | 数量（可空，改成本勘误交易为 0） |
+| unit_price | DECIMAL(18,4) | | 成交价（可空） |
+| amount | DECIMAL(18,4) | | 交易金额（amount 优先，否则 quantity × unit_price） |
+| notes | VARCHAR(500) | | 备注（"建仓"/"手动调整:..."等） |
 
 约束：quantity 和 unit_price 至少填一个，或 amount 必填其一。
 
@@ -137,24 +139,62 @@
 | change_ratio | DECIMAL(10,4) | | 涨跌幅（%） |
 | source | VARCHAR(30) | NOT NULL | 数据来源，"TENCENT" / "SINA" / "COINGLASS" |
 
-约束：UNIQUE(ticker, timestamp)（ORM 中暂未强制，已知技术债 #1）
+约束：UNIQUE(asset_class, market, ticker, timestamp)（ORM 中暂未强制，已知技术债 #1）
+
+### 2.7 closed_holdings（归档持仓表）
+
+清仓后归档的完整持仓周期。realized_pnl = sum(sell.amount) - sum(buy.amount)（建仓投入通过 buy 交易体现）。
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | INTEGER | PK, AUTOINCREMENT | 主键 |
+| ticker | VARCHAR(30) | NOT NULL | 标的代码 |
+| name | VARCHAR(200) | | 品种名 |
+| market | VARCHAR(10) | NOT NULL | 市场 |
+| asset_class | VARCHAR(10) | NOT NULL | 资产类别 |
+| currency | VARCHAR(3) | | 计价货币 |
+| total_buy_amount | DECIMAL(18,4) | NOT NULL | 该周期总买入金额（sum(buy.amount)） |
+| first_buy_date | DATE | NOT NULL | 首次买入日期 |
+| closed_at | DATE | NOT NULL | 清仓日期 |
+| holding_days | INTEGER | NOT NULL | 持仓天数 |
+| realized_pnl | DECIMAL(18,4) | NOT NULL | 已实现盈亏 = sum_sell - sum_buy |
+
+### 2.8 closed_transactions（归档交易表）
+
+归档时把该周期的全部 transactions 复制到此表，原表删除。关联 closed_holdings.id。
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | INTEGER | PK, AUTOINCREMENT | 主键 |
+| closed_holding_id | INTEGER | FK → closed_holdings.id | 关联归档持仓 |
+| ticker | VARCHAR(30) | NOT NULL | 标的代码 |
+| asset_class | VARCHAR(10) | NOT NULL | 资产类别 |
+| market | VARCHAR(10) | NOT NULL | 市场 |
+| transaction_date | DATE | NOT NULL | 交易日期 |
+| type | VARCHAR(10) | NOT NULL | buy / sell |
+| quantity | DECIMAL(18,4) | | 数量 |
+| unit_price | DECIMAL(18,4) | | 成交价 |
+| amount | DECIMAL(18,4) | | 交易金额 |
+| notes | VARCHAR(500) | | 备注 |
+| original_id | INTEGER | | 原 transactions.id（审计追溯） |
 
 ## 3. E-R 关系
 
 ```
-asset_holdings                          当前持仓（按 ticker 唯一，不关联品种表）
+asset_holdings                          当前持仓（三元组唯一，派生字段由 recompute 从交易回放）
        │
-       │
-       1
-       │
+       │ 1
        N
-   transactions                         交易记录（辅助，按 ticker 关联持仓）
-   
-asset_holdings ──→ asset_quote         价格记录（按 ticker 关联）
+   transactions                         交易记录（唯一现金流事实源，建仓自动生成 buy）
        │
-       │
-       N
-asset_snapshots                         每日快照
+       │ 清仓归档
+       ↓
+   closed_holdings ──→ closed_transactions   归档持仓周期 + 归档交易（原表删除）
 
-networth_snapshots                      组合级汇总（独立）
+asset_holdings ──→ asset_quote         行情记录（按三元组+ticker 关联）
+       │
+       │ N
+asset_snapshots                         品种级日快照
+
+networth_snapshots                      组合级日快照（独立）
 ```

@@ -32,6 +32,7 @@ export function OverviewPage() {
     mutationFn: () => fetchOverview(CURRENCY, true),
     onSuccess: (data) => {
       queryClient.setQueryData(['overview', CURRENCY], data)
+      queryClient.invalidateQueries({ queryKey: ['holdings'] })
       toast.success('行情已刷新')
     },
     onError: (e: unknown) => toast.error('刷新失败', {
@@ -98,6 +99,7 @@ export function OverviewPage() {
 
   const isPositive = stats.total_pnl >= 0
   const { upColor, downColor } = useColors()
+  const annualizedPositive = typeof stats.annualized_return === 'string' || (stats.annualized_return ?? 0) >= 0
 
   // ---- 正常渲染 ----
   return (
@@ -183,10 +185,13 @@ export function OverviewPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">年化回报率</CardTitle>
-            <TrendingUp className={`w-4 h-4 ${upColor}`} />
+            {annualizedPositive
+              ? <TrendingUp className={`w-4 h-4 ${upColor}`} />
+              : <TrendingDown className={`w-4 h-4 ${downColor}`} />
+            }
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${upColor}`}>
+            <div className={`text-2xl font-bold ${annualizedPositive ? upColor : downColor}`}>
               {formatPct(stats.annualized_return)}
             </div>
           </CardContent>

@@ -27,16 +27,14 @@ class ClosedHoldingRecord(Base):
     asset_class: Mapped[str] = mapped_column(String(10), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
 
-    # 建仓时的基线快照（不变量）
-    initial_quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    initial_cost_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    initial_total_invested: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    # 该周期总买入金额（= sum(buy.amount)），用于算盈亏率
+    total_buy_amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
 
     first_buy_date: Mapped[date] = mapped_column(Date, nullable=False)
     closed_at: Mapped[date] = mapped_column(Date, nullable=False)
     holding_days: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # 该周期总实现盈亏 = sum(sell.amount) - sum(buy.amount) - initial_total_invested
+    # 该周期总实现盈亏 = sum(sell.amount) - sum(buy.amount)（建仓投入通过 buy 交易体现）
     realized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

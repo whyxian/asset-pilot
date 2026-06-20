@@ -66,7 +66,7 @@ AssetPilot/
 │   │   │   ├── asset_quote_service.py     # 行情业务逻辑（基金 15min 缓存 + force_refresh）
 │   │   │   ├── asset_holding_service.py   # 持仓业务逻辑（含市值/盈亏/年化计算）
 │   │   │   ├── asset_variety_service.py   # 品种目录业务逻辑
-│   │   │   ├── transaction_service.py     # 交易业务逻辑（建仓基线 + 全量重算）
+│   │   │   ├── transaction_service.py     # 交易业务逻辑（交易记录写入 + recompute 反推持仓）
 │   │   │   ├── overview_service.py        # 概览（行情并发拉取 + 超时熔断 + 汇率聚合）
 │   │   │   ├── snapshot_service.py        # 净值快照（双表写 + 历史 FX 冻结）
 │   │   │   └── closed_holding_service.py  # 历史持仓归档
@@ -218,4 +218,4 @@ api (HTTP 路由) → services (业务逻辑) → repositories (数据访问) �
 - **统一配置**（`app/core/scheduler_config.py`）：`SchedulerConfig` 集中管理调度间隔/缓存TTL/网络超时，铁律「后端外部请求超时 ≤ 前端 axios 15s」。
 - **手动刷新**：`force_refresh=true` 跳过缓存读 + 走网络 + **写缓存**（保持刷新后读取一致）。
 - **概览稳定性**：`overview_service` 行情组并发拉取 + 12s 超时熔断 + 单组异常容错，单个数据源抽风不拖垮整个概览。
-- **交易→持仓反推**：交易记录通过建仓基线 + 全量重算（加权平均/卖超拒绝/事务原子）反推持仓，交易是辅助记录、持仓是事实源。
+- **交易→持仓反推**：交易记录是唯一现金流事实源（为 XIRR 铺路）。建仓自动生成 buy 交易，recompute 从 0 起点回放全部交易反推持仓派生字段（quantity/cost_price/total_invested）。持仓页手动改份额/成本自动生成勘误交易（日期=建仓日，XIRR 影响最小）。initial_* 基线已废弃删除。

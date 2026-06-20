@@ -21,9 +21,9 @@ function toNum(v: number | string): number {
   return typeof v === 'string' ? parseFloat(v) : v
 }
 
-/** 该周期 PnL% = realized_pnl / initial_total_invested × 100 */
+/** 该周期 PnL% = realized_pnl / total_buy_amount × 100 */
 function pnlPct(h: ClosedHolding): number | null {
-  const total = toNum(h.initial_total_invested)
+  const total = toNum(h.total_buy_amount)
   if (!total || total === 0) return null
   return (toNum(h.realized_pnl) / total) * 100
 }
@@ -69,7 +69,7 @@ export function HistoryPage() {
           <table className="w-full text-sm tabular-nums">
             <thead>
               <tr className="bg-muted/50">
-                {['代码', '名称', '市场', '类型', '首买日', '清仓日', '持仓天数', '总投入', '已实现盈亏', '盈亏率', '操作'].map((h) => (
+                {['代码', '名称', '市场', '类型', '首买日', '清仓日', '持仓天数', '总买入', '已实现盈亏', '盈亏率', '操作'].map((h) => (
                   <th key={h} className="text-left p-3 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -154,7 +154,7 @@ export function HistoryPage() {
               <th className="text-left p-3 whitespace-nowrap">首买日</th>
               <th className="text-left p-3 whitespace-nowrap">清仓日</th>
               <th className="text-right p-3 whitespace-nowrap">持仓天数</th>
-              <th className="text-right p-3 whitespace-nowrap">总投入</th>
+              <th className="text-right p-3 whitespace-nowrap">总买入</th>
               <th className="text-right p-3 whitespace-nowrap">已实现盈亏</th>
               <th className="text-right p-3 whitespace-nowrap">盈亏率</th>
               <th className="p-3 w-20 whitespace-nowrap">操作</th>
@@ -179,7 +179,7 @@ export function HistoryPage() {
                   <td className="p-3 whitespace-nowrap text-muted-foreground">{h.first_buy_date}</td>
                   <td className="p-3 whitespace-nowrap text-muted-foreground">{h.closed_at}</td>
                   <td className="p-3 text-right whitespace-nowrap">{h.holding_days} 天</td>
-                  <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.initial_total_invested, h.currency, 2)}</td>
+                  <td className="p-3 text-right whitespace-nowrap">{formatPrice(h.total_buy_amount, h.currency, 2)}</td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <span className={`font-medium ${positive ? upColor : downColor}`}>
                       {formatPrice(h.realized_pnl, h.currency, 2)}

@@ -65,12 +65,8 @@ export function ClosedHoldingDetailDialog({ id, open, onOpenChange }: ClosedHold
           <div className="space-y-4">
             {/* 该周期统计 */}
             <div className="grid grid-cols-2 gap-y-2 text-sm">
-              <div className="text-muted-foreground">建仓基线</div>
-              <div className="text-right">
-                {toNum(data.initial_quantity).toLocaleString()} 股 @ {formatPrice(data.initial_cost_price, data.currency)}
-              </div>
-              <div className="text-muted-foreground">初始投入</div>
-              <div className="text-right">{formatPrice(data.initial_total_invested, data.currency, 2)}</div>
+              <div className="text-muted-foreground">总买入金额</div>
+              <div className="text-right">{formatPrice(data.total_buy_amount, data.currency, 2)}</div>
               <div className="text-muted-foreground">首次买入</div>
               <div className="text-right">{data.first_buy_date}</div>
               <div className="text-muted-foreground">清仓日期</div>
@@ -80,9 +76,9 @@ export function ClosedHoldingDetailDialog({ id, open, onOpenChange }: ClosedHold
               <div className="text-muted-foreground font-medium">已实现盈亏</div>
               <div className={`text-right font-medium ${toNum(data.realized_pnl) >= 0 ? upColor : downColor}`}>
                 {formatPrice(data.realized_pnl, data.currency, 2)}
-                {toNum(data.initial_total_invested) > 0 && (
+                {toNum(data.total_buy_amount) > 0 && (
                   <span className="ml-2">
-                    ({formatPct((toNum(data.realized_pnl) / toNum(data.initial_total_invested)) * 100)})
+                    ({formatPct((toNum(data.realized_pnl) / toNum(data.total_buy_amount)) * 100)})
                   </span>
                 )}
               </div>

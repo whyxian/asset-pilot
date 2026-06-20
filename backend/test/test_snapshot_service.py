@@ -115,16 +115,12 @@ async def test_take_snapshot_multi_currency(Session, seed_variety):
             ticker="AAPL", name="Apple", market="US", asset_class="STOCK", currency="USD",
             quantity=Decimal("10"), cost_price=Decimal("150"),
             total_invested=Decimal("1500"),
-            initial_quantity=Decimal("10"), initial_cost_price=Decimal("150"),
-            initial_total_invested=Decimal("1500"),
             first_buy_date=date(2024, 1, 1),
         ))
         s.add(AssetHoldingRecord(
             ticker="600519", name="贵州茅台", market="CN", asset_class="STOCK", currency="CNY",
             quantity=Decimal("5"), cost_price=Decimal("1800"),
             total_invested=Decimal("9000"),
-            initial_quantity=Decimal("5"), initial_cost_price=Decimal("1800"),
-            initial_total_invested=Decimal("9000"),
             first_buy_date=date(2024, 6, 1),
         ))
         await s.commit()

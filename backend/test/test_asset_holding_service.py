@@ -46,9 +46,8 @@ async def test_create_holding_writes_initial(Session, seed_variety, read_holding
 
     h = await read_holding()
     assert approx(h.quantity, "100")
-    assert approx(h.initial_quantity, "100")
-    assert approx(h.initial_cost_price, "10")
-    assert approx(h.initial_total_invested, "1000")
+    assert approx(h.cost_price, "10")
+    assert approx(h.total_invested, "1000")
 
 
 async def test_create_holding_unknown_variety_fails(Session):
@@ -121,21 +120,19 @@ async def test_create_holding_name_from_quote(Session, seed_variety, read_holdin
 # update_holding
 # ════════════════════════════════════════════════════
 
-async def test_update_recomputes_when_baseline_changes(Session, seed_holding, read_holding):
-    """改 quantity → 同步到 initial_*,触发重算"""
+async def test_update_quantity_generates_adjustment_transaction(Session, seed_holding, read_holding):
+    """改 quantity → 生成勘误 buy 交易 + recompute（initial_* 已废弃）"""
     from app.services.asset_holding_service import AssetHoldingService
 
     await seed_holding(qty="100", cost="10", total="1000")
 
-    update = AssetHoldingUpdate(quantity=Decimal("200"), total_invested=Decimal("2000"))
+    update = AssetHoldingUpdate(quantity=Decimal("200"))
     await AssetHoldingService().update_holding("TEST", "STOCK", "CN", update)
 
     h = await read_holding()
-    # 没有交易,重算后派生 = baseline
+    # recompute 从 0 起点:建仓buy(100@10) + 勘误buy(100@10) = 200@10, total=2000
     assert approx(h.quantity, "200")
-    assert approx(h.initial_quantity, "200")
     assert approx(h.total_invested, "2000")
-    assert approx(h.initial_total_invested, "2000")
 
 
 async def test_update_no_recompute_for_meta_changes(Session, seed_holding, read_holding):
@@ -168,7 +165,7 @@ async def test_delete_holding_cascades_transactions(Session, seed_holding, add_t
     await add_txn("TEST", "sell", date(2024, 6, 2), qty="20", price="15")
 
     txn_count = await AssetHoldingService().delete_holding("TEST", "STOCK", "CN")
-    assert txn_count == 2
+    assert txn_count == 3  # 建仓buy + buy 50 + sell 20
 
     # 持仓 + 交易都没了
     async with Session() as s:

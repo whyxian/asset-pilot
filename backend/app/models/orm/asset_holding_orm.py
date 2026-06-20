@@ -28,11 +28,6 @@ class AssetHoldingRecord(Base):
     quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     cost_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     total_invested: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    # 建仓基线：建仓时填入的初始状态，不随交易自动变化
-    # 派生字段（quantity / cost_price / total_invested）= initial_* + 全部 transactions 回放
-    initial_quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
-    initial_cost_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
-    initial_total_invested: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
     first_buy_date: Mapped[datetime] = mapped_column(Date, nullable=False)
     # 清仓日期：quantity 回到 0 时由 recompute_holding 写入最后一笔 sell 的日期，
     # 后续若复活（再次 buy）则清空。NULL 表示从未清仓或建仓时即为 0

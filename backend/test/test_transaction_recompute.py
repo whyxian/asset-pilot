@@ -146,7 +146,7 @@ async def test_archive_on_full_sell(Session, seed_holding, add_txn):
         ch = (await session.execute(
             select(ClosedHoldingRecord).where(ClosedHoldingRecord.id == closed_id)
         )).scalar_one()
-        # realized_pnl = sum_sell - sum_buy - initial_total = 1500 - 0 - 1000 = 500
+        # realized_pnl = sum_sell - sum_buy = 1500 - 1000 = 500（建仓buy 1000 + sell 1500）
         assert approx(ch.realized_pnl, "500")
         assert ch.closed_at == sell_date
         expected_days = (sell_date - initial_date).days + 1
@@ -157,9 +157,10 @@ async def test_archive_on_full_sell(Session, seed_holding, add_txn):
                 ClosedTransactionRecord.closed_holding_id == closed_id
             )
         )).scalars().all()
-        assert len(cts) == 1
-        assert cts[0].type == "sell"
-        assert approx(cts[0].quantity, "100")
+        # 建仓 buy + sell = 2 条归档交易
+        assert len(cts) == 2
+        types = {ct.type for ct in cts}
+        assert types == {"buy", "sell"}
 
 
 # ════════════════════════════════════════════════════

@@ -393,6 +393,7 @@ export function HoldingFormDialog({
               type="date"
               value={form.first_buy_date}
               onChange={(e) => updateField('first_buy_date', e.target.value)}
+              disabled={isEdit}
             />
             {errors.first_buy_date && <p className="mt-1 text-xs text-destructive">{errors.first_buy_date}</p>}
           </div>

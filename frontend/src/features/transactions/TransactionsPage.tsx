@@ -26,7 +26,21 @@ const typeLabel: Record<string, string> = {
 const marketLabel: Record<string, string> = {
   CN: 'A 股',
   US: '美股',
-  CRYPTO: '加密货币',
+  CRYPTO: '加密',
+}
+
+/** 各市场 Tab：label + 交易条数 */
+function marketTabs(transactions: Transaction[]) {
+  const counts = { CN: 0, US: 0, CRYPTO: 0 } as Record<string, number>
+  for (const t of transactions) {
+    counts[t.market] = (counts[t.market] || 0) + 1
+  }
+  return [
+    { key: 'ALL', label: '全部', count: transactions.length },
+    { key: 'CN', label: 'A 股', count: counts.CN },
+    { key: 'US', label: '美股', count: counts.US },
+    { key: 'CRYPTO', label: '加密', count: counts.CRYPTO },
+  ]
 }
 
 /** 把表单字符串转成 number 或 null */
@@ -42,6 +56,13 @@ export function TransactionsPage() {
   const updateMut = useUpdateTransaction()
   const deleteMut = useDeleteTransaction()
   const navigate = useNavigate()
+
+  // 市场筛选 Tab
+  const [marketFilter, setMarketFilter] = useState<string>('ALL')
+  const txnList = transactions ?? []
+  const filteredTxns = marketFilter === 'ALL'
+    ? txnList
+    : txnList.filter((t) => t.market === marketFilter)
 
   // 对话框状态
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -178,7 +199,7 @@ export function TransactionsPage() {
   }
 
   // ---- 空态 ----
-  if (!transactions || transactions.length === 0) {
+  if (txnList.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -206,6 +227,8 @@ export function TransactionsPage() {
   }
 
   // ---- 正常渲染 ----
+  const tabs = marketTabs(txnList)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -216,6 +239,25 @@ export function TransactionsPage() {
           </Button>
           <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增交易</Button>
         </div>
+      </div>
+
+      {/* 市场筛选 Tab */}
+      <div className="flex gap-1 border-b">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setMarketFilter(tab.key)}
+            className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors flex items-baseline gap-1.5 ${
+              marketFilter === tab.key
+                ? 'border-primary text-foreground font-medium'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+            <span className="text-xs opacity-60">{tab.count} 条</span>
+          </button>
+        ))}
       </div>
 
       {deleteConfirm && (
@@ -250,7 +292,7 @@ export function TransactionsPage() {
             <tr className="bg-muted/50">
               <th className="text-left p-3">日期</th>
               <th className="text-left p-3">代码</th>
-              <th className="text-left p-3">市场</th>
+              {marketFilter === 'ALL' && <th className="text-left p-3">市场</th>}
               <th className="text-left p-3">类型</th>
               <th className="text-left p-3">方向</th>
               <th className="text-right p-3">数量</th>
@@ -261,11 +303,13 @@ export function TransactionsPage() {
             </tr>
           </thead>
           <tbody>
-            {transactions.map((t) => (
+            {filteredTxns.map((t) => (
               <tr key={t.id} className="border-t hover:bg-muted/30">
                 <td className="p-3">{t.transaction_date}</td>
                 <td className="p-3 font-medium">{t.ticker}</td>
-                <td className="p-3"><Badge variant="outline">{marketLabel[t.market] || t.market}</Badge></td>
+                {marketFilter === 'ALL' && (
+                  <td className="p-3"><Badge variant="outline">{marketLabel[t.market] || t.market}</Badge></td>
+                )}
                 <td className="p-3 text-muted-foreground">{t.asset_class}</td>
                 <td className="p-3">
                   <Badge variant={t.type === 'buy' ? 'default' : 'destructive'}>
@@ -298,7 +342,7 @@ export function TransactionsPage() {
         </table>
       </div>
 
-      <p className="text-sm text-muted-foreground">共 {transactions.length} 条记录</p>
+      <p className="text-sm text-muted-foreground">共 {filteredTxns.length} 条记录</p>
 
       <TransactionFormDialog
         open={dialogOpen}

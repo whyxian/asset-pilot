@@ -106,8 +106,13 @@ async def seed_variety(Session):
 
 @pytest.fixture
 async def seed_holding(Session, seed_variety):
-    """工具：建一条持仓(同时确保对应品种存在),initial_* = 当前 quantity/cost/total"""
+    """工具：建一条持仓(同时确保对应品种存在)+ 对应建仓 buy 交易记录
+
+    新模型下 recompute 从 0 起点回放交易，持仓派生字段必须由交易算出。
+    seed_holding 同时 seed 一笔建仓 buy 交易，使 recompute 结果与 seed 值一致。
+    """
     from app.models.orm.asset_holding_orm import AssetHoldingRecord
+    from app.models.orm.transaction_orm import TransactionRecord
 
     async def _seed(
         ticker: str = "TEST",
@@ -131,12 +136,17 @@ async def seed_holding(Session, seed_variety):
                 quantity=Decimal(qty),
                 cost_price=Decimal(cost),
                 total_invested=Decimal(total),
-                initial_quantity=Decimal(qty),
-                initial_cost_price=Decimal(cost),
-                initial_total_invested=Decimal(total),
                 first_buy_date=dt,
             )
             s.add(h)
+            # 建仓 buy 交易（与持仓一致，recompute 从 0 起点回放得到 seed 值）
+            t = TransactionRecord(
+                ticker=ticker, asset_class=asset_class, market=market,
+                transaction_date=dt, type="buy",
+                quantity=Decimal(qty), unit_price=Decimal(cost),
+                amount=Decimal(total), notes="建仓",
+            )
+            s.add(t)
             await s.commit()
 
     return _seed
@@ -265,9 +275,7 @@ async def seed_closed_holding(Session):
             ch = ClosedHoldingRecord(
                 ticker=ticker, name=name, market=market, asset_class=asset_class,
                 currency="CNY",
-                initial_quantity=Decimal(initial_qty),
-                initial_cost_price=Decimal(initial_cost),
-                initial_total_invested=Decimal(initial_total),
+                total_buy_amount=Decimal(initial_total),
                 first_buy_date=first_buy_date,
                 closed_at=closed_at,
                 holding_days=holding_days,

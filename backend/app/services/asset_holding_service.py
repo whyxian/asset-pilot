@@ -22,8 +22,9 @@ from app.models.asset_holding import (
     MarketSummary,
 )
 from app.models.asset_quote import AssetQuote, QuoteStatus
+from app.models.orm.asset_holding_orm import AssetHoldingRecord
 from app.models.orm.transaction_orm import TransactionRecord
-from app.repositories.asset_holding_repository import AssetHoldingRepository
+from app.repositories.asset_holding_repository import AssetHoldingRepository, _record_to_holding
 from app.repositories.asset_variety_repository import AssetVarietyRepository
 from app.services.asset_quote_service import AssetQuoteService
 from app.utils.exchange_rate import convert_with_rates, fetch_rates
@@ -48,12 +49,15 @@ class AssetHoldingService:
         return await self._repo.get_holding(ticker, asset_class, market)
 
     async def create_holding(self, data: AssetHoldingCreate) -> HoldingWithQuote:
-        """新增持仓（建仓 = 设定基线 + 拉取行情校验可用性 + 缓存预热）
+        """新增持仓（建仓 = 拉行情校验 + 写持仓行 + 生成建仓 buy 交易 + recompute）
 
-        业务约束：建仓时必须能拉到该 ticker 的实时行情，拉不到（退市/代码错/数据源不可用）
-        则建仓失败——保证持仓数据可用性，同时预热行情缓存（建仓后列表刷新直接命中）。
-        名称空时从行情名或品种记录补填。返回带行情的 HoldingWithQuote。
+        业务约束：建仓时必须能拉到该 ticker 的实时行情，拉不到则建仓失败。
+        建仓自动生成一笔 buy 交易（用建仓表单的 quantity/cost_price/total_invested），
+        交易记录成为唯一现金流事实源（为 XIRR 铺路）。initial_* 已废弃，派生字段由
+        recompute 从 0 起点回放交易算出。事务原子：行情校验 → 持仓 + 交易 + recompute。
         """
+        from app.core.database import async_session
+
         # 1. 校验品种存在
         variety = await self._variety_repo.get_variety(data.ticker, data.asset_class, data.market)
         if not variety:
@@ -75,8 +79,46 @@ class AssetHoldingService:
             name = quote.name or variety.name
             data = data.model_copy(update={"name": name})
 
-        # 4. 建仓写 DB
-        holding = await self._repo.create_holding(data)
+        # 4. 事务：建仓行 + 建仓 buy 交易 + recompute
+        async with async_session() as session:
+            try:
+                record = AssetHoldingRecord(
+                    ticker=data.ticker,
+                    name=data.name,
+                    market=data.market,
+                    asset_class=data.asset_class,
+                    currency=data.currency,
+                    quantity=data.quantity,
+                    cost_price=data.cost_price,
+                    total_invested=data.total_invested,
+                    first_buy_date=data.first_buy_date,
+                )
+                session.add(record)
+                await session.flush()
+
+                # 建仓 buy 交易（用建仓表单数据）
+                txn = TransactionRecord(
+                    ticker=data.ticker,
+                    asset_class=data.asset_class,
+                    market=data.market,
+                    transaction_date=data.first_buy_date,
+                    type="buy",
+                    quantity=data.quantity,
+                    unit_price=data.cost_price,
+                    amount=data.total_invested,
+                    notes="建仓",
+                )
+                session.add(txn)
+                await session.flush()
+
+                # recompute 从 0 起点回放这笔建仓交易 → 派生字段正确
+                await recompute_holding(session, data.ticker, data.asset_class, data.market)
+                await session.commit()
+                await session.refresh(record)
+                holding = _record_to_holding(record)
+            except Exception:
+                await session.rollback()
+                raise
 
         # 5. 返回带行情的 HoldingWithQuote
         return self._build_holding_with_quote(holding, (quote, QuoteStatus.REALTIME), date.today())
@@ -84,27 +126,74 @@ class AssetHoldingService:
     async def update_holding(
         self, ticker: str, asset_class: str, market: str, data: AssetHoldingUpdate
     ) -> AssetHolding | None:
-        """更新持仓 — 修改 baseline 后触发该 ticker 的全量重算
+        """更新持仓 — name 直接改；现金流字段(quantity/cost_price/total_invested)生成勘误交易
 
-        注意：用户在持仓页修改 quantity/cost_price/total_invested 时，
-        repository 已将其同步到 initial_*。此处需调用重算，使派生字段
-        反映"新基线 + 现有交易回放"的结果。如该 ticker 没有交易，
-        重算结果 == 新 baseline，等价于直接修改派生字段。
+        勘误交易日期 = 持仓的 first_buy_date（并到建仓时点，XIRR 影响最小）：
+        - 改份额：差额=新-旧，正→buy(差额股,unit_price=旧cost_price)，负→sell(|差额|,unit_price=旧cost_price)
+        - 改成本(份额不变)：差额=新total_invested-旧，生成 quantity=0 amount=差额 的 buy（补记额外投入）
+        first_buy_date 不允许改（由建仓交易决定）。
         """
-        result = await self._repo.update_holding(ticker, asset_class, market, data)
-        if result is None:
-            return None
+        from app.core.database import async_session
 
-        # 仅在 baseline 字段被修改时触发重算
         update_dict = data.model_dump(exclude_unset=True)
-        if any(k in update_dict for k in ("quantity", "cost_price", "total_invested")):
-            from app.core.database import async_session  # 局部导入避免循环
-            async with async_session() as session:
+        has_cashflow = any(k in update_dict for k in ("quantity", "cost_price", "total_invested"))
+
+        # 非现金流字段（name）直接走 repo 更新
+        if not has_cashflow:
+            return await self._repo.update_holding(ticker, asset_class, market, data)
+
+        # 现金流字段：生成勘误交易 + recompute（事务原子）
+        async with async_session() as session:
+            try:
+                holding = await self._repo.get_record_in_session(session, ticker, asset_class, market)
+                if holding is None:
+                    return None
+
+                old_qty = Decimal(str(holding.quantity))
+                old_cost = Decimal(str(holding.cost_price))
+                old_total = Decimal(str(holding.total_invested))
+                new_qty = Decimal(str(update_dict["quantity"])) if "quantity" in update_dict and update_dict["quantity"] is not None else old_qty
+                new_total = Decimal(str(update_dict["total_invested"])) if "total_invested" in update_dict and update_dict["total_invested"] is not None else old_total
+
+                # name 等非现金流字段同步改
+                if update_dict.get("name") is not None:
+                    holding.name = update_dict["name"]
+
+                qty_diff = new_qty - old_qty
+                total_diff = new_total - old_total
+                txn_date = holding.first_buy_date
+
+                if qty_diff != 0:
+                    # 改份额：差额生成 buy/sell
+                    txn_type = "buy" if qty_diff > 0 else "sell"
+                    abs_qty = abs(qty_diff)
+                    txn = TransactionRecord(
+                        ticker=ticker, asset_class=asset_class, market=market,
+                        transaction_date=txn_date, type=txn_type,
+                        quantity=abs_qty, unit_price=old_cost,
+                        amount=abs_qty * old_cost,
+                        notes=f"手动调整:份额 {old_qty}→{new_qty}",
+                    )
+                    session.add(txn)
+                elif total_diff != 0:
+                    # 改成本(份额不变)：quantity=0 amount=差额
+                    txn = TransactionRecord(
+                        ticker=ticker, asset_class=asset_class, market=market,
+                        transaction_date=txn_date, type="buy",
+                        quantity=Decimal("0"), unit_price=None,
+                        amount=total_diff,
+                        notes=f"手动调整:成本 {old_total}→{new_total}",
+                    )
+                    session.add(txn)
+
+                await session.flush()
                 await recompute_holding(session, ticker, asset_class, market)
                 await session.commit()
-            # 重算后再读一次返回最新值
-            return await self._repo.get_holding(ticker, asset_class, market)
-        return result
+                await session.refresh(holding)
+                return _record_to_holding(holding)
+            except Exception:
+                await session.rollback()
+                raise
 
     async def delete_holding(
         self, ticker: str, asset_class: str, market: str
@@ -273,7 +362,8 @@ async def recompute_holding(
     """全量重算指定品种的派生持仓字段（quantity / cost_price / total_invested / liquidated_at）
 
     算法：
-        1. 以 holdings 行的 initial_* 三列作为起点 (q, p, t)
+        1. 从 0 起点（q=0, p=0, t=0）开始——交易记录是唯一事实源，
+           建仓那笔 buy 交易已包含在交易记录里，不再用 initial_* 基线。
         2. 按 (transaction_date 升序, id 升序) 顺序回放该品种全部交易（三元组过滤）：
            - buy:  amt = transaction.amount 优先，否则 quantity * unit_price
                    new_q = q + qty
@@ -308,10 +398,10 @@ async def recompute_holding(
     if holding is None:
         raise BusinessError(40401, f"持仓 '{ticker}' ({asset_class}/{market}) 不存在，无法重算")
 
-    # 起点 = 建仓基线
-    q = Decimal(str(holding.initial_quantity))
-    p = Decimal(str(holding.initial_cost_price))
-    t = Decimal(str(holding.initial_total_invested))
+    # 起点 = 0（交易记录是唯一事实源，建仓 buy 交易已含在内）
+    q = Decimal("0")
+    p = Decimal("0")
+    t = Decimal("0")
 
     # 按时间正序回放该品种的全部交易（三元组过滤，避免不同品种同 ticker 串扰）
     txns = (await session.execute(
@@ -422,8 +512,8 @@ async def archive_holding(
         .order_by(TransactionRecord.transaction_date.asc(), TransactionRecord.id.asc())
     )).scalars().all()
 
-    # 计算 realized_pnl：sum(sell.amount) - sum(buy.amount) - initial_total_invested
-    # 含义：交易期间的净现金流 - 建仓时假设已投入的初始资金 = 该周期净盈亏
+    # 计算 realized_pnl = sum(sell.amount) - sum(buy.amount)
+    # 建仓投入通过 buy 交易体现（initial_* 已废弃）
     sum_buy = Decimal("0")
     sum_sell = Decimal("0")
     for txn in txns:
@@ -439,15 +529,13 @@ async def archive_holding(
         elif txn.type == "sell":
             sum_sell += amt
 
-    initial_t = Decimal(str(holding.initial_total_invested))
-    realized_pnl = sum_sell - sum_buy - initial_t
+    realized_pnl = sum_sell - sum_buy
 
     # 清仓日期：取 holdings 当前 liquidated_at（recompute 刚写好）；兜底用最后一笔 sell 日期
     closed_at = holding.liquidated_at
     if closed_at is None:
         last_sell = next((x for x in reversed(txns) if x.type == "sell"), None)
         if last_sell is None:
-            # 极端：quantity=0 但没有 sell（建仓基线 q=0？）— 拒绝归档
             raise BusinessError(40001, f"持仓 '{ticker}' 没有清仓日期，无法归档")
         closed_at = last_sell.transaction_date
 
@@ -460,9 +548,7 @@ async def archive_holding(
         market=holding.market,
         asset_class=holding.asset_class,
         currency=holding.currency,
-        initial_quantity=holding.initial_quantity,
-        initial_cost_price=holding.initial_cost_price,
-        initial_total_invested=holding.initial_total_invested,
+        total_buy_amount=sum_buy,
         first_buy_date=holding.first_buy_date,
         closed_at=closed_at,
         holding_days=holding_days,

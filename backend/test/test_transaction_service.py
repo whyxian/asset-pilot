@@ -103,10 +103,10 @@ async def test_create_oversell_rolls_back(Session, seed_holding):
     with pytest.raises(BusinessError, match="超过当前持仓"):
         await TransactionService().create_transaction(payload)
 
-    # 验证回滚:transactions 没插入
+    # 验证回滚:卖超交易没插入（只有 seed_holding 的建仓交易 1 条）
     async with Session() as s:
         cnt = len((await s.execute(select(TransactionRecord))).scalars().all())
-        assert cnt == 0
+        assert cnt == 1  # 建仓 buy 交易
 
 
 # ════════════════════════════════════════════════════
@@ -121,10 +121,13 @@ async def test_update_changes_value(Session, seed_holding, add_txn, read_holding
     await seed_holding(qty="100", cost="10", total="1000")
     await add_txn("TEST", "buy", date(2024, 6, 1), qty="50", price="12", amount="600")
 
-    # 取出刚插的 transaction id
+    # 取出刚插的 transaction id（add_txn 那条，跳过 seed_holding 的建仓交易）
     async with Session() as s:
         txn_id = (await s.execute(
-            select(TransactionRecord.id).where(TransactionRecord.ticker == "TEST")
+            select(TransactionRecord.id).where(
+                TransactionRecord.ticker == "TEST",
+                TransactionRecord.notes.is_(None),  # add_txn 不带 notes，建仓交易带"建仓"
+            )
         )).scalar_one()
     # 先把基线对齐:数据是 add_txn 直接插入的,baseline 已是 100/10/1000,需要先 recompute
     from app.services.asset_holding_service import recompute_holding
@@ -156,7 +159,10 @@ async def test_update_change_ticker_recompute_both(Session, seed_holding, add_tx
     await add_txn("AAA", "buy", date(2024, 6, 1), qty="50", price="12", amount="600")
     async with Session() as s:
         txn_id = (await s.execute(
-            select(TransactionRecord.id).where(TransactionRecord.ticker == "AAA")
+            select(TransactionRecord.id).where(
+                TransactionRecord.ticker == "AAA",
+                TransactionRecord.notes.is_(None),
+            )
         )).scalar_one()
         await recompute_holding(s, "AAA", "STOCK", "CN")
         await s.commit()
@@ -186,7 +192,10 @@ async def test_update_change_to_unknown_ticker_fails(Session, seed_holding, add_
     await add_txn("AAA", "buy", date(2024, 6, 1), qty="50", price="12", amount="600")
     async with Session() as s:
         txn_id = (await s.execute(
-            select(TransactionRecord.id).where(TransactionRecord.ticker == "AAA")
+            select(TransactionRecord.id).where(
+                TransactionRecord.ticker == "AAA",
+                TransactionRecord.notes.is_(None),
+            )
         )).scalar_one()
 
     update = TransactionUpdate(ticker="ZZZ")  # ZZZ 没建仓
@@ -208,19 +217,22 @@ async def test_delete_recompute(Session, seed_holding, add_txn, read_holding):
     await add_txn("TEST", "buy", date(2024, 6, 1), qty="50", price="12", amount="600")
     async with Session() as s:
         txn_id = (await s.execute(
-            select(TransactionRecord.id).where(TransactionRecord.ticker == "TEST")
+            select(TransactionRecord.id).where(
+                TransactionRecord.ticker == "TEST",
+                TransactionRecord.notes.is_(None),
+            )
         )).scalar_one()
         await recompute_holding(s, "TEST", "STOCK", "CN")
         await s.commit()
 
     h_before = await read_holding()
-    assert approx(h_before.quantity, "150")  # 100 + 50
+    assert approx(h_before.quantity, "150")  # 建仓100 + buy 50
 
-    # 删除这笔 buy
+    # 删除这笔 buy（保留建仓交易）
     deleted = await TransactionService().delete_transaction(txn_id)
     assert deleted is True
 
-    # 重算后回到 baseline
+    # 重算后回到建仓状态
     h_after = await read_holding()
     assert approx(h_after.quantity, "100")
     assert approx(h_after.total_invested, "1000")

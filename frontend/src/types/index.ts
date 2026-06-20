@@ -211,9 +211,7 @@ export interface ClosedHolding {
   market: string
   asset_class: string
   currency: string
-  initial_quantity: number
-  initial_cost_price: number
-  initial_total_invested: number
+  total_buy_amount: number  // 该周期总买入金额（sum(buy.amount)）
   first_buy_date: string
   closed_at: string
   holding_days: number

@@ -120,6 +120,7 @@ export function HoldingsPage() {
     mutationFn: () => fetchHoldingsWithQuotes(true),
     onSuccess: (data) => {
       queryClient.setQueryData(['holdings', 'with-quotes'], data)
+      queryClient.invalidateQueries({ queryKey: ['overview'] })
       toast.success('行情已刷新')
     },
     onError: (e: unknown) => toast.error('刷新失败', {
