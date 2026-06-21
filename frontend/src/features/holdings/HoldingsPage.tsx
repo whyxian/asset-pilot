@@ -71,17 +71,6 @@ function PnlAmountCell({ holding }: { holding: HoldingWithQuote }) {
   )
 }
 
-function AnnualizedCell({ holding }: { holding: HoldingWithQuote }) {
-  const { upColor, downColor } = useColors()
-  if (holding.annualized_return == null) return <span className="text-muted-foreground">N/A</span>
-  const positive = typeof holding.annualized_return === 'string' || holding.annualized_return >= 0
-  return (
-    <span className={positive ? upColor : downColor}>
-      {formatPct(holding.annualized_return)}
-    </span>
-  )
-}
-
 /** 行情数值 + 状态标记 — HISTORICAL 时追加小字"历史"，UNAVAILABLE 时显示"—" */
 function QuoteValueCell({
   value,
@@ -251,7 +240,7 @@ export function HoldingsPage() {
           <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
             <thead>
               <tr className="bg-muted">
-                {['代码','名称','市场','类型','市值','持仓量','成本价','现价','盈亏金额','盈亏率','年化回报','持仓天数','操作'].map((h) => (
+                {['代码','名称','市场','类型','市值','持仓量','成本价','现价','盈亏金额','盈亏率','持仓天数','操作'].map((h) => (
                   <th key={h} className={`text-${h==='操作'?'center':'left'} p-3 whitespace-nowrap`}>{h}</th>
                 ))}
               </tr>
@@ -259,7 +248,7 @@ export function HoldingsPage() {
             <tbody>
               {[...Array(5)].map((_, i) => (
                 <tr key={i} className="border-t">
-                  {[...Array(13)].map((_, j) => (
+                  {[...Array(12)].map((_, j) => (
                     <td key={j} className="p-3"><Skeleton className="h-4 w-full" /></td>
                   ))}
                 </tr>
@@ -378,7 +367,6 @@ export function HoldingsPage() {
               <th className="text-right p-3 whitespace-nowrap">现价</th>
               <th className="text-right p-3 whitespace-nowrap">盈亏金额</th>
               <th className="text-right p-3 whitespace-nowrap">盈亏率</th>
-              <th className="text-right p-3 whitespace-nowrap">年化回报</th>
               <th className="text-right p-3 whitespace-nowrap">持仓天数</th>
               <th className="p-3 w-24 whitespace-nowrap sticky right-0 bg-muted">操作</th>
             </tr>
@@ -402,7 +390,6 @@ export function HoldingsPage() {
                 <td className="p-3 text-right whitespace-nowrap"><QuoteValueCell value={toNum(h.current_price)} currency={h.currency} status={h.quote_status} /></td>
                 <td className="p-3 text-right whitespace-nowrap"><PnlAmountCell holding={h} /></td>
                 <td className="p-3 text-right whitespace-nowrap"><PnlPctCell holding={h} /></td>
-                <td className="p-3 text-right whitespace-nowrap"><AnnualizedCell holding={h} /></td>
                 <td className="p-3 text-right">{Math.floor((Date.now() - new Date(h.first_buy_date).getTime()) / 86400000) + 1}天</td>
                 <td className="p-3 sticky right-0 bg-background">
                   <div className="flex gap-1">
@@ -423,7 +410,7 @@ export function HoldingsPage() {
             )}
             {filteredHoldings.length === 0 && (
               <tr>
-                <td colSpan={marketFilter === 'ALL' ? 13 : 12} className="p-8 text-center text-muted-foreground">
+                <td colSpan={marketFilter === 'ALL' ? 12 : 11} className="p-8 text-center text-muted-foreground">
                   该市场暂无持仓
                 </td>
               </tr>

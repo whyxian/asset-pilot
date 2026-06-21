@@ -92,6 +92,7 @@ def _record_to_closed_holding(r: ClosedHoldingRecord) -> ClosedHolding:
         currency=r.currency,
         total_buy_amount=Decimal(str(r.total_buy_amount)),
         first_buy_date=r.first_buy_date if isinstance(r.first_buy_date, date) else r.first_buy_date.date(),
+        first_buy_price=Decimal(str(r.first_buy_price)),
         closed_at=r.closed_at if isinstance(r.closed_at, date) else r.closed_at.date(),
         holding_days=r.holding_days,
         realized_pnl=Decimal(str(r.realized_pnl)),

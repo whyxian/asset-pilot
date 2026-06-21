@@ -163,29 +163,44 @@ export function HoldingFormDialog({
           next.currency = value === 'CN' ? 'CNY' : 'USD'
         }
 
-        // quantity × cost_price → total_invested 自动计算
+        // 三字段联动：输入任意两个，自动算出第三个
+        const qty = parseFloat(next.quantity)
+        const price = parseFloat(next.cost_price)
+        const total = parseFloat(next.total_invested)
         if (key === 'quantity' || key === 'cost_price') {
-          const qty = parseFloat(key === 'quantity' ? value : prev.quantity)
-          const price = parseFloat(key === 'cost_price' ? value : prev.cost_price)
+          // qty × price → total
           if (!isNaN(qty) && !isNaN(price)) {
             next.total_invested = String(qty * price)
+          }
+        } else if (key === 'total_invested') {
+          // total ÷ price → qty（优先算数量）
+          if (!isNaN(total) && !isNaN(price) && price !== 0) {
+            next.quantity = String(total / price)
+          } else if (!isNaN(total) && !isNaN(qty) && qty !== 0) {
+            // total ÷ qty → price
+            next.cost_price = String(total / qty)
           }
         }
 
         return next
       })
-      // 用户开始编辑某字段就清掉它的错误
-      // quantity / cost_price 改动会联动 total_invested，也清掉它的错误
+      // 三字段联动时清掉被自动填充字段的错误
       setErrors((prev) => {
-        if (!prev[key] && !((key === 'quantity' || key === 'cost_price') && prev.total_invested)) {
-          return prev
+        const errs = { ...prev }
+        const changed = new Set<string>([key])
+        if (key === 'quantity' || key === 'cost_price') changed.add('total_invested')
+        else if (key === 'total_invested') {
+          const c = parseFloat(form.cost_price)
+          const q = parseFloat(form.quantity)
+          const v = parseFloat(value)
+          if (!isNaN(v) && !isNaN(c) && c !== 0) changed.add('quantity')
+          else if (!isNaN(v) && !isNaN(q) && q !== 0) changed.add('cost_price')
         }
-        const next = { ...prev }
-        delete next[key]
-        if (key === 'quantity' || key === 'cost_price') {
-          delete next.total_invested
+        let dirty = false
+        for (const k of changed) {
+          if (errs[k]) { delete errs[k]; dirty = true }
         }
-        return next
+        return dirty ? errs : prev
       })
     },
     [isEdit, doSearch],

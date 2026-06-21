@@ -33,6 +33,7 @@ class ClosedHolding(BaseModel):
     currency: str
     total_buy_amount: Decimal             # 该周期总买入金额（sum(buy.amount)）
     first_buy_date: date
+    first_buy_price: Decimal = Decimal("0")  # 建仓首笔买入价
     closed_at: date
     holding_days: int
     realized_pnl: Decimal

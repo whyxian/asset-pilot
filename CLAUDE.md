@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **🚨 严令：禁止删除数据库文件。**
+> 
+> 以下命令**永远禁止**：
+> - `rm -f data/database/assetpilot.db`
+> - `rm -rf data/database/`
+> - 任何删除、移动、覆盖 `data/database/` 下文件的命令
+> 
+> 测试已使用内存 SQLite（`conftest.py`），永远不需要碰真实 DB 文件。
+> 违反此规则 = 用户持仓/交易数据丢失。**无例外。**
+
 # AssetPilot - 个人投资看板与净值计算器
 
 > 当前版本：V2（FastAPI + React 前后端分离，开发中）

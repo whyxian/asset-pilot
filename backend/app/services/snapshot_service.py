@@ -59,9 +59,6 @@ class SnapshotService:
         total_value_usd = Decimal("0")
         total_cost_usd = Decimal("0")
         market_values_usd: dict[str, Decimal] = defaultdict(Decimal)
-        weighted_return = Decimal("0")
-        total_weight = Decimal("0")
-        has_inf = False
 
         for h in holdings:
             entry = quote_map.get((h.asset_class, h.market, h.ticker))
@@ -76,20 +73,23 @@ class SnapshotService:
             total_cost_usd += cost_usd
             market_values_usd[h.market] += mv_usd
 
-            # return_pct
-            return_pct: float | None = None
-            if h.total_invested > 0:
-                return_pct = float((unrealized_pnl / h.total_invested) * 100)
+            # return_pct — 统一调 formulas.calculate_remaining_position_roi
+            from app.core.formulas import calculate_remaining_position_roi
 
-            # 累积加权年化（用持仓服务里同一套算法）
-            annualized = OverviewService._calc_annualized(
-                current_price, h.cost_price, h.first_buy_date, snap_date,
+            return_pct: float | None = None
+            result = calculate_remaining_position_roi(
+                current_price=float(current_price),
+                broker_cost_price=float(h.cost_price),
+                initial_buy_price=float(h.first_buy_price),
+                total_shares=float(h.quantity),
             )
-            if annualized == "+∞%":
-                has_inf = True
-            elif annualized is not None and mv_usd > 0:
-                weighted_return += Decimal(str(annualized)) * mv_usd
-                total_weight += mv_usd
+            if result["success"]:
+                return_pct = result["rate_of_return"]
+            else:
+                logger.warning(f"{h.ticker} 盈亏率计算失败: is_crazy_trader={result['is_crazy_trader']}")
+
+            # 年化暂不计算
+            annualized = None
 
             asset_rows.append({
                 "snapshot_date": snap_date,
@@ -117,10 +117,8 @@ class SnapshotService:
             total_pnl_pct = (total_pnl_usd / total_cost_usd) * 100
         # 零成本场景在 DB 存 NULL（前端展示时按"+∞%"）
 
+        # 年化暂不计算
         annualized_return: Decimal | None = None
-        if not has_inf and total_weight > 0:
-            annualized_return = weighted_return / total_weight
-        # has_inf 或无可计算时存 NULL
 
         # 配比（USD 计算 pct，存 USD 值）
         market_label = {"CN": "A 股", "US": "美股", "CRYPTO": "加密货币"}
@@ -167,9 +165,7 @@ class SnapshotService:
             total_pnl_pct=float(total_pnl_pct) if total_pnl_pct is not None else (
                 "+∞%" if total_cost_usd == 0 and total_value_usd > 0 else None
             ),
-            annualized_return=float(annualized_return) if annualized_return is not None else (
-                "+∞%" if has_inf else None
-            ),
+            annualized_return=float(annualized_return) if annualized_return is not None else None,
             allocation=[
                 AllocationItem(
                     market=a["market"], label=a["label"],

@@ -92,6 +92,7 @@ class AssetHoldingService:
                     cost_price=data.cost_price,
                     total_invested=data.total_invested,
                     first_buy_date=data.first_buy_date,
+                    first_buy_price=data.cost_price,  # 建仓首笔买入价（盈亏率公式分母，不变）
                 )
                 session.add(record)
                 await session.flush()
@@ -318,23 +319,24 @@ class AssetHoldingService:
         market_value = h.quantity * current_price
         pnl = market_value - h.total_invested
 
-        # 盈亏百分比
-        pnl_pct: float | str | None = None
-        if h.total_invested > 0:
-            pnl_pct = float((pnl / h.total_invested) * 100)
-        elif h.total_invested == 0 and market_value > 0:
-            pnl_pct = "+∞%"  # 零成本持有，盈亏率无穷大
+        # 盈亏率 — 统一调 formulas.calculate_remaining_position_roi
+        from app.core.formulas import calculate_remaining_position_roi
 
-        # 简单年化回报率 = 总收益率 × (365 / 持有天数)
-        # 持有天数 = (今日 - 首次买入日) + 1，当天买入也算持有 1 天
-        annualized: float | str | None = None
-        if h.cost_price > 0 and h.first_buy_date:
-            holding_days = (today - h.first_buy_date).days + 1
-            if holding_days >= 1:
-                total_return_pct = float((current_price - h.cost_price) / h.cost_price) * 100
-                annualized = round(total_return_pct * (365 / holding_days), 4)
-        elif h.cost_price == 0 and current_price > 0 and h.first_buy_date:
-            annualized = "+∞%"  # 零成本持有，年化无穷大
+        pnl_pct: float | str | None = None
+        result = calculate_remaining_position_roi(
+            current_price=float(current_price),
+            broker_cost_price=float(h.cost_price),
+            initial_buy_price=float(h.first_buy_price),
+            total_shares=float(h.quantity),
+        )
+        if result["success"]:
+            pnl_pct = result["rate_of_return"]
+        else:
+            # 计算失败（如首买价=0 脏数据或除零异常），保持 None，前端显示 N/A
+            logger.warning(f"{h.ticker} 盈亏率计算失败: is_crazy_trader={result['is_crazy_trader']}")
+
+        # 年化回报暂不计算
+        annualized = None
 
         return HoldingWithQuote(
             ticker=h.ticker,
@@ -346,6 +348,7 @@ class AssetHoldingService:
             cost_price=h.cost_price,
             total_invested=h.total_invested,
             first_buy_date=h.first_buy_date,
+            first_buy_price=h.first_buy_price,
             liquidated_at=h.liquidated_at,
             current_price=current_price,
             market_value=market_value,
@@ -448,9 +451,7 @@ async def recompute_holding(
 
             q = q - qty
             t = t - sell_price * qty
-            # 下限 0："白拿股票"上限 — 做 T 累计赚到比总投入还多时不允许成本为负
-            if t < 0:
-                t = Decimal("0")
+            # 允许 t 为负：做 T 累计赚的超过总投入时，成本为负表示「已落袋的赠送市值」
 
             if q == 0:
                 p = Decimal("0")
@@ -550,6 +551,7 @@ async def archive_holding(
         currency=holding.currency,
         total_buy_amount=sum_buy,
         first_buy_date=holding.first_buy_date,
+        first_buy_price=holding.first_buy_price,
         closed_at=closed_at,
         holding_days=holding_days,
         realized_pnl=realized_pnl,

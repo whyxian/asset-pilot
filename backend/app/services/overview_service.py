@@ -69,25 +69,9 @@ class OverviewService:
         elif total_cost_usd == 0 and total_value_usd > 0:
             total_pnl_pct = "+∞%"
 
-        # 市值加权年化回报率
-        has_inf = False
-        weighted_return = Decimal("0")
-        total_weight = Decimal("0")
-        for h in holdings:
-            entry = quote_map.get((h.asset_class, h.market, h.ticker))
-            current_price = entry[0].price if entry else Decimal("0")
-            mv_usd = convert_with_rates(h.quantity * current_price, h.currency, "USD", rates)
-            annualized = self._calc_annualized(current_price, h.cost_price, h.first_buy_date, today)
-            if annualized == "+∞%":
-                has_inf = True
-            elif annualized is not None and mv_usd > 0:
-                weighted_return += Decimal(str(annualized)) * mv_usd
-                total_weight += mv_usd
+        # 组合年化回报暂不计算（XIRR 落地前显示 "—"）
+        # 后续恢复时：用市值加权各只年化
         avg_annualized: float | str | None = None
-        if has_inf:
-            avg_annualized = "+∞%"
-        elif total_weight > 0:
-            avg_annualized = float(weighted_return / total_weight)
 
         # 按 currency 换算
         total_value = convert_with_rates(total_value_usd, "USD", currency, rates)

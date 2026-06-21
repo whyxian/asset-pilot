@@ -31,6 +31,7 @@ class ClosedHoldingRecord(Base):
     total_buy_amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
 
     first_buy_date: Mapped[date] = mapped_column(Date, nullable=False)
+    first_buy_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
     closed_at: Mapped[date] = mapped_column(Date, nullable=False)
     holding_days: Mapped[int] = mapped_column(Integer, nullable=False)
 

@@ -64,6 +64,7 @@ class AssetHoldingRepository:
             cost_price=data.cost_price,
             total_invested=data.total_invested,
             first_buy_date=data.first_buy_date,
+            first_buy_price=data.cost_price,  # 建仓首笔买入价（盈亏率公式分母）
         )
         async with async_session() as session:
             session.add(record)
@@ -151,6 +152,7 @@ def _record_to_holding(r: AssetHoldingRecord) -> AssetHolding:
         cost_price=Decimal(str(r.cost_price)),
         total_invested=Decimal(str(r.total_invested)),
         first_buy_date=r.first_buy_date if isinstance(r.first_buy_date, date) else r.first_buy_date.date(),
+        first_buy_price=Decimal(str(r.first_buy_price)),
         liquidated_at=(
             r.liquidated_at if r.liquidated_at is None or isinstance(r.liquidated_at, date)
             else r.liquidated_at.date()

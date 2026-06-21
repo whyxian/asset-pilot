@@ -41,13 +41,14 @@ export interface HoldingWithQuote {
   cost_price: number
   total_invested: number
   first_buy_date: string // "YYYY-MM-DD"
+  first_buy_price: number      // 建仓首笔买入价（盈亏率分母）
   liquidated_at: string | null // 清仓日期，未清仓为 null
   // 以下为实时计算字段
   current_price: number
   market_value: number
   pnl: number
-  pnl_pct: number | string | null // 零成本时为 "∞"
-  annualized_return: number | string | null // 零成本时为 "∞"
+  pnl_pct: number | string | null // 成本>0 时=传统公式，≤0 时=剩余底仓收益率
+  annualized_return: number | string | null // 暂不计算（=null）
   quote_status: 'REALTIME' | 'HISTORICAL' | 'UNAVAILABLE' // 行情状态
 }
 
@@ -213,6 +214,7 @@ export interface ClosedHolding {
   currency: string
   total_buy_amount: number  // 该周期总买入金额（sum(buy.amount)）
   first_buy_date: string
+  first_buy_price: number    // 建仓首笔买入价
   closed_at: string
   holding_days: number
   realized_pnl: number

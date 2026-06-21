@@ -185,7 +185,8 @@ async def test_no_liquidation_keeps_first_buy_date(Session, seed_holding, add_tx
 # ════════════════════════════════════════════════════
 # 测试 8：做 T 赚到比总投入还多 → t 钉死 0,cost=0(白拿股票)
 # ════════════════════════════════════════════════════
-async def test_cost_floor_zero(Session, seed_holding, add_txn, read_holding):
+async def test_cost_negative_after_t_trading(Session, seed_holding, add_txn, read_holding):
+    """做T赚的超过总投入 → 成本为负（允许，表示已落袋的赠送市值）"""
     from app.services.asset_holding_service import recompute_holding
 
     await seed_holding(qty="100", cost="10", total="1000")
@@ -196,8 +197,8 @@ async def test_cost_floor_zero(Session, seed_holding, add_txn, read_holding):
         await session.commit()
 
     h = await read_holding()
-    # 卖 50@30: t = 1000 - 30×50 = -500 → 钉死 0
-    # 剩 50 股,t=0 → cost=0
+    # 卖 50@30: t = 1000 - 30×50 = -500（允许负数）
+    # 剩 50 股, t=-500 → cost=-10
     assert approx(h.quantity, "50")
-    assert approx(h.total_invested, "0")
-    assert approx(h.cost_price, "0")
+    assert approx(h.total_invested, "-500")
+    assert approx(h.cost_price, "-10")

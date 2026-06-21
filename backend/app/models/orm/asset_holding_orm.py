@@ -29,6 +29,8 @@ class AssetHoldingRecord(Base):
     cost_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     total_invested: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     first_buy_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    # 建仓首笔买入价 — 盈亏率「剩余底仓收益率」公式的分母（成本≤0 时使用，不变）
+    first_buy_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
     # 清仓日期：quantity 回到 0 时由 recompute_holding 写入最后一笔 sell 的日期，
     # 后续若复活（再次 buy）则清空。NULL 表示从未清仓或建仓时即为 0
     liquidated_at: Mapped[datetime | None] = mapped_column(Date, nullable=True)
