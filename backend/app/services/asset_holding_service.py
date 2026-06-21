@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BusinessError
+from app.core.logger import logger
 from app.models.asset_holding import (
     AssetHolding,
     AssetHoldingCreate,
