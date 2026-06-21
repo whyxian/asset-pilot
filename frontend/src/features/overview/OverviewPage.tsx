@@ -125,18 +125,6 @@ export function OverviewPage() {
         </div>
       </div>
 
-      {refreshMut.error && (
-        <p className="text-sm text-destructive">
-          刷新失败：{refreshMut.error instanceof Error ? refreshMut.error.message : '未知错误'}
-        </p>
-      )}
-
-      {createSnapshotMut.error && (
-        <p className="text-sm text-destructive">
-          快照失败：{createSnapshotMut.error instanceof Error ? createSnapshotMut.error.message : '未知错误'}
-        </p>
-      )}
-
       {/* 统计卡 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>

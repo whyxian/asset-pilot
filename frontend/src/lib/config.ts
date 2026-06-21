@@ -8,3 +8,6 @@ export const STALE_TIME = 30_000
 
 /** 查询失败重试次数 */
 export const RETRY_COUNT = 1
+
+/** toast 默认显示时长（毫秒）— 可在设置页自定义 */
+export const TOAST_DURATION = 3000

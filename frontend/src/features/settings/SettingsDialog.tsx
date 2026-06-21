@@ -8,8 +8,15 @@ const COLOR_OPTIONS: { value: ColorScheme; label: string; desc: string; up: stri
   { value: 'rise-red', label: '红涨绿跌', desc: 'A股惯例', up: 'text-red-600', down: 'text-green-600' },
 ]
 
+const TOAST_OPTIONS = [
+  { value: '2000', label: '2 秒' },
+  { value: '3000', label: '3 秒' },
+  { value: '5000', label: '5 秒' },
+  { value: '0', label: '不自动消失' },
+]
+
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { settings, setColorScheme } = useSettings()
+  const { settings, setColorScheme, setToastDuration } = useSettings()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -35,6 +42,23 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                       </span>
                       <span className="text-xs text-muted-foreground">{opt.label} · {opt.desc}</span>
                     </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </fieldset>
+
+          {/* 提示时长 */}
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium text-muted-foreground">提示气泡时长</legend>
+            <Select value={String(settings.toastDuration)} onValueChange={(v) => setToastDuration(Number(v))}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TOAST_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} className="py-2">
+                    <span className="text-sm">{opt.label}</span>
                   </SelectItem>
                 ))}
               </SelectContent>

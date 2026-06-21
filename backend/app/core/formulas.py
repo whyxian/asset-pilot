@@ -204,3 +204,88 @@ def calculate_modified_dietz(V0, V1, trade_flows, start_date, end_date):
         "net_profit": numerator,
         "is_crazy_trader": False
     }
+
+
+def calculate_portfolio_overview(holdings, rates):
+    """组合概览聚合公式
+
+    方法名称：组合盈亏与盈亏率（Portfolio PnL Aggregation）
+
+    数学公式：
+        单只市值 = 持仓股数 × 当前股价
+        单只成本 = 持仓股数 × 券商成本价
+        单只首买成本 = 持仓股数 × 建仓首笔买入价
+        单只市值(USD) = 单只市值 / 汇率[currency]
+        单只成本(USD) = 单只成本 / 汇率[currency]
+        单只首买成本(USD) = 单只首买成本 / 汇率[currency]
+        总市值(USD) = Σ 单只市值(USD)
+        总成本(USD) = Σ 单只成本(USD)
+        总首买成本(USD) = Σ 单只首买成本(USD)
+        总盈亏 = 总市值 - 总成本
+        1. 总成本 > 0：总盈亏率 = 总盈亏 / 总成本 × 100%
+        2. 总成本 ≤ 0：总盈亏率 = 总盈亏 / 总首买成本 × 100%（剩余底仓收益率，与单只公式一致）
+
+    适用场景：
+        概览页 / 快照汇总的组合级盈亏聚合。
+        内部完成全部数学运算（市值计算、汇率换算、累加、盈亏率），调用方只传原始数据。
+
+    参数说明：
+        holdings (list[dict]): 逐只持仓原始数据，每项含：
+            - current_price (float): 当前股票最新的公允市场价格。
+            - broker_cost_price (float): 券商后台显示的持仓成本价（做T狂魔该值通常 <= 0）。
+            - initial_buy_price (float): 该股票最早建仓时的实际第一笔买入价。
+            - total_shares (float/int): 当前账户剩余的持仓股数。
+            - currency (str): 计价货币，如 "CNY" / "USD"
+        rates (dict): USD-base 汇率，如 {"CNY": 7.2, "USD": 1.0}
+
+    返回：
+        统一返回格式：
+        - success: 始终为 True
+        - rate_of_return: 总盈亏率（%），总首买成本也≤0 时为 None
+        - net_profit: 总盈亏金额（USD）
+        - is_crazy_trader: 总成本≤0 时为 True（零成本/负成本持有）
+        - total_value: 总市值（USD）
+        - total_cost: 总成本（USD）
+    """
+    total_value = 0.0
+    total_cost = 0.0
+    total_initial_cost = 0.0
+
+    for h in holdings:
+        shares = h["total_shares"]
+        rate = rates.get(h["currency"], 1.0)
+        total_value += (shares * h["current_price"]) / rate
+        total_cost += (shares * h["broker_cost_price"]) / rate
+        total_initial_cost += (shares * h["initial_buy_price"]) / rate
+
+    pnl = total_value - total_cost
+
+    if total_cost > 0:
+        return {
+            "success": True,
+            "rate_of_return": (pnl / total_cost) * 100,
+            "net_profit": pnl,
+            "is_crazy_trader": False,
+            "total_value": total_value,
+            "total_cost": total_cost,
+        }
+    elif total_initial_cost > 0:
+        # 总成本 ≤ 0：用总首买成本做分母（剩余底仓收益率，与单只公式一致）
+        return {
+            "success": True,
+            "rate_of_return": (pnl / total_initial_cost) * 100,
+            "net_profit": pnl,
+            "is_crazy_trader": True,
+            "total_value": total_value,
+            "total_cost": total_cost,
+        }
+    else:
+        # 总首买成本也 ≤ 0（极端情况）
+        return {
+            "success": False,
+            "rate_of_return": None,
+            "net_profit": pnl,
+            "is_crazy_trader": True,
+            "total_value": total_value,
+            "total_cost": total_cost,
+        }

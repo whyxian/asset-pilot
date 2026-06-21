@@ -36,6 +36,7 @@ class AssetSnapshotRecord(Base):
     quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     unit_value: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)      # 现价（原币）
     cost_value: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)      # 成本价（原币）
+    first_buy_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))  # 建仓首笔买入价（原币）
     market_value: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)    # 市值（原币）
     market_value_usd: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)  # 市值（USD）
     total_invested: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)      # 总投入（原币）

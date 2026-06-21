@@ -60,15 +60,21 @@
 
 ## 五、组合概览
 
-代码位置：`backend/app/services/overview_service.py`
+代码位置：`backend/app/core/formulas.py` → `calculate_portfolio_overview`
 
-| 公式 | 代码行 | 说明 |
-|------|--------|------|
-| `总市值 = Σ(个股市值 × 汇率) → USD` | `overview_service:53-58` | 内部 USD 聚合，按 currency 换算返回 |
-| `总成本 = Σ(个股总投入 × 汇率) → USD` | `overview_service:53-58` | |
-| `总盈亏 = 总市值 - 总成本` | `overview_service:63` | |
-| `总盈亏率 = 总盈亏 / 总成本 × 100%` | `overview_service:68` | 总成本=0 且市值>0 时返回 `+∞%` |
-| 组合年化 | `overview_service:74` | 暂不计算（`None`） |
+| 公式 | 说明 |
+|------|------|
+| `单只市值 = 持仓股数 × 当前股价` | 内部逐只计算 |
+| `单只成本 = 持仓股数 × 券商成本价` | 内部逐只计算 |
+| `单只市值(USD) = 单只市值 / 汇率[currency]` | 内部汇率换算 |
+| `单只成本(USD) = 单只成本 / 汇率[currency]` | 内部汇率换算 |
+| `总市值(USD) = Σ 单只市值(USD)` | 内部累加 |
+| `总成本(USD) = Σ 单只成本(USD)` | 内部累加 |
+| `总盈亏 = 总市值 - 总成本` | |
+| `总盈亏率 = 总盈亏 / 总成本 × 100%` | 总成本≤0 且市值>0 时返回 `None`（前端显示 `+∞%`） |
+| 组合年化 | 暂不计算（`None`） |
+
+调用方：`overview_service.py` + `snapshot_service.py`（传原始逐只数据 + rates，公式内部完成全部数学运算）
 
 ## 六、快照汇总（组合级）
 

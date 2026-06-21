@@ -56,8 +56,6 @@ class SnapshotService:
 
         # 3. 算每只持仓的快照行（同时存原币和 USD）
         asset_rows = []
-        total_value_usd = Decimal("0")
-        total_cost_usd = Decimal("0")
         market_values_usd: dict[str, Decimal] = defaultdict(Decimal)
 
         for h in holdings:
@@ -69,8 +67,6 @@ class SnapshotService:
             mv_usd = convert_with_rates(market_value, h.currency, "USD", rates)
             cost_usd = convert_with_rates(h.total_invested, h.currency, "USD", rates)
 
-            total_value_usd += mv_usd
-            total_cost_usd += cost_usd
             market_values_usd[h.market] += mv_usd
 
             # return_pct — 统一调 formulas.calculate_remaining_position_roi
@@ -101,6 +97,7 @@ class SnapshotService:
                 "quantity": h.quantity,
                 "unit_value": current_price,
                 "cost_value": h.cost_price,
+                "first_buy_price": h.first_buy_price,
                 "market_value": market_value,
                 "market_value_usd": mv_usd,
                 "total_invested": h.total_invested,
@@ -109,13 +106,26 @@ class SnapshotService:
                 "return_pct": Decimal(str(return_pct)) if return_pct is not None else None,
             })
 
-        # 4. 算组合级聚合
-        total_pnl_usd = total_value_usd - total_cost_usd
+        # 4. 算组合级聚合 — 调 formulas 统一计算
+        from app.core.formulas import calculate_portfolio_overview
+        portfolio = calculate_portfolio_overview(
+            [{
+                "current_price": float(r["unit_value"]),
+                "broker_cost_price": float(r["cost_value"]),
+                "initial_buy_price": float(r["first_buy_price"]),
+                "total_shares": float(r["quantity"]),
+                "currency": r["currency"],
+            } for r in asset_rows],
+            {k: float(v) for k, v in rates.items()},
+        )
+        total_value_usd = Decimal(str(portfolio["total_value"]))
+        total_cost_usd = Decimal(str(portfolio["total_cost"]))
+        total_pnl_usd = Decimal(str(portfolio["net_profit"]))
 
         total_pnl_pct: Decimal | None = None
-        if total_cost_usd > 0:
-            total_pnl_pct = (total_pnl_usd / total_cost_usd) * 100
-        # 零成本场景在 DB 存 NULL（前端展示时按"+∞%"）
+        if portfolio["rate_of_return"] is not None:
+            total_pnl_pct = Decimal(str(portfolio["rate_of_return"]))
+        # rate_of_return=None（零成本/负成本）→ DB 存 NULL，前端展示 "+∞%"
 
         # 年化暂不计算
         annualized_return: Decimal | None = None

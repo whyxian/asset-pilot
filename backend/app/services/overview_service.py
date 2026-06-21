@@ -45,32 +45,37 @@ class OverviewService:
         rates = rate_snapshot.rates
 
         today = date.today()
-        total_value_usd = Decimal("0")
-        total_cost_usd = Decimal("0")
         market_values_usd: dict[str, Decimal] = defaultdict(Decimal)
 
+        # 构建逐只原始数据
+        holdings_data = []
         for h in holdings:
             entry = quote_map.get((h.asset_class, h.market, h.ticker))
-            current_price = entry[0].price if entry else Decimal("0")
-            market_value = h.quantity * current_price
-
-            mv_usd = convert_with_rates(market_value, h.currency, "USD", rates)
-            cost_usd = convert_with_rates(h.total_invested, h.currency, "USD", rates)
-            total_value_usd += mv_usd
-            total_cost_usd += cost_usd
+            current_price = float(entry[0].price) if entry else 0.0
+            holdings_data.append({
+                "current_price": current_price,
+                "broker_cost_price": float(h.cost_price),
+                "initial_buy_price": float(h.first_buy_price),
+                "total_shares": float(h.quantity),
+                "currency": h.currency,
+            })
+            # 配比用：累加各市场 USD 市值
+            mv_usd = convert_with_rates(h.quantity * Decimal(str(current_price)), h.currency, "USD", rates)
             market_values_usd[h.market] += mv_usd
 
-        total_pnl_usd = total_value_usd - total_cost_usd
+        # 调 formulas 统一计算组合盈亏
+        from app.core.formulas import calculate_portfolio_overview
+        result = calculate_portfolio_overview(holdings_data, {k: float(v) for k, v in rates.items()})
 
-        # 总盈亏百分比（零成本兜底）
-        total_pnl_pct: float | str | None = None
-        if total_cost_usd > 0:
-            total_pnl_pct = float((total_pnl_usd / total_cost_usd) * 100)
-        elif total_cost_usd == 0 and total_value_usd > 0:
+        total_value_usd = Decimal(str(result["total_value"]))
+        total_cost_usd = Decimal(str(result["total_cost"]))
+        total_pnl_usd = Decimal(str(result["net_profit"]))
+
+        total_pnl_pct = result["rate_of_return"]
+        if total_pnl_pct is None:
             total_pnl_pct = "+∞%"
 
-        # 组合年化回报暂不计算（XIRR 落地前显示 "—"）
-        # 后续恢复时：用市值加权各只年化
+        # 组合年化暂不计算
         avg_annualized: float | str | None = None
 
         # 按 currency 换算

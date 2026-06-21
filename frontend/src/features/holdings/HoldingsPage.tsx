@@ -318,12 +318,6 @@ export function HoldingsPage() {
         </div>
       </div>
 
-      {refreshMut.error && (
-        <p className="text-sm text-destructive">
-          刷新失败：{refreshMut.error instanceof Error ? refreshMut.error.message : '未知错误'}
-        </p>
-      )}
-
       {/* 市场筛选 Tab（标注各市场市值占比） */}
       <div className="flex gap-1 border-b">
         {([

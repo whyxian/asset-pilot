@@ -139,10 +139,6 @@ export function HistoryPage() {
         </div>
       )}
 
-      {deleteMut.error && !deleteConfirm && (
-        <p className="text-sm text-destructive">删除失败：{deleteMut.error.message}</p>
-      )}
-
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm tabular-nums">
           <thead>
