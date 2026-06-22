@@ -33,7 +33,7 @@ class AssetSnapshotRecord(Base):
     name: Mapped[str] = mapped_column(String(200), default="")
     currency: Mapped[str] = mapped_column(String(3), default="USD")
 
-    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 8), nullable=False)  # 8位小数，crypto
     unit_value: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)      # 现价（原币）
     cost_value: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)      # 成本价（原币）
     first_buy_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))  # 建仓首笔买入价（原币）

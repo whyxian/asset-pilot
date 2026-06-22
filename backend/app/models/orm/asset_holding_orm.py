@@ -25,7 +25,7 @@ class AssetHoldingRecord(Base):
     market: Mapped[str] = mapped_column(String(10), nullable=False)
     asset_class: Mapped[str] = mapped_column(String(10), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="CNY")
-    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 8), nullable=False)  # 8位小数，crypto 持仓量
     cost_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     total_invested: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     first_buy_date: Mapped[datetime] = mapped_column(Date, nullable=False)

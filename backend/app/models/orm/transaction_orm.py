@@ -27,7 +27,7 @@ class TransactionRecord(Base):
     market: Mapped[str] = mapped_column(String(10), nullable=False)
     transaction_date: Mapped[datetime] = mapped_column(Date, nullable=False)
     type: Mapped[str] = mapped_column(String(4), nullable=False)  # "buy" / "sell"
-    quantity: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)  # 8位小数，crypto
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

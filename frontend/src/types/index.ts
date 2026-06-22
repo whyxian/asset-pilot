@@ -126,18 +126,18 @@ export interface HoldingCreate {
   market: string
   asset_class: string
   currency: string
-  quantity: number
-  cost_price: number
-  total_invested: number
+  quantity: string  // Decimal 字符串，避免 parseFloat 精度损失（crypto 需要 8 位小数）
+  cost_price: string
+  total_invested: string
   first_buy_date: string
 }
 
 /** 更新持仓请求体（所有字段可选） */
 export interface HoldingUpdate {
   name?: string
-  quantity?: number
-  cost_price?: number
-  total_invested?: number
+  quantity?: string  // Decimal 字符串
+  cost_price?: string
+  total_invested?: string
   first_buy_date?: string
 }
 

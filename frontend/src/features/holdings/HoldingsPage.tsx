@@ -185,10 +185,10 @@ export function HoldingsPage() {
     if (editingHolding) {
       const updateData: HoldingUpdate = {}
       if (data.name !== editingHolding.name) updateData.name = data.name
-      if (parseFloat(data.quantity) !== toNum(editingHolding.quantity)) updateData.quantity = parseFloat(data.quantity)
-      if (parseFloat(data.cost_price) !== toNum(editingHolding.cost_price)) updateData.cost_price = parseFloat(data.cost_price)
+      if (parseFloat(data.quantity) !== toNum(editingHolding.quantity)) updateData.quantity = data.quantity
+      if (parseFloat(data.cost_price) !== toNum(editingHolding.cost_price)) updateData.cost_price = data.cost_price
       if (parseFloat(data.total_invested) !== toNum(editingHolding.total_invested))
-        updateData.total_invested = parseFloat(data.total_invested)
+        updateData.total_invested = data.total_invested
       if (data.first_buy_date !== editingHolding.first_buy_date)
         updateData.first_buy_date = data.first_buy_date
       updateMut.mutate(
@@ -204,8 +204,8 @@ export function HoldingsPage() {
       const createData: HoldingCreate = {
         ticker: data.ticker, name: data.name, market: data.market,
         asset_class: data.asset_class, currency: data.currency,
-        quantity: parseFloat(data.quantity), cost_price: parseFloat(data.cost_price),
-        total_invested: parseFloat(data.total_invested), first_buy_date: data.first_buy_date,
+        quantity: data.quantity, cost_price: data.cost_price,
+        total_invested: data.total_invested, first_buy_date: data.first_buy_date,
       }
       createMut.mutate(createData, { onSuccess: () => setDialogOpen(false) })
     }
