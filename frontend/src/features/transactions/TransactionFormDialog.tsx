@@ -28,6 +28,7 @@ interface TransactionFormData {
   quantity: string
   unit_price: string
   amount: string
+  fee_rate: string
   notes: string
 }
 
@@ -41,6 +42,7 @@ function emptyForm(): TransactionFormData {
     quantity: '',
     unit_price: '',
     amount: '',
+    fee_rate: '',
     notes: '',
   }
 }
@@ -55,6 +57,7 @@ function transactionToForm(t: Transaction): TransactionFormData {
     quantity: t.quantity != null ? String(t.quantity) : '',
     unit_price: t.unit_price != null ? String(t.unit_price) : '',
     amount: t.amount != null ? String(t.amount) : '',
+    fee_rate: t.fee_rate != null ? String(t.fee_rate) : '',
     notes: t.notes ?? '',
   }
 }
@@ -303,6 +306,18 @@ export function TransactionFormDialog({
               onChange={(e) => updateField('amount', e.target.value)}
             />
             {errors.amount && <p className="mt-1 text-xs text-destructive">{errors.amount}</p>}
+          </div>
+
+          {/* 费率 */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">费率（%）</label>
+            <Input
+              type="number"
+              step="any"
+              placeholder="0.03（万分之三）"
+              value={form.fee_rate}
+              onChange={(e) => updateField('fee_rate', e.target.value)}
+            />
           </div>
 
           {/* 备注 */}
