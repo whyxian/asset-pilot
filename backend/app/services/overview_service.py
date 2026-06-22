@@ -93,7 +93,6 @@ class OverviewService:
                 if t.amount is None:
                     continue
                 amt = float(t.amount) * (-1 if t.type == "sell" else 1)
-                # 换算到 USD（与 V1=total_value_usd 统一单位）
                 ccy = txn_currency.get(t.ticker, "USD")
                 amt_usd = float(convert_with_rates(Decimal(str(amt)), ccy, "USD", rates))
                 d = str(t.transaction_date)
@@ -111,7 +110,8 @@ class OverviewService:
                 end_date=str(today),
             )
             avg_annualized = dietz_result["rate_of_return"] if dietz_result["success"] else None
-            cumulative_return_usd = Decimal(str(dietz_result["net_profit"])) if dietz_result["success"] else Decimal("0")
+            # net_profit 直接复用总盈亏（Decimal 源），避免 Modified Dietz 的 float 算术与总盈亏产生精度差异
+            cumulative_return_usd = total_pnl_usd
         else:
             avg_annualized = None
             cumulative_return_usd = Decimal("0")
