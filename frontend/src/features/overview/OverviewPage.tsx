@@ -174,9 +174,18 @@ export function OverviewPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">历史累计总收益</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-muted-foreground">
-              {stats.annualized_return != null ? formatPct(stats.annualized_return) : '—'}
-            </div>
+            {stats.annualized_return != null ? (
+              <div className={`inline-flex items-baseline gap-2 ${stats.cumulative_return >= 0 ? upColor : downColor}`}>
+                <span className="text-2xl font-bold">
+                  {stats.cumulative_return >= 0 ? '+' : ''}{formatPrice(stats.cumulative_return, stats.currency, 2)}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {formatPct(stats.annualized_return)}
+                </span>
+              </div>
+            ) : (
+              <div className="text-2xl font-bold text-muted-foreground">—</div>
+            )}
           </CardContent>
         </Card>
       </div>

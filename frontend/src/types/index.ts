@@ -48,7 +48,7 @@ export interface HoldingWithQuote {
   market_value: number
   pnl: number
   pnl_pct: number | string | null // 成本>0 时=传统公式，≤0 时=剩余底仓收益率
-  annualized_return: number | string | null // 暂不计算（=null）
+  annualized_return: number | string | null // 历史累计总收益率（Modified Dietz）
   quote_status: 'REALTIME' | 'HISTORICAL' | 'UNAVAILABLE' // 行情状态
 }
 
@@ -82,7 +82,8 @@ export interface OverviewStats {
   total_cost: number
   total_pnl: number
   total_pnl_pct: number | string | null
-  annualized_return: number | string | null
+  annualized_return: number | string | null // 历史累计总收益率（Modified Dietz）
+  cumulative_return: number              // 历史累计收益金额
   allocation: AllocationItem[]
   rate_source_date: string | null   // 当前所用汇率的日期（YYYY-MM-DD）
   rate_stale: boolean               // 汇率是否走了兜底（旧汇率，需警告）

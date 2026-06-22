@@ -111,8 +111,10 @@ class OverviewService:
                 end_date=str(today),
             )
             avg_annualized = dietz_result["rate_of_return"] if dietz_result["success"] else None
+            cumulative_return_usd = Decimal(str(dietz_result["net_profit"])) if dietz_result["success"] else Decimal("0")
         else:
             avg_annualized = None
+            cumulative_return_usd = Decimal("0")
 
         # 按 currency 换算
         total_value = convert_with_rates(total_value_usd, "USD", currency, rates)
@@ -132,6 +134,8 @@ class OverviewService:
                 pct=pct,
             ))
 
+        cumulative_return = convert_with_rates(cumulative_return_usd, "USD", currency, rates)
+
         return OverviewStats(
             currency=currency,
             total_value=total_value,
@@ -139,6 +143,7 @@ class OverviewService:
             total_pnl=total_pnl,
             total_pnl_pct=total_pnl_pct,
             annualized_return=avg_annualized,
+            cumulative_return=cumulative_return,
             allocation=allocation,
             rate_source_date=rate_snapshot.source_date,
             rate_stale=rate_snapshot.is_stale,
