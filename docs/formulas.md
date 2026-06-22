@@ -72,9 +72,23 @@
 | `总成本(USD) = Σ 单只成本(USD)` | 内部累加 |
 | `总盈亏 = 总市值 - 总成本` | |
 | `总盈亏率 = 总盈亏 / 总成本 × 100%` | 总成本≤0 且市值>0 时返回 `None`（前端显示 `+∞%`） |
-| 组合年化 | 暂不计算（`None`） |
+| 历史累计总收益 | Modified Dietz：V0=0，V1=当前总市值，trade_flows=全部买卖交易现金流 |
 
 调用方：`overview_service.py` + `snapshot_service.py`（传原始逐只数据 + rates，公式内部完成全部数学运算）
+
+### 五b、历史累计总收益（Modified Dietz）
+
+代码位置：`backend/app/core/formulas.py` → `calculate_modified_dietz`
+
+| 公式 | 说明 |
+|------|------|
+| `ROI = (V1 - V0 - Σ CF_i) / (V0 + Σ (CF_i × W_i)) × 100%` | 金额加权回报率 |
+| `W_i = (CD - Di) / CD` | 时间权重，CD=总天数，Di=该笔流水距起点天数 |
+
+- V0 = 0（建仓前无持仓）
+- V1 = 当前总市值（USD）
+- CF_i：buy=正（钱进），sell=负（钱出）
+- 前端展示名：「历史累计总收益」
 
 ## 六、快照汇总（组合级）
 

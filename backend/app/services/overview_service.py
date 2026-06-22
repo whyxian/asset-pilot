@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from app.models.overview import AllocationItem, OverviewStats
 from app.repositories.asset_holding_repository import AssetHoldingRepository
+from app.repositories.transaction_repository import TransactionRepository
 from app.services.asset_quote_service import AssetQuoteService
 from app.utils.exchange_rate import convert_with_rates, fetch_rates
 
@@ -75,8 +76,33 @@ class OverviewService:
         if total_pnl_pct is None:
             total_pnl_pct = "+∞%"
 
-        # 组合年化暂不计算
-        avg_annualized: float | str | None = None
+        # 组合历史累计收益 — 用 Modified Dietz 算从建仓第一天到现在的回报率
+        txn_repo = TransactionRepository()
+        txns = await txn_repo.list_transactions(limit=9999)
+
+        if txns:
+            from app.core.formulas import calculate_modified_dietz
+
+            # 构造现金流：buy=正（钱进系统），sell=负（钱出系统）
+            trade_flows = []
+            for t in txns:
+                if t.amount is None:
+                    continue
+                amt = float(t.amount) * (-1 if t.type == "sell" else 1)
+                trade_flows.append({"date": str(t.transaction_date), "amount": amt})
+
+            start_date = str(min(t.transaction_date for t in txns))
+
+            dietz_result = calculate_modified_dietz(
+                V0=0,
+                V1=float(total_value_usd),
+                trade_flows=trade_flows,
+                start_date=str(start_date),
+                end_date=str(today),
+            )
+            avg_annualized = dietz_result["rate_of_return"] if dietz_result["success"] else None
+        else:
+            avg_annualized = None
 
         # 按 currency 换算
         total_value = convert_with_rates(total_value_usd, "USD", currency, rates)

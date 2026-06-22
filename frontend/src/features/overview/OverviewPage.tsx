@@ -171,7 +171,7 @@ export function OverviewPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">年化回报率</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">历史累计总收益</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-muted-foreground">
