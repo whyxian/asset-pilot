@@ -57,6 +57,7 @@ class TransactionRepository:
             quantity=data.quantity if data.quantity is not None else None,
             unit_price=data.unit_price if data.unit_price is not None else None,
             amount=data.amount if data.amount is not None else None,
+            fee_rate=data.fee_rate if data.fee_rate is not None else None,
             notes=data.notes,
         )
         async with async_session() as session:
@@ -109,5 +110,6 @@ def _record_to_transaction(r: TransactionRecord) -> Transaction:
         quantity=Decimal(str(r.quantity)) if r.quantity is not None else None,
         unit_price=Decimal(str(r.unit_price)) if r.unit_price is not None else None,
         amount=Decimal(str(r.amount)) if r.amount is not None else None,
+        fee_rate=Decimal(str(r.fee_rate)) if r.fee_rate is not None else None,
         notes=r.notes,
     )

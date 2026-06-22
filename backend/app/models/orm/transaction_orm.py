@@ -30,6 +30,7 @@ class TransactionRecord(Base):
     quantity: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)  # 8位小数，crypto
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    fee_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 6), nullable=True)  # 费率百分比（如 0.03 表示万分之三）
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now(), nullable=True)

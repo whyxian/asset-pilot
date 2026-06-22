@@ -18,6 +18,7 @@ class Transaction(BaseModel):
     quantity: Decimal | None = None
     unit_price: Decimal | None = None
     amount: Decimal | None = None
+    fee_rate: Decimal | None = None  # 费率百分比（如 0.03 表示万分之三）
     notes: str | None = None
 
 
@@ -32,6 +33,7 @@ class TransactionCreate(BaseModel):
     quantity: Decimal | None = None
     unit_price: Decimal | None = None
     amount: Decimal | None = None
+    fee_rate: Decimal | None = None
     notes: str | None = None
 
 
@@ -46,4 +48,5 @@ class TransactionUpdate(BaseModel):
     quantity: Decimal | None = None
     unit_price: Decimal | None = None
     amount: Decimal | None = None
+    fee_rate: Decimal | None = None
     notes: str | None = None
