@@ -88,17 +88,18 @@ class OverviewService:
 
             # 构造现金流：buy=正（钱进系统），sell=负（钱出系统）
             # 同日多笔合并为一条（Modified Dietz 同日期权重相同，结果等价）
-            daily_flows: dict[str, float] = {}
+            # 全程 Decimal，最后才转 float 给 calculate_modified_dietz 的 trade_flows
+            daily_flows: dict[str, Decimal] = {}
             for t in txns:
                 if t.amount is None:
                     continue
-                amt = float(t.amount) * (-1 if t.type == "sell" else 1)
+                amt = t.amount * (-1 if t.type == "sell" else 1)  # Decimal，不转 float
                 ccy = txn_currency.get(t.ticker, "USD")
-                amt_usd = float(convert_with_rates(Decimal(str(amt)), ccy, "USD", rates))
+                amt_usd = convert_with_rates(amt, ccy, "USD", rates)  # Decimal，不转 float
                 d = str(t.transaction_date)
-                daily_flows[d] = daily_flows.get(d, 0) + amt_usd
+                daily_flows[d] = daily_flows.get(d, Decimal("0")) + amt_usd
 
-            trade_flows = [{"date": d, "amount": a} for d, a in sorted(daily_flows.items())]
+            trade_flows = [{"date": d, "amount": float(a)} for d, a in sorted(daily_flows.items())]
 
             start_date = str(min(t.transaction_date for t in txns))
 
