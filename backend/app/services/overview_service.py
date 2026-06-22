@@ -84,14 +84,18 @@ class OverviewService:
             from app.core.formulas import calculate_modified_dietz
 
             # 构造现金流：buy=正（钱进系统），sell=负（钱出系统）
-            trade_flows = []
+            # 同日多笔合并为一条（Modified Dietz 同日期权重相同，结果等价）
+            daily_flows: dict[str, float] = {}
             for t in txns:
                 if t.amount is None:
                     continue
                 amt = float(t.amount) * (-1 if t.type == "sell" else 1)
-                trade_flows.append({"date": str(t.transaction_date), "amount": amt})
+                d = str(t.transaction_date)
+                daily_flows[d] = daily_flows.get(d, 0) + amt
 
-            start_date = str(min(t.transaction_date for t in txns))
+            trade_flows = [{"date": d, "amount": a} for d, a in sorted(daily_flows.items())]
+
+            start_date = min(t.transaction_date for t in txns)
 
             dietz_result = calculate_modified_dietz(
                 V0=0,
