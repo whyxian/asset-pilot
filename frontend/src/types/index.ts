@@ -166,9 +166,9 @@ export interface TransactionCreate {
   market: string
   transaction_date: string
   type: 'buy' | 'sell'
-  quantity?: number | null
-  unit_price?: number | null
-  amount?: number | null
+  quantity?: string | null  // Decimal 字符串
+  unit_price?: string | null
+  amount?: string | null
   notes?: string | null
 }
 
@@ -179,9 +179,9 @@ export interface TransactionUpdate {
   market?: string
   transaction_date?: string
   type?: 'buy' | 'sell'
-  quantity?: number | null
-  unit_price?: number | null
-  amount?: number | null
+  quantity?: string | null  // Decimal 字符串
+  unit_price?: string | null
+  amount?: string | null
   notes?: string | null
 }
 

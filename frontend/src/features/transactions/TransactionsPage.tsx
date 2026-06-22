@@ -43,9 +43,9 @@ function marketTabs(transactions: Transaction[]) {
   ]
 }
 
-/** 把表单字符串转成 number 或 null */
-function toNumOrNull(v: string): number | null {
-  if (!v.trim()) return null
+/** 表单字符串 → 用于比较的 number（不用于提交） */
+function toNumForCompare(v: string | null | undefined): number | null {
+  if (!v || !v.trim()) return null
   const n = parseFloat(v)
   return Number.isNaN(n) ? null : n
 }
@@ -113,12 +113,9 @@ export function TransactionsPage() {
       if (data.transaction_date !== editingTxn.transaction_date)
         payload.transaction_date = data.transaction_date
       if (data.type !== editingTxn.type) payload.type = data.type
-      const newQty = toNumOrNull(data.quantity)
-      const newPrice = toNumOrNull(data.unit_price)
-      const newAmount = toNumOrNull(data.amount)
-      if (newQty !== editingTxn.quantity) payload.quantity = newQty
-      if (newPrice !== editingTxn.unit_price) payload.unit_price = newPrice
-      if (newAmount !== editingTxn.amount) payload.amount = newAmount
+      if (toNumForCompare(data.quantity) !== editingTxn.quantity) payload.quantity = data.quantity || null
+      if (toNumForCompare(data.unit_price) !== editingTxn.unit_price) payload.unit_price = data.unit_price || null
+      if (toNumForCompare(data.amount) !== editingTxn.amount) payload.amount = data.amount || null
       const newNotes = data.notes.trim() || null
       if (newNotes !== editingTxn.notes) payload.notes = newNotes
 
@@ -133,9 +130,9 @@ export function TransactionsPage() {
         market: data.market,
         transaction_date: data.transaction_date,
         type: data.type,
-        quantity: toNumOrNull(data.quantity),
-        unit_price: toNumOrNull(data.unit_price),
-        amount: toNumOrNull(data.amount),
+        quantity: data.quantity || null,
+        unit_price: data.unit_price || null,
+        amount: data.amount || null,
         notes: data.notes.trim() || null,
       }
       createMut.mutate(payload, { onSuccess: () => setDialogOpen(false) })
