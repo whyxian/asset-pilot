@@ -325,10 +325,10 @@ class AssetHoldingService:
 
         pnl_pct: float | str | None = None
         result = calculate_remaining_position_roi(
-            current_price=float(current_price),
-            broker_cost_price=float(h.cost_price),
-            initial_buy_price=float(h.first_buy_price),
-            total_shares=float(h.quantity),
+            current_price=current_price,
+            broker_cost_price=h.cost_price,
+            initial_buy_price=h.first_buy_price,
+            total_shares=h.quantity,
         )
         if result["success"]:
             pnl_pct = result["rate_of_return"]

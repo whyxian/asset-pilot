@@ -48,29 +48,29 @@ class OverviewService:
         today = date.today()
         market_values_usd: dict[str, Decimal] = defaultdict(Decimal)
 
-        # 构建逐只原始数据
+        # 构建逐只原始数据（Decimal 精度，不做 float 转换）
         holdings_data = []
         for h in holdings:
             entry = quote_map.get((h.asset_class, h.market, h.ticker))
-            current_price = float(entry[0].price) if entry else 0.0
+            current_price = entry[0].price if entry else Decimal("0")
             holdings_data.append({
                 "current_price": current_price,
-                "broker_cost_price": float(h.cost_price),
-                "initial_buy_price": float(h.first_buy_price),
-                "total_shares": float(h.quantity),
+                "broker_cost_price": h.cost_price,
+                "initial_buy_price": h.first_buy_price,
+                "total_shares": h.quantity,
                 "currency": h.currency,
             })
             # 配比用：累加各市场 USD 市值
-            mv_usd = convert_with_rates(h.quantity * Decimal(str(current_price)), h.currency, "USD", rates)
+            mv_usd = convert_with_rates(h.quantity * current_price, h.currency, "USD", rates)
             market_values_usd[h.market] += mv_usd
 
-        # 调 formulas 统一计算组合盈亏
+        # 调 formulas 统一计算组合盈亏（Decimal 精度）
         from app.core.formulas import calculate_portfolio_overview
-        result = calculate_portfolio_overview(holdings_data, {k: float(v) for k, v in rates.items()})
+        result = calculate_portfolio_overview(holdings_data, rates)
 
-        total_value_usd = Decimal(str(result["total_value"]))
-        total_cost_usd = Decimal(str(result["total_cost"]))
-        total_pnl_usd = Decimal(str(result["net_profit"]))
+        total_value_usd = result["total_value"]       # Decimal（公式内部全程 Decimal）
+        total_cost_usd = result["total_cost"]         # Decimal
+        total_pnl_usd = result["net_profit"]          # Decimal
 
         total_pnl_pct = result["rate_of_return"]
         if total_pnl_pct is None:

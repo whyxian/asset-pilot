@@ -73,10 +73,10 @@ class SnapshotService:
 
             return_pct: float | None = None
             result = calculate_remaining_position_roi(
-                current_price=float(current_price),
-                broker_cost_price=float(h.cost_price),
-                initial_buy_price=float(h.first_buy_price),
-                total_shares=float(h.quantity),
+                current_price=current_price,
+                broker_cost_price=h.cost_price,
+                initial_buy_price=h.first_buy_price,
+                total_shares=h.quantity,
             )
             if result["success"]:
                 return_pct = result["rate_of_return"]
@@ -109,13 +109,13 @@ class SnapshotService:
         from app.core.formulas import calculate_portfolio_overview
         portfolio = calculate_portfolio_overview(
             [{
-                "current_price": float(r["unit_value"]),
-                "broker_cost_price": float(r["cost_value"]),
-                "initial_buy_price": float(r["first_buy_price"]),
-                "total_shares": float(r["quantity"]),
+                "current_price": r["unit_value"],
+                "broker_cost_price": r["cost_value"],
+                "initial_buy_price": r["first_buy_price"],
+                "total_shares": r["quantity"],
                 "currency": r["currency"],
             } for r in asset_rows],
-            {k: float(v) for k, v in rates.items()},
+            rates,
         )
         total_value_usd = Decimal(str(portfolio["total_value"]))
         total_cost_usd = Decimal(str(portfolio["total_cost"]))

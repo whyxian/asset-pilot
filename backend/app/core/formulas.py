@@ -7,37 +7,46 @@ from pyxirr import xirr
 def calculate_remaining_position_roi(current_price, broker_cost_price, initial_buy_price, total_shares):
     """
     方法名称：做T流个股持仓收益率（Remaining Position ROI for Grid Traders）
-    
+
     数学公式：
         1. 当 成本价 > 0 时（正常持仓）：
            ROI = (当前股价 - 券商成本价) / 券商成本价 * 100%
         2. 当 成本价 <= 0 时（做T至负成本/0成本）：
            ROI = (当前股价 - 券商成本价) / 当初建仓时的实际股价 * 100%
-           
+
     适用场景：
         用于【个股持仓看板】列表。完美解决高抛低吸选手把持仓成本做到 0 或负数时，
         券商 App 收益率公式直接崩溃（显示 NaN、无穷大或异常负数）的痛点。
-        
+
     参数说明：
-        current_price (float): 当前股票最新的公允市场价格。
-        broker_cost_price (float): 券商后台显示的持仓成本价（做T狂魔该值通常 <= 0）。
-        initial_buy_price (float): 该股票最早建仓时的实际第一笔买入价（用作负成本时的理性分母）。
-        total_shares (float/int): 当前账户剩余的持仓股数。
+        current_price (Decimal): 当前股票最新的公允市场价格。
+        broker_cost_price (Decimal): 券商后台显示的持仓成本价（做T狂魔该值通常 <= 0）。
+        initial_buy_price (Decimal): 该股票最早建仓时的实际第一笔买入价（用作负成本时的理性分母）。
+        total_shares (Decimal): 当前账户剩余的持仓股数。
+
+    返回：
+        - rate_of_return: float（百分比精度足够）
+        - net_profit: Decimal（金额精度，与 PnL 一致）
     """
+    D = Decimal
+    cp = D(str(current_price))
+    bcp = D(str(broker_cost_price))
+    ibp = D(str(initial_buy_price))
+    ts = D(str(total_shares))
+
     # 纯账面底仓净利润 = (当前股价 - 券商成本价) * 持仓股数
-    # 数学上如果成本价为负，- (负数) 会自动变成加，完美计算出"高抛掉的本金 + 现价市值涨幅"的总利润
-    numerator = (current_price - broker_cost_price) * total_shares
+    numerator = (cp - bcp) * ts
 
     try:
         # 1. 成本大于 0：用正常券商公式计算
-        if broker_cost_price > 0:
-            roi = ((current_price - broker_cost_price) / broker_cost_price) * 100
+        if bcp > 0:
+            roi = ((cp - bcp) / bcp) * 100
             is_crazy = False
 
         # 2. 成本小于等于 0：触发做T流专属"剩余底仓收益率"公式
         else:
             # 初始建仓价异常（应 > 0，=0 为脏数据），无法计算剩余底仓收益率
-            if initial_buy_price <= 0:
+            if ibp <= 0:
                 return {
                     "success": False,
                     "rate_of_return": None,
@@ -45,12 +54,12 @@ def calculate_remaining_position_roi(current_price, broker_cost_price, initial_b
                     "is_crazy_trader": False,
                 }
 
-            roi = ((current_price - broker_cost_price) / initial_buy_price) * 100
+            roi = ((cp - bcp) / ibp) * 100
             is_crazy = True
 
         return {
             "success": True,
-            "rate_of_return": round(roi, 2),
+            "rate_of_return": round(float(roi), 2),
             "net_profit": numerator,
             "is_crazy_trader": is_crazy,
         }
@@ -90,56 +99,55 @@ def calculate_portfolio_overview(holdings, rates):
 
     参数说明：
         holdings (list[dict]): 逐只持仓原始数据，每项含：
-            - current_price (float): 当前股票最新的公允市场价格。
-            - broker_cost_price (float): 券商后台显示的持仓成本价（做T狂魔该值通常 <= 0）。
-            - initial_buy_price (float): 该股票最早建仓时的实际第一笔买入价。
-            - total_shares (float/int): 当前账户剩余的持仓股数。
+            - current_price (Decimal): 当前股票最新的公允市场价格。
+            - broker_cost_price (Decimal): 券商后台显示的持仓成本价（做T狂魔该值通常 <= 0）。
+            - initial_buy_price (Decimal): 该股票最早建仓时的实际第一笔买入价。
+            - total_shares (Decimal): 当前账户剩余的持仓股数。
             - currency (str): 计价货币，如 "CNY" / "USD"
-        rates (dict): USD-base 汇率，如 {"CNY": 7.2, "USD": 1.0}
+        rates (dict): USD-base 汇率，如 {"CNY": Decimal(7.2), "USD": Decimal(1.0)}
 
     返回：
-        统一返回格式：
+        统一返回格式（Decimal 精度）：
         - success: 总首买成本>0 时为 True，都<=0 时为 False
-        - rate_of_return: 总盈亏率，总首买成本也≤0 时为 None
-        - net_profit: 总盈亏金额（USD）
+        - rate_of_return: 总盈亏率（Decimal），总首买成本也≤0 时为 None
+        - net_profit: 总盈亏金额 USD（Decimal）
         - is_crazy_trader: 总成本≤0 时为 True（零成本/负成本持有）
-        - total_value: 总市值（USD）
-        - total_cost: 总成本（USD）
+        - total_value: 总市值 USD（Decimal）
+        - total_cost: 总成本 USD（Decimal）
     """
-    total_value = 0.0
-    total_cost = 0.0
-    total_initial_cost = 0.0
+    D = Decimal
+    total_value = D("0")
+    total_cost = D("0")
+    total_initial_cost = D("0")
 
     for h in holdings:
-        shares = h["total_shares"]
-        rate = rates.get(h["currency"], 1.0)
-        total_value += (shares * h["current_price"]) / rate
-        total_cost += (shares * h["broker_cost_price"]) / rate
-        total_initial_cost += (shares * h["initial_buy_price"]) / rate
+        shares = D(str(h["total_shares"]))
+        rate = D(str(rates.get(h["currency"], 1.0)))
+        total_value += (shares * D(str(h["current_price"]))) / rate
+        total_cost += (shares * D(str(h["broker_cost_price"]))) / rate
+        total_initial_cost += (shares * D(str(h["initial_buy_price"]))) / rate
 
     pnl = total_value - total_cost
 
     if total_cost > 0:
         return {
             "success": True,
-            "rate_of_return": (pnl / total_cost) * 100,
+            "rate_of_return": float((pnl / total_cost) * 100),
             "net_profit": pnl,
             "is_crazy_trader": False,
             "total_value": total_value,
             "total_cost": total_cost,
         }
     elif total_initial_cost > 0:
-        # 总成本 ≤ 0：用总首买成本做分母（剩余底仓收益率，与单只公式一致）
         return {
             "success": True,
-            "rate_of_return": (pnl / total_initial_cost) * 100,
+            "rate_of_return": float((pnl / total_initial_cost) * 100),
             "net_profit": pnl,
             "is_crazy_trader": True,
             "total_value": total_value,
             "total_cost": total_cost,
         }
     else:
-        # 总首买成本也 ≤ 0（极端情况）
         return {
             "success": False,
             "rate_of_return": None,
