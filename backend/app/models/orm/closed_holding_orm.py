@@ -62,6 +62,7 @@ class ClosedTransactionRecord(Base):
     quantity: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    fee_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 6), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # 追溯：原 transactions.id（归档后原表已删除，但保留 id 以备审计）
     original_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -156,6 +156,7 @@ export interface Transaction {
   quantity: number | null
   unit_price: number | null
   amount: number | null
+  fee_rate: number | null  // 费率百分比（如 0.03 表示万分之三）
   notes: string | null
 }
 
@@ -201,6 +202,7 @@ export interface ClosedTransaction {
   quantity: number | null
   unit_price: number | null
   amount: number | null
+  fee_rate: number | null
   notes: string | null
   original_id: number | null
 }

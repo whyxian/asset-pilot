@@ -572,6 +572,7 @@ async def archive_holding(
             quantity=txn.quantity,
             unit_price=txn.unit_price,
             amount=txn.amount,
+            fee_rate=txn.fee_rate,
             notes=txn.notes,
             original_id=txn.id,
         ))

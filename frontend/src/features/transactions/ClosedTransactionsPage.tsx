@@ -42,7 +42,7 @@ export function ClosedTransactionsPage() {
           <table className="w-full text-sm tabular-nums">
             <thead>
               <tr className="bg-muted/50">
-                {['日期', '代码', '市场', '类型', '方向', '数量', '成交价', '金额', '备注'].map((h) => (
+                {['日期', '代码', '市场', '类型', '方向', '数量', '成交价', '金额', '费率', '备注'].map((h) => (
                   <th key={h} className="text-left p-3">{h}</th>
                 ))}
               </tr>
@@ -108,6 +108,7 @@ export function ClosedTransactionsPage() {
               <th className="text-right p-3">数量</th>
               <th className="text-right p-3">成交价</th>
               <th className="text-right p-3">金额</th>
+              <th className="text-right p-3">费率</th>
               <th className="text-left p-3">备注</th>
             </tr>
           </thead>
@@ -131,6 +132,9 @@ export function ClosedTransactionsPage() {
                 </td>
                 <td className="p-3 text-right">
                   {t.amount != null ? formatPrice(t.amount) : '-'}
+                </td>
+                <td className="p-3 text-right">
+                  {t.fee_rate != null ? `${t.fee_rate}%` : '-'}
                 </td>
                 <td className="p-3 text-muted-foreground">{t.notes || '-'}</td>
               </tr>

@@ -19,6 +19,7 @@ class ClosedTransaction(BaseModel):
     quantity: Optional[Decimal] = None
     unit_price: Optional[Decimal] = None
     amount: Optional[Decimal] = None
+    fee_rate: Optional[Decimal] = None
     notes: Optional[str] = None
     original_id: Optional[int] = None
 
