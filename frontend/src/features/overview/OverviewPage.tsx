@@ -172,6 +172,11 @@ export function OverviewPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">历史累计总收益</CardTitle>
+            {stats.annualized_return != null ? (
+              stats.cumulative_return >= 0
+                ? <TrendingUp className={`w-4 h-4 ${upColor}`} />
+                : <TrendingDown className={`w-4 h-4 ${downColor}`} />
+            ) : null}
           </CardHeader>
           <CardContent>
             {stats.annualized_return != null ? (
