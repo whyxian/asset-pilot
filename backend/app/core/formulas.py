@@ -1,4 +1,6 @@
 from datetime import datetime
+from decimal import Decimal
+
 from pyxirr import xirr
 
 
@@ -225,54 +227,57 @@ def calculate_xirr(V0, V1, trade_flows, start_date, end_date):
 def calculate_modified_dietz(V0, V1, trade_flows, start_date, end_date):
     """
     方法名称：标准（修正）迪茨法收益率（Modified Dietz Method）
-    
+
     数学公式：
         ROI = (V1 - V0 - Σ CF_i) / (V0 + Σ (CF_i * W_i)) * 100%
         其中时间权重 W_i = (总自然天数 CD - 该笔流水已过去天数 D_i) / 总自然天数 CD
-        
+
     适用场景：
         用于【任意时间段切片看板】（如：看上周二到这周四、或者近3天的综合表现）。
         一种国际公认的金额加权回报率算法。它不关心复利，而是通过时间权重将中途进出的钱
         合理折算到"期初总成本"中，能够极其客观地反映某一独立封闭时间区间内的【绝对资产膨胀效率】。
-        
+
     参数说明：
-        V0 (float): 统计起点日期当天的持仓总市值。
-        V1 (float): 统计终点日期当天的持仓总市值。
-        trade_flows (list): 期间流水列表，格式如 [{'date': '2026-06-01', 'amount': 5000}, ...]
+        V0 (Decimal): 统计起点日期当天的持仓总市值。
+        V1 (Decimal): 统计终点日期当天的持仓总市值。
+        trade_flows (list): 期间流水列表，格式如 [{'date': '2026-06-01', 'amount': Decimal(5000)}, ...]
                             其中 amount 遵循系统原始流水视点：买入/充钱为正，卖出/提现为负。
+                            amount 已换算为同一币种（USD）。
         start_date (str): 统计起点日期，格式 'YYYY-MM-DD'。
         end_date (str): 统计终点日期，格式 'YYYY-MM-DD'。
+
+    返回：
+        rate_of_return: 全程 Decimal 运算，最终转 float（% 精度足够）
+        net_profit: Decimal（与 PnL 一致的精度，不做 float 转换）
     """
+    D = Decimal  # 缩写，内部全程 Decimal
+
     # 1. 计算总自然天数 (CD)
     CD = (datetime.strptime(end_date, "%Y-%m-%d") - datetime.strptime(start_date, "%Y-%m-%d")).days
-    if CD == 0: 
+    if CD == 0:
         CD = 1  # 防止当天买卖、当天查询导致除以 0
-        
-    total_cf = 0        # 纯现金流总和 (分子用)
-    weighted_cf = 0     # 时间加权现金流总和 (分母用)
-    
-    # 2. 遍历期间的每一笔流水，计算时间权重
+
+    total_cf = D("0")       # 纯现金流总和 (分子用)
+    weighted_cf = D("0")    # 时间加权现金流总和 (分母用)
+
+    # 2. 遍历期间的每一笔流水，计算时间权重（全程 Decimal）
     for flow in trade_flows:
         flow_date = datetime.strptime(flow['date'], "%Y-%m-%d")
-        flow_amount = flow['amount']
-        
-        # 计算这笔资金发生时，距离统计起点已经过去了多少天 (Di)
+        flow_amount = D(str(flow['amount']))
+
         Di = (flow_date - datetime.strptime(start_date, "%Y-%m-%d")).days
-        
-        # 计算时间权重 Wi（在账上躺得越久，权重越接近 1；最后一天进来的钱，权重接近 0）
-        Wi = (CD - Di) / CD
-        
-        # 累加数据
+        Wi = D(CD - Di) / D(CD)
+
         total_cf += flow_amount
-        weighted_cf += (flow_amount * Wi)
-        
+        weighted_cf += flow_amount * Wi
+
     # 3. 计算分子（剔除资金进出水分后的纯投资利润）
-    numerator = V1 - V0 - total_cf
-    
+    numerator = D(str(V1)) - D(str(V0)) - total_cf
+
     # 4. 计算分母（期初本金 + 期间每笔资金按时间折算后的加权真实总成本）
-    denominator = V0 + weighted_cf
-    
-    # 5. 安全阀：拦截负分母或分母为 0（当玩家在周期极早期就完成了超大额高抛提现时会触发）
+    denominator = D(str(V0)) + weighted_cf
+
+    # 5. 安全阀：拦截负分母或分母为 0
     if denominator <= 0:
         return {
             "success": False,
@@ -280,13 +285,13 @@ def calculate_modified_dietz(V0, V1, trade_flows, start_date, end_date):
             "net_profit": numerator,
             "is_crazy_trader": True,
         }
-        
-    # 6. 正常输出标准迪茨法收益率
+
+    # 6. 正常输出标准迪茨法收益率（rate_of_return 转 float，net_profit 保留 Decimal）
     roi = (numerator / denominator) * 100
     return {
         "success": True,
-        "rate_of_return": round(roi, 2),
+        "rate_of_return": float(roi),
         "net_profit": numerator,
-        "is_crazy_trader": False
+        "is_crazy_trader": False,
     }
 

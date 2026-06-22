@@ -103,15 +103,15 @@ class OverviewService:
             start_date = str(min(t.transaction_date for t in txns))
 
             dietz_result = calculate_modified_dietz(
-                V0=0,
-                V1=float(total_value_usd),
+                V0=Decimal("0"),
+                V1=total_value_usd,
                 trade_flows=trade_flows,
                 start_date=str(start_date),
                 end_date=str(today),
             )
             avg_annualized = dietz_result["rate_of_return"] if dietz_result["success"] else None
-            # net_profit 直接复用总盈亏（Decimal 源），避免 Modified Dietz 的 float 算术与总盈亏产生精度差异
-            cumulative_return_usd = total_pnl_usd
+            # net_profit 已是 Decimal（全程 Decimal 运算），直接使用
+            cumulative_return_usd = dietz_result["net_profit"]
         else:
             avg_annualized = None
             cumulative_return_usd = Decimal("0")
