@@ -153,50 +153,57 @@ def calculate_portfolio_overview(holdings, rates):
 def calculate_xirr(V0, V1, trade_flows, start_date, end_date):
     """
     方法名称：区间内部收益率（XIRR - Extracted Internal Rate of Return）
-    
+
     数学公式：
         求解方程使净现值 NPV = 0：
         0 = -V0 + Σ [ -CF_i / (1 + r)^((d_i - d_0)/365) ] + V1 / (1 + r)^((d_end - d_0)/365)
         解出来的 r 即为 XIRR 年化复利收益率。
-        
+
     适用场景：
         用于【中长周期大盘看板】（建议统计区间 >= 30天）。
         将整个账户视作动态资产池，把买卖看作现金的流入流出，最精准地衡量资金的【时间价值】。
         适合用来与公募基金、标普500等标准年化业绩做跨时空横向对比。
-        
+
     参数说明：
-        V0 (float): 统计起点日期当天的持仓总市值。
-        V1 (float): 统计终点日期当天的持仓总市值。
-        trade_flows (list): 期间流水列表，格式如 [{'date': '2026-06-01', 'amount': 5000}, ...]
+        V0 (Decimal): 统计起点日期当天的持仓总市值。
+        V1 (Decimal): 统计终点日期当天的持仓总市值。
+        trade_flows (list): 期间流水列表，格式如 [{'date': '2026-06-01', 'amount': Decimal(5000)}, ...]
                             其中 amount 遵循标准财务视点：买入股票/转入资金为正，卖出/提现为负。
+                            amount 已换算为同一币种（USD）。
         start_date (str): 统计起点日期，格式 'YYYY-MM-DD'。
         end_date (str): 统计终点日期，格式 'YYYY-MM-DD'。
+
+    返回：
+        rate_of_return: float（pyxirr 计算结果，精度足够）
+        net_profit: Decimal（与 PnL 一致的精度）
     """
-    # 预先计算分子（纯利润），作为统一输出字段，XIRR 的纯利润算账逻辑与迪茨法完全一致
-    total_cf_for_numerator = sum(float(flow['amount']) for flow in trade_flows)
-    numerator = V1 - V0 - total_cf_for_numerator
+    D = Decimal
+
+    # 预先计算分子（纯利润）——Decimal 运算，精度与 PnL 一致
+    total_cf_for_numerator = sum(D(str(flow['amount'])) for flow in trade_flows)
+    numerator = D(str(V1)) - D(str(V0)) - total_cf_for_numerator
 
     dates = []
-    amounts = []
-    
+    amounts = []  # pyxirr 要求 float
+
     # XIRR 现金流转换视点：看口袋现金的流向
     # 1. 压入期初快照 (资金离开口袋投入系统，记为负数)
     dates.append(datetime.strptime(start_date, "%Y-%m-%d"))
-    amounts.append(-float(V0))
-    
+    amounts.append(-float(D(str(V0))))
+
     # 2. 压入期间流水 (买入追加 = 现金流出袋记负；卖出提现 = 现金回流口袋记正)
     for flow in trade_flows:
         flow_date = datetime.strptime(flow['date'], "%Y-%m-%d")
         dates.append(flow_date)
-        amounts.append(-float(flow['amount'])) 
-        
+        amounts.append(-float(D(str(flow['amount']))))
+
     # 3. 压入期末快照 (视作最后一天全部空仓清算，资金悉数回口袋，记为正数)
     dates.append(datetime.strptime(end_date, "%Y-%m-%d"))
-    amounts.append(float(V1))
-    
+    amounts.append(float(D(str(V1))))
+
     try:
         result_r = xirr(dates, amounts)
-        
+
         # 安全阀：如果 XIRR 无法收敛（通常因为疯狂做T导致本金在初期被彻底抽干，方程出现多重解或无解）
         if result_r is None:
             return {
@@ -205,15 +212,15 @@ def calculate_xirr(V0, V1, trade_flows, start_date, end_date):
                 "net_profit": numerator,
                 "is_crazy_trader": True,
             }
-            
+
         roi = result_r * 100
         return {
             "success": True,
             "rate_of_return": round(roi, 2),
             "net_profit": numerator,
-            "is_crazy_trader": False
+            "is_crazy_trader": False,
         }
-        
+
     except Exception as e:
         # 捕获其他数学边界崩溃（如周期过短、分母尝试除以0、或者无正向现金流）
         return {
