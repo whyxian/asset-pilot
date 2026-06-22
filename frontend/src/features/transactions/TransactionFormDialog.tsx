@@ -118,12 +118,15 @@ export function TransactionFormDialog({
       setForm((prev) => {
         const next = { ...prev, [key]: value }
 
-        // quantity × unit_price → amount 自动联动（用户可后续手改 amount 覆盖）
-        if (key === 'quantity' || key === 'unit_price') {
+        // quantity × unit_price → amount 自动联动（含费率，用户可后续手改 amount 覆盖）
+        if (key === 'quantity' || key === 'unit_price' || key === 'fee_rate') {
           const qty = parseFloat(key === 'quantity' ? value : prev.quantity)
           const price = parseFloat(key === 'unit_price' ? value : prev.unit_price)
+          const fee = parseFloat(key === 'fee_rate' ? value : prev.fee_rate)
           if (!isNaN(qty) && !isNaN(price)) {
-            next.amount = String(qty * price)
+            const base = qty * price
+            const feeAmount = (!isNaN(fee) && fee > 0) ? base * fee / 100 : 0
+            next.amount = String(base + feeAmount)
           }
         }
 
