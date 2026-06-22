@@ -99,7 +99,7 @@ class OverviewService:
                 d = str(t.transaction_date)
                 daily_flows[d] = daily_flows.get(d, Decimal("0")) + amt_usd
 
-            trade_flows = [{"date": d, "amount": float(a)} for d, a in sorted(daily_flows.items())]
+            trade_flows = [{"date": d, "amount": a} for d, a in sorted(daily_flows.items())]
 
             start_date = str(min(t.transaction_date for t in txns))
 
