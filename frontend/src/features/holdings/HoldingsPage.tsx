@@ -224,6 +224,7 @@ export function HoldingsPage() {
         quantity: String(toNum(liquidating.quantity)),
         unit_price: String(toNum(liquidating.current_price)),
         amount: String(toNum(liquidating.quantity) * toNum(liquidating.current_price)),
+        fee_rate: '',
         notes: '',
       }
     : undefined

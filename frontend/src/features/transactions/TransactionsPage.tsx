@@ -318,6 +318,9 @@ export function TransactionsPage() {
                 <td className="p-3 text-right">
                   {t.amount != null ? formatPrice(t.amount) : '-'}
                 </td>
+                <td className="p-3 text-right">
+                  {t.fee_rate != null ? `${t.fee_rate}%` : '-'}
+                </td>
                 <td className="p-3 text-muted-foreground">{t.notes || '-'}</td>
                 <td className="p-3 sticky right-0 bg-background">
                   <div className="flex gap-1">
