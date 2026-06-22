@@ -83,6 +83,9 @@ class OverviewService:
         if txns:
             from app.core.formulas import calculate_modified_dietz
 
+            # ticker → 计价货币（用于交易金额换算到 USD）
+            txn_currency = {h.ticker: h.currency for h in holdings}
+
             # 构造现金流：buy=正（钱进系统），sell=负（钱出系统）
             # 同日多笔合并为一条（Modified Dietz 同日期权重相同，结果等价）
             daily_flows: dict[str, float] = {}
@@ -90,12 +93,15 @@ class OverviewService:
                 if t.amount is None:
                     continue
                 amt = float(t.amount) * (-1 if t.type == "sell" else 1)
+                # 换算到 USD（与 V1=total_value_usd 统一单位）
+                ccy = txn_currency.get(t.ticker, "USD")
+                amt_usd = float(convert_with_rates(Decimal(str(amt)), ccy, "USD", rates))
                 d = str(t.transaction_date)
-                daily_flows[d] = daily_flows.get(d, 0) + amt
+                daily_flows[d] = daily_flows.get(d, 0) + amt_usd
 
             trade_flows = [{"date": d, "amount": a} for d, a in sorted(daily_flows.items())]
 
-            start_date = min(t.transaction_date for t in txns)
+            start_date = str(min(t.transaction_date for t in txns))
 
             dietz_result = calculate_modified_dietz(
                 V0=0,
