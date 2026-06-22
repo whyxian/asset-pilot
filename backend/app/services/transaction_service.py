@@ -43,6 +43,8 @@ class TransactionService:
         校验链：
         1. (quantity + unit_price) 或 amount 至少一组
         2. 必须先建仓 — 持仓表中必须已存在 (asset_class, market, ticker) 三元组
+        3. fee_rate 范围 0~100
+        4. amount 与 qty × price × (1 + fee_rate/100) 一致（不一致则拒绝）
         """
         await self._validate_create_payload(data)
 
@@ -100,9 +102,42 @@ class TransactionService:
 
         如果修改了三元组（ticker / asset_class / market 任一），需要重算
         新旧两个品种（旧的少了这笔，新的多了这笔）。
+
+        校验：fee_rate 范围 + amount 一致性（用合并后的完整数据验算）
         """
+        from decimal import Decimal as _D
+
         async with async_session() as session:
             try:
+                record = (await session.execute(
+                    select(TransactionRecord).where(TransactionRecord.id == transaction_id)
+                )).scalar_one_or_none()
+                if not record:
+                    return None
+
+                # 合并新旧值，用于验算
+                merged_qty = data.quantity if data.quantity is not None else record.quantity
+                merged_price = data.unit_price if data.unit_price is not None else record.unit_price
+                merged_amount = data.amount if data.amount is not None else record.amount
+                merged_fee = data.fee_rate if data.fee_rate is not None else record.fee_rate
+
+                # fee_rate 范围校验
+                if merged_fee is not None and (merged_fee < 0 or merged_fee > 100):
+                    raise BusinessError(40001, f"费率必须在 0~100 之间，当前值 {merged_fee}")
+
+                # amount 一致性验算
+                if merged_qty is not None and merged_price is not None and merged_amount is not None:
+                    qty = _D(str(merged_qty))
+                    price = _D(str(merged_price))
+                    fee = _D(str(merged_fee)) if merged_fee is not None else _D("0")
+                    expected = qty * price * (_D("1") + fee / _D("100"))
+                    actual = _D(str(merged_amount))
+                    if abs(expected - actual) > _D("0.01"):
+                        raise BusinessError(
+                            40001,
+                            f"交易金额与 数量×成交价×(1+费率%) 不一致：期望 {expected}，实际 {actual}",
+                        )
+
                 record = (await session.execute(
                     select(TransactionRecord).where(TransactionRecord.id == transaction_id)
                 )).scalar_one_or_none()
@@ -184,7 +219,9 @@ class TransactionService:
                 raise
 
     async def _validate_create_payload(self, data: TransactionCreate) -> None:
-        """create 的前置业务校验：字段组合 / 必须先建仓"""
+        """create 的前置业务校验：字段组合 / 必须先建仓 / fee_rate 范围 / amount 一致性"""
+        from decimal import Decimal as _D
+
         # 至少填 quantity+unit_price 或 amount 之一
         has_qty_price = data.quantity is not None and data.unit_price is not None
         has_amount = data.amount is not None
@@ -193,6 +230,25 @@ class TransactionService:
                 40001,
                 "请填写 (数量 + 成交价) 或 (交易金额)，至少填一组",
             )
+
+        # fee_rate 范围校验：0~100
+        if data.fee_rate is not None:
+            if data.fee_rate < 0 or data.fee_rate > 100:
+                raise BusinessError(40001, f"费率必须在 0~100 之间，当前值 {data.fee_rate}")
+
+        # amount 一致性验算：qty × price × (1 + fee_rate/100) 必须与传入的 amount 一致
+        if has_qty_price and has_amount:
+            qty = _D(str(data.quantity))
+            price = _D(str(data.unit_price))
+            fee = _D(str(data.fee_rate)) if data.fee_rate is not None else _D("0")
+            expected = qty * price * (_D("1") + fee / _D("100"))
+            actual = _D(str(data.amount))
+            # 允许 0.01 的精度误差（Decimal 除法尾差）
+            if abs(expected - actual) > _D("0.01"):
+                raise BusinessError(
+                    40001,
+                    f"交易金额与 数量×成交价×(1+费率%) 不一致：期望 {expected}，实际 {actual}",
+                )
 
         # 必须先建仓（按三元组定位）
         async with async_session() as session:
