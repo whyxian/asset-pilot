@@ -1,4 +1,4 @@
-"""OverviewService 单元测试 — 覆盖 _calc_annualized + get_overview 聚合逻辑
+"""OverviewService 单元测试 — 覆盖 get_overview 聚合逻辑
 
 执行：
     .venv/bin/pytest test/test_overview_service.py -v
@@ -14,70 +14,6 @@ from app.models.asset_holding import AssetHolding
 from app.models.asset_quote import AssetQuote, QuoteStatus
 from app.models.overview import OverviewStats
 from app.services.overview_service import OverviewService
-
-
-# ════════════════════════════════════════════════════
-# _calc_annualized（纯静态方法，无需 mock）
-# ════════════════════════════════════════════════════
-
-def test_calc_annualized_normal():
-    """2 年持有，成本 10 → 现价 11（10% 总回报），年化 ≈ 4.88%"""
-    buy_date = date(2024, 1, 1)
-    today = date(2025, 12, 31)
-    result = OverviewService._calc_annualized(
-        Decimal("11"), Decimal("10"), buy_date, today,
-    )
-    assert result is not None
-    # holding_days = 730 + 1 = 731; annualized = 10 * 365/731 ≈ 4.9932
-    assert abs(result - 4.99) < 0.1
-
-
-def test_calc_annualized_cost_zero_with_price():
-    """cost_price=0 + current_price>0 → 返回 "+∞%"（零成本持有）"""
-    result = OverviewService._calc_annualized(
-        Decimal("11"), Decimal("0"), date(2024, 1, 1), date(2025, 1, 1),
-    )
-    assert result == "+∞%"
-
-
-def test_calc_annualized_cost_zero_no_price():
-    """cost_price=0 + current_price=0 → 返回 None（无意义的零持仓）"""
-    result = OverviewService._calc_annualized(
-        Decimal("0"), Decimal("0"), date(2024, 1, 1), date(2025, 1, 1),
-    )
-    assert result is None
-
-
-def test_calc_annualized_no_date():
-    """first_buy_date=None → 返回 None"""
-    result = OverviewService._calc_annualized(
-        Decimal("11"), Decimal("10"), None, date(2025, 1, 1),
-    )
-    assert result is None
-
-
-def test_calc_annualized_same_day():
-    """today == first_buy_date → holding_days = 1（不是 0），仍然可算"""
-    result = OverviewService._calc_annualized(
-        Decimal("11"), Decimal("10"), date(2025, 1, 1), date(2025, 1, 1),
-    )
-    # holding_days = 0 + 1 = 1，total_return = 10%，annualized = 10 * 365/1 = 3650
-    assert result is not None
-    assert result == 3650.0
-
-
-def test_calc_annualized_negative_return():
-    """亏损也正确计算：成本 10，现价 8（-20% 总回报）"""
-    buy_date = date(2024, 1, 1)
-    today = date(2025, 1, 1)
-    result = OverviewService._calc_annualized(
-        Decimal("8"), Decimal("10"), buy_date, today,
-    )
-    assert result is not None
-    # total_return_pct = (8-10)/10 * 100 = -20; holding_days = 366+1=367
-    # annualized = -20 * 365/367 ≈ -19.89
-    assert result < 0
-    assert abs(result - (-19.89)) < 0.5
 
 
 # ════════════════════════════════════════════════════

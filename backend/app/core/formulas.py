@@ -40,7 +40,7 @@ def calculate_remaining_position_roi(current_price, broker_cost_price, initial_b
                     "success": False,
                     "rate_of_return": None,
                     "net_profit": numerator,
-                    "is_crazy_trader": True,
+                    "is_crazy_trader": False,
                 }
 
             roi = ((current_price - broker_cost_price) / initial_buy_price) * 100
@@ -59,7 +59,7 @@ def calculate_remaining_position_roi(current_price, broker_cost_price, initial_b
             "success": False,
             "rate_of_return": None,
             "net_profit": numerator,
-            "is_crazy_trader": True,
+            "is_crazy_trader": False,
         }
 
 
@@ -113,16 +113,16 @@ def calculate_xirr(V0, V1, trade_flows, start_date, end_date):
         # 安全阀：如果 XIRR 无法收敛（通常因为疯狂做T导致本金在初期被彻底抽干，方程出现多重解或无解）
         if result_r is None:
             return {
-                "success": True,
-                "rate_of_return": "已回本 (年化复利已溢出)", 
+                "success": False,
+                "rate_of_return": None,
                 "net_profit": numerator,
-                "is_crazy_trader": True
+                "is_crazy_trader": True,
             }
             
         roi = result_r * 100
         return {
             "success": True,
-            "rate_of_return": f"{round(roi, 2)}%",
+            "rate_of_return": round(roi, 2),
             "net_profit": numerator,
             "is_crazy_trader": False
         }
@@ -130,10 +130,10 @@ def calculate_xirr(V0, V1, trade_flows, start_date, end_date):
     except Exception as e:
         # 捕获其他数学边界崩溃（如周期过短、分母尝试除以0、或者无正向现金流）
         return {
-            "success": True, 
-            "rate_of_return": "已回本 (0成本挂机中)", 
+            "success": False,
+            "rate_of_return": None,
             "net_profit": numerator,
-            "is_crazy_trader": True
+            "is_crazy_trader": False,
         }
     
 
@@ -190,17 +190,17 @@ def calculate_modified_dietz(V0, V1, trade_flows, start_date, end_date):
     # 5. 安全阀：拦截负分母或分母为 0（当玩家在周期极早期就完成了超大额高抛提现时会触发）
     if denominator <= 0:
         return {
-            "success": True,
-            "rate_of_return": "已回本 (0成本挂机中)", 
+            "success": False,
+            "rate_of_return": None,
             "net_profit": numerator,
-            "is_crazy_trader": True
+            "is_crazy_trader": True,
         }
         
     # 6. 正常输出标准迪茨法收益率
     roi = (numerator / denominator) * 100
     return {
         "success": True,
-        "rate_of_return": f"{round(roi, 2)}%",
+        "rate_of_return": round(roi, 2),
         "net_profit": numerator,
         "is_crazy_trader": False
     }
@@ -240,8 +240,8 @@ def calculate_portfolio_overview(holdings, rates):
 
     返回：
         统一返回格式：
-        - success: 始终为 True
-        - rate_of_return: 总盈亏率（%），总首买成本也≤0 时为 None
+        - success: 总首买成本>0 时为 True，都<=0 时为 False
+        - rate_of_return: 总盈亏率，总首买成本也≤0 时为 None
         - net_profit: 总盈亏金额（USD）
         - is_crazy_trader: 总成本≤0 时为 True（零成本/负成本持有）
         - total_value: 总市值（USD）

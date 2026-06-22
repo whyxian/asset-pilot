@@ -11,7 +11,7 @@ from app.repositories.asset_quote_repository import (
     StockQuoteRepository,
 )
 from app.repositories.asset_variety_repository import AssetVarietyRepository
-from app.utils.quote_cache import QuoteCache, quote_cache
+from app.utils.quote_cache import quote_cache
 
 # 行情并发拉取整体熔断阈值（统一在 SchedulerConfig.QUOTE_FETCH_TIMEOUT）
 QUOTE_FETCH_TIMEOUT = SchedulerConfig.QUOTE_FETCH_TIMEOUT

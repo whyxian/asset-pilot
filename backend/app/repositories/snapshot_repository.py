@@ -5,7 +5,7 @@ INSERT OR REPLACE 策略：当日重复触发快照会覆盖旧值（同一天�
 
 from datetime import date
 
-from sqlalchemy import desc, select
+from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 

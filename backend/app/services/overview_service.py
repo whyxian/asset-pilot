@@ -108,20 +108,3 @@ class OverviewService:
             rate_stale=rate_snapshot.is_stale,
         )
 
-    @staticmethod
-    def _calc_annualized(
-        current_price: Decimal, cost_price: Decimal, first_buy_date: date, today: date
-    ) -> float | str | None:
-        """计算简单年化回报率
-
-        零成本持有（做T回本）时返回 "+∞%"
-        """
-        if not first_buy_date:
-            return None
-        if cost_price <= 0:
-            return "+∞%" if current_price > 0 else None
-        holding_days = (today - first_buy_date).days + 1
-        if holding_days < 1:
-            return None
-        total_return_pct = float((current_price - cost_price) / cost_price) * 100
-        return round(total_return_pct * (365 / holding_days), 4)

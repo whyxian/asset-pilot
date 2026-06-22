@@ -18,7 +18,6 @@ from app.models.snapshot import AssetSnapshot, NetWorthSnapshot
 from app.repositories.asset_holding_repository import AssetHoldingRepository
 from app.repositories.snapshot_repository import SnapshotRepository
 from app.services.asset_quote_service import AssetQuoteService
-from app.services.overview_service import OverviewService
 from app.utils.exchange_rate import convert_with_rates, fetch_rates_snapshot
 
 
