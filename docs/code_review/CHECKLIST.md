@@ -133,13 +133,50 @@ mock 的函数签名（参数名、关键字参数）是否与真实函数一致
 
 ---
 
-## 六、文档同步
+## 六、后端数据校验（CR 必查）
 
-### ☐ 6.1 改动涉及的文档已更新
+> **铁律：前端传过来的一切数据都不可信。** 后端必须独立校验，不能假设前端做了校验就不重复做。
+> 不一致的数据 = 脏数据，**拒绝写入**，不是"存了再说"。
+> Pydantic `Field(gt=0)` 等约束是第一道防线，service 层一致性验算是第二道。
+
+### ☐ 6.1 数值范围校验
+
+**检查方法**：每个接受用户输入的 Pydantic 模型，检查数值字段是否有 `Field(gt=0)` / `Field(ge=0)` 等约束。无约束的数值字段 = 问题。
+
+**反例**：`AssetHoldingCreate.quantity: Decimal` 没有 `gt=0`，用户传 0 或负数直接入库。
+
+### ☐ 6.2 字段间一致性验算
+
+**检查方法**：对每个涉及多字段关系的写入接口（create/update），检查 service 层是否验算字段间的一致性。不一致时 `raise BusinessError` 拒绝写入。
+
+**必须验算的关系**：
+- 建仓：`total_invested == quantity × cost_price`（误差 > 0.01 拒绝）
+- 交易：`amount == quantity × unit_price × (1 + fee_rate/100)`（误差 > 0.01 拒绝）
+- 交易：`fee_rate` 范围 0~100
+
+**反例**：交易表单前端算出 `amount = qty × price + 手续费`，但用户手改 amount 为乱值，后端不验算直接存入 → DB 里 `amount` 和 `qty × price` 对不上 → recompute 和 Modified Dietz 算出不同结果。
+
+### ☐ 6.3 update 操作合并验算
+
+**检查方法**：update 接口只传部分字段时，service 层是否把新旧值合并后再验算。
+
+**反例**：编辑交易只传了 `fee_rate`，没传 `amount`。后端只校验 `fee_rate` 范围，不合并旧的 `amount` 验算一致性 → 改了费率但金额没跟着改，脏数据入库。
+
+### ☐ 6.4 精度一致性
+
+**检查方法**：金额类字段（Decimal）在 service → formulas → DB 全链路是否有 `float()` 转换。有 = 问题。
+
+**反例**：`float(h.cost_price)` 传给公式 → 公式内部 float 算术 → `Decimal(str(float))` 回来 → 精度损失累积，两条路径算同一金额差 ¥21。
+
+---
+
+## 七、文档同步
+
+### ☐ 7.1 改动涉及的文档已更新
 
 涉及架构/接口/数据库/进度的改动，同步更新 docs/ 对应文档（architecture / progress / database / requirements）和 CLAUDE.md。
 
-### ☐ 6.2 过时引用已清理
+### ☐ 7.2 过时引用已清理
 
 删除的文件/重命名的函数/改过的命令，文档里是否还有残留引用？（如 CLAUDE.md 曾引用已删的 `test_stock_api.py`）
 
