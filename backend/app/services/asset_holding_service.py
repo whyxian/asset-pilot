@@ -58,6 +58,16 @@ class AssetHoldingService:
         recompute 从 0 起点回放交易算出。事务原子：行情校验 → 持仓 + 交易 + recompute。
         """
         from app.core.database import async_session
+        from decimal import Decimal as _D
+
+        # 0. 校验 total_invested == quantity × cost_price（不信任前端）
+        expected = _D(str(data.quantity)) * _D(str(data.cost_price))
+        actual = _D(str(data.total_invested))
+        if abs(expected - actual) > _D("0.01"):
+            raise BusinessError(
+                40001,
+                f"总投入与 数量×成本价 不一致：期望 {expected}，实际 {actual}",
+            )
 
         # 1. 校验品种存在
         variety = await self._variety_repo.get_variety(data.ticker, data.asset_class, data.market)

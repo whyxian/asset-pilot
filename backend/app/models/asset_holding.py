@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AssetHolding(BaseModel):
@@ -29,18 +29,18 @@ class AssetHoldingCreate(BaseModel):
     market: str
     asset_class: str
     currency: str = "CNY"
-    quantity: Decimal
-    cost_price: Decimal
-    total_invested: Decimal
+    quantity: Decimal = Field(..., gt=0)  # 持仓量必须 > 0
+    cost_price: Decimal = Field(..., gt=0)  # 成本价必须 > 0（建仓时）
+    total_invested: Decimal = Field(..., gt=0)  # 总投入必须 > 0
     first_buy_date: date
 
 
 class AssetHoldingUpdate(BaseModel):
     """更新持仓请求"""
     name: Optional[str] = None
-    quantity: Optional[Decimal] = None
-    cost_price: Optional[Decimal] = None
-    total_invested: Optional[Decimal] = None
+    quantity: Optional[Decimal] = Field(None, gt=0)
+    cost_price: Optional[Decimal] = None  # 做T后可为 0 或负
+    total_invested: Optional[Decimal] = None  # 做T后可为 0 或负
     first_buy_date: Optional[date] = None
 
 
