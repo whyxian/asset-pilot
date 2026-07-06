@@ -1,13 +1,15 @@
+import { useEffect, useState } from 'react'
 import { useOverview } from '@/hooks/useOverview'
 import { useCreateSnapshot, useSnapshots } from '@/hooks/useSnapshots'
 import { fetchOverview } from '@/api/endpoints'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { CountUp } from '@/components/ui/countup'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Camera, RefreshCw, TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
-import { formatPrice, formatPct } from '@/lib/utils'
+import { formatPrice, formatPct, toNum } from '@/lib/utils'
 import { useColors } from '@/lib/settings'
 import {
   CartesianGrid,
@@ -26,6 +28,14 @@ export function OverviewPage() {
   const { data: snapshots } = useSnapshots(CURRENCY)
   const createSnapshotMut = useCreateSnapshot()
   const queryClient = useQueryClient()
+  const { upColor, downColor } = useColors()
+
+  // 入场动画：卡片 + 配比进度条统一在 mount 后展开
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50)
+    return () => clearTimeout(t)
+  }, [])
 
   // 手动刷新：force_refresh=true 绕过基金 15 分钟缓存，强制拉最新行情后写回缓存
   const refreshMut = useMutation({
@@ -98,7 +108,6 @@ export function OverviewPage() {
   }
 
   const isPositive = stats.total_pnl >= 0
-  const { upColor, downColor } = useColors()
 
   // ---- 正常渲染 ----
   return (
@@ -126,7 +135,7 @@ export function OverviewPage() {
       </div>
 
       {/* 统计卡 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-500 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">总市值</CardTitle>
@@ -134,7 +143,7 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatPrice(stats.total_value, stats.currency, 2)}
+              <CountUp end={toNum(stats.total_value)} duration={0.8} decimals={2} formattingFn={(v: number) => formatPrice(v, stats.currency, 2)} />
             </div>
           </CardContent>
         </Card>
@@ -146,7 +155,7 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatPrice(stats.total_cost, stats.currency, 2)}
+              <CountUp end={toNum(stats.total_cost)} duration={0.8} decimals={2} formattingFn={(v: number) => formatPrice(v, stats.currency, 2)} />
             </div>
           </CardContent>
         </Card>
@@ -161,7 +170,7 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className={`${isPositive ? upColor : downColor} inline-flex items-baseline gap-2`}>
-              <span className="text-2xl font-bold">{isPositive ? '+' : ''}{formatPrice(stats.total_pnl, stats.currency, 2)}</span>
+              <span className="text-2xl font-bold">{isPositive ? '+' : ''}<CountUp end={toNum(stats.total_pnl)} duration={0.8} decimals={2} formattingFn={(v: number) => formatPrice(v, stats.currency, 2)} /></span>
               <span className="text-sm text-muted-foreground">
                 {formatPct(stats.total_pnl_pct)}
               </span>
@@ -182,7 +191,7 @@ export function OverviewPage() {
             {stats.annualized_return != null ? (
               <div className={`inline-flex items-baseline gap-2 ${stats.cumulative_return >= 0 ? upColor : downColor}`}>
                 <span className="text-2xl font-bold">
-                  {stats.cumulative_return >= 0 ? '+' : ''}{formatPrice(stats.cumulative_return, stats.currency, 2)}
+                  {stats.cumulative_return >= 0 ? '+' : ''}<CountUp end={toNum(stats.cumulative_return)} duration={0.8} decimals={2} formattingFn={(v: number) => formatPrice(v, stats.currency, 2)} />
                 </span>
                 <span className="text-sm text-muted-foreground">
                   {formatPct(stats.annualized_return)}
@@ -237,7 +246,9 @@ export function OverviewPage() {
                   strokeWidth={2}
                   dot={{ r: 2, strokeWidth: 1 }}
                   activeDot={{ r: 5 }}
-                  isAnimationActive={false}
+                  isAnimationActive={true}
+                  animationDuration={600}
+                  animationEasing="ease-out"
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -253,13 +264,16 @@ export function OverviewPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {stats.allocation.map((item) => (
+              {stats.allocation.map((item, i) => (
                 <div key={item.market} className="flex items-center gap-4">
                   <span className="w-20 text-sm">{item.label}</span>
                   <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-primary rounded-full"
-                      style={{ width: `${item.pct}%` }}
+                      className="h-full rounded-full transition-all duration-500 ease-out bg-primary"
+                      style={{
+                        width: mounted ? `${item.pct}%` : '0%',
+                        transitionDelay: `${i * 80}ms`,
+                      }}
                     />
                   </div>
                   <span className="w-20 text-right text-sm text-muted-foreground">
