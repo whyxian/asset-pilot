@@ -293,7 +293,7 @@ export function OverviewPage() {
         </div>
       )}
 
-      <p className={`text-sm text-center ${stats.rate_stale ? 'text-amber-600' : 'text-muted-foreground'}`}>
+      <p className={`text-sm text-center transition-all duration-500 ease-out delay-[250ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'} ${stats.rate_stale ? 'text-amber-600' : 'text-muted-foreground'}`}>
         {stats.rate_stale
           ? `⚠ 汇率非最新（来自 ${stats.rate_source_date ?? '未知日期'}），网络异常时使用历史汇率兜底 · 历史快照按当时汇率换算`
           : `汇率数据由 exchangerates 提供 · 更新于 ${stats.rate_source_date ?? '未知'} · 历史快照按当时汇率换算`}
