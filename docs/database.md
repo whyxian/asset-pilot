@@ -143,7 +143,7 @@
 
 ### 2.7 closed_holdings（归档持仓表）
 
-清仓后归档的完整持仓周期。realized_pnl = sum(sell.amount) - sum(buy.amount)（建仓投入通过 buy 交易体现）。
+清仓后归档的完整持仓周期。realized_pnl = sum(sell.amount) - sum(buy.amount)（建仓投入通过 buy 交易体现）。pnl_pct 用 Modified Dietz 在归档时计算（建仓金额 V0，末笔卖出 V1，中间交易 CF），不受做 T 干扰。
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -158,6 +158,8 @@
 | closed_at | DATE | NOT NULL | 清仓日期 |
 | holding_days | INTEGER | NOT NULL | 持仓天数 |
 | realized_pnl | DECIMAL(18,4) | NOT NULL | 已实现盈亏 = sum_sell - sum_buy |
+| pnl_pct | DECIMAL(8,4) | | Modified Dietz 收益率百分比（归档时计算） |
+| is_crazy_trader | BOOLEAN | NOT NULL DEFAULT 0 | 分母≤0 零成本持有标记 |
 
 ### 2.8 closed_transactions（归档交易表）
 
