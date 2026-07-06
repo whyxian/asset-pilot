@@ -96,6 +96,8 @@ def _record_to_closed_holding(r: ClosedHoldingRecord) -> ClosedHolding:
         closed_at=r.closed_at if isinstance(r.closed_at, date) else r.closed_at.date(),
         holding_days=r.holding_days,
         realized_pnl=Decimal(str(r.realized_pnl)),
+        pnl_pct=float(r.pnl_pct) if r.pnl_pct is not None else None,
+        is_crazy_trader=bool(r.is_crazy_trader),
     )
 
 

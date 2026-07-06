@@ -35,3 +35,14 @@ async def init_db():
         from app.models.orm.networth_snapshot_orm import NetWorthSnapshotRecord  # noqa: F401
         from app.models.orm.asset_snapshot_orm import AssetSnapshotRecord  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)
+
+        # 增量迁移：已存在的表加列（SQLite ALTER TABLE 不支持 IF NOT EXISTS）
+        from sqlalchemy import text
+        try:
+            await conn.execute(text("ALTER TABLE closed_holdings ADD COLUMN pnl_pct NUMERIC(8, 4)"))
+        except Exception:
+            pass  # 列已存在
+        try:
+            await conn.execute(text("ALTER TABLE closed_holdings ADD COLUMN is_crazy_trader BOOLEAN DEFAULT 0 NOT NULL"))
+        except Exception:
+            pass  # 列已存在

@@ -76,11 +76,13 @@ export function ClosedHoldingDetailDialog({ id, open, onOpenChange }: ClosedHold
               <div className="text-muted-foreground font-medium">已实现盈亏</div>
               <div className={`text-right font-medium ${toNum(data.realized_pnl) >= 0 ? upColor : downColor}`}>
                 {formatPrice(data.realized_pnl, data.currency, 2)}
-                {toNum(data.total_buy_amount) > 0 && (
+                {data.is_crazy_trader ? (
+                  <span className="ml-2 text-muted-foreground">(--%)</span>
+                ) : data.pnl_pct !== null ? (
                   <span className="ml-2">
-                    ({formatPct((toNum(data.realized_pnl) / toNum(data.total_buy_amount)) * 100)})
+                    ({formatPct(data.pnl_pct)})
                   </span>
-                )}
+                ) : null}
               </div>
             </div>
 

@@ -553,6 +553,46 @@ async def archive_holding(
 
     holding_days = (closed_at - holding.first_buy_date).days + 1
 
+    # Modified Dietz：建仓当 V0，最后一笔卖出当 V1，其余当现金流
+    from app.core.formulas import calculate_modified_dietz
+    # 建仓交易：按时间正序第一条 buy（建仓时 notes="建仓"）
+    first_buy = next((x for x in txns if x.type == "buy"), None)
+    v0_amount = Decimal("0")
+    # 最后一笔卖出
+    last_sell = next((x for x in reversed(txns) if x.type == "sell"), None)
+    v1_amount = Decimal("0")
+    trade_flows = []
+
+    def _resolve_amt(txn) -> Decimal:
+        if txn.amount is not None:
+            return Decimal(str(txn.amount))
+        if txn.quantity is not None and txn.unit_price is not None:
+            return Decimal(str(txn.quantity)) * Decimal(str(txn.unit_price))
+        return Decimal("0")
+
+    for txn in txns:
+        if txn is first_buy:
+            v0_amount = _resolve_amt(txn)
+            continue
+        if txn is last_sell:
+            v1_amount = _resolve_amt(txn)
+            continue
+        amt_val = _resolve_amt(txn)
+        flow_amt = amt_val if txn.type == "buy" else -amt_val
+        trade_flows.append({"date": str(txn.transaction_date), "amount": flow_amt})
+
+    dietz_result = calculate_modified_dietz(
+        V0=v0_amount,
+        V1=v1_amount,
+        trade_flows=trade_flows,
+        start_date=str(holding.first_buy_date),
+        end_date=str(closed_at),
+    )
+    # pnl_pct 存 float→Decimal；is_crazy_trader 直接用
+    dietz_pnl = dietz_result["rate_of_return"]
+    pnl_pct = Decimal(str(dietz_pnl)).quantize(Decimal("0.01")) if dietz_pnl is not None else None
+    is_crazy_trader = dietz_result["is_crazy_trader"]
+
     # INSERT closed_holdings
     closed = ClosedHoldingRecord(
         ticker=holding.ticker,
@@ -566,6 +606,8 @@ async def archive_holding(
         closed_at=closed_at,
         holding_days=holding_days,
         realized_pnl=realized_pnl,
+        pnl_pct=pnl_pct,
+        is_crazy_trader=is_crazy_trader,
     )
     session.add(closed)
     await session.flush()  # 拿 closed.id

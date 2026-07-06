@@ -38,6 +38,9 @@ class ClosedHolding(BaseModel):
     closed_at: date
     holding_days: int
     realized_pnl: Decimal
+    # Modified Dietz 计算的收益率（float 百分比，如 20.5 表示 20.5%）
+    pnl_pct: float | None = None
+    is_crazy_trader: bool = False
 
 
 class ClosedHoldingDetail(ClosedHolding):

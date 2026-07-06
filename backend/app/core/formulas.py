@@ -48,7 +48,7 @@ def calculate_remaining_position_roi(current_price, broker_cost_price, initial_b
             # 初始建仓价异常（应 > 0，=0 为脏数据），无法计算剩余底仓收益率
             if ibp <= 0:
                 return {
-                    "success": False,
+                    "success": True,
                     "rate_of_return": None,
                     "net_profit": numerator,
                     "is_crazy_trader": False,
@@ -108,7 +108,7 @@ def calculate_portfolio_overview(holdings, rates):
 
     返回：
         统一返回格式（Decimal 精度）：
-        - success: 总首买成本>0 时为 True，都<=0 时为 False
+        - success: 函数正常执行后恒为 True；异常中断时为 False
         - rate_of_return: 总盈亏率（Decimal），总首买成本也≤0 时为 None
         - net_profit: 总盈亏金额 USD（Decimal）
         - is_crazy_trader: 总成本≤0 时为 True（零成本/负成本持有）
@@ -149,7 +149,7 @@ def calculate_portfolio_overview(holdings, rates):
         }
     else:
         return {
-            "success": False,
+            "success": True,
             "rate_of_return": None,
             "net_profit": pnl,
             "is_crazy_trader": True,
@@ -215,7 +215,7 @@ def calculate_xirr(V0, V1, trade_flows, start_date, end_date):
         # 安全阀：如果 XIRR 无法收敛（通常因为疯狂做T导致本金在初期被彻底抽干，方程出现多重解或无解）
         if result_r is None:
             return {
-                "success": False,
+                "success": True,
                 "rate_of_return": None,
                 "net_profit": numerator,
                 "is_crazy_trader": True,
@@ -295,7 +295,7 @@ def calculate_modified_dietz(V0, V1, trade_flows, start_date, end_date):
     # 5. 安全阀：拦截负分母或分母为 0
     if denominator <= 0:
         return {
-            "success": False,
+            "success": True,
             "rate_of_return": None,
             "net_profit": numerator,
             "is_crazy_trader": True,

@@ -21,13 +21,6 @@ function toNum(v: number | string): number {
   return typeof v === 'string' ? parseFloat(v) : v
 }
 
-/** 该周期 PnL% = realized_pnl / total_buy_amount × 100 */
-function pnlPct(h: ClosedHolding): number | null {
-  const total = toNum(h.total_buy_amount)
-  if (!total || total === 0) return null
-  return (toNum(h.realized_pnl) / total) * 100
-}
-
 /** 公共头部：返回按钮 + 标题 */
 function PageHeader() {
   const navigate = useNavigate()
@@ -168,7 +161,7 @@ export function HistoryPage() {
           </thead>
           <tbody>
             {data.map((h) => {
-              const pct = pnlPct(h)
+              const pct = h.pnl_pct
               const positive = toNum(h.realized_pnl) >= 0
               return (
                 <tr key={h.id} className="border-t hover:bg-muted/30">
@@ -192,7 +185,9 @@ export function HistoryPage() {
                     </span>
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    {pct === null ? (
+                    {h.is_crazy_trader ? (
+                      <span className="text-muted-foreground">--%</span>
+                    ) : pct === null ? (
                       <span className="text-muted-foreground">N/A</span>
                     ) : (
                       <span className={`font-medium ${positive ? upColor : downColor}`}>

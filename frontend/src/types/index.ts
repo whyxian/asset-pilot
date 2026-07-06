@@ -221,6 +221,9 @@ export interface ClosedHolding {
   closed_at: string
   holding_days: number
   realized_pnl: number
+  // Modified Dietz 收益率
+  pnl_pct: number | null
+  is_crazy_trader: boolean
 }
 
 /** 归档持仓详情 — 含该周期全部交易 */

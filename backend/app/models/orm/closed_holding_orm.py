@@ -9,7 +9,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -37,6 +37,10 @@ class ClosedHoldingRecord(Base):
 
     # 该周期总实现盈亏 = sum(sell.amount) - sum(buy.amount)（建仓投入通过 buy 交易体现）
     realized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+
+    # Modified Dietz 计算的收益率（清仓时刻算，不做T干扰）
+    pnl_pct: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True, default=None)
+    is_crazy_trader: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now(), nullable=True)
