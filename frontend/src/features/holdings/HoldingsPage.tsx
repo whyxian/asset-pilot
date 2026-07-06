@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useHoldings } from '@/hooks/useHoldings'
@@ -104,6 +104,12 @@ export function HoldingsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
+  // 入场动画
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50)
+    return () => clearTimeout(t)
+  }, [])
   // 手动刷新：force_refresh=true 绕过基金 15 分钟缓存，强制拉最新行情后写回缓存
   const refreshMut = useMutation({
     mutationFn: () => fetchHoldingsWithQuotes(true),
@@ -301,25 +307,29 @@ export function HoldingsPage() {
   // ---- 正常渲染 ----
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">持仓</h1>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => refreshMut.mutate()}
-            disabled={refreshMut.isPending}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${refreshMut.isPending ? 'animate-spin' : ''}`} />
-            {refreshMut.isPending ? '刷新中...' : '刷新'}
-          </Button>
-          <Button variant="outline" onClick={() => navigate('/holdings/history')}>
-            <Archive className="w-4 h-4 mr-2" />历史持仓
-          </Button>
-          <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增持仓</Button>
+      {/* 标题 + 操作按钮 */}
+      <div className={`transition-all duration-500 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">持仓</h1>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => refreshMut.mutate()}
+              disabled={refreshMut.isPending}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshMut.isPending ? 'animate-spin' : ''}`} />
+              {refreshMut.isPending ? '刷新中...' : '刷新'}
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/holdings/history')}>
+              <Archive className="w-4 h-4 mr-2" />历史持仓
+            </Button>
+            <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增持仓</Button>
+          </div>
         </div>
       </div>
 
       {/* 市场筛选 Tab（标注各市场市值占比） */}
+      <div className={`transition-all duration-500 ease-out delay-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
       <div className="flex gap-1 border-b">
         {([
           { key: 'ALL', label: '全部' },
@@ -347,7 +357,9 @@ export function HoldingsPage() {
           )
         })}
       </div>
+      </div>
 
+      <div className={`transition-all duration-500 ease-out delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm tabular-nums">
           <thead>
@@ -413,8 +425,9 @@ export function HoldingsPage() {
           </tbody>
         </table>
       </div>
+      </div>
 
-      <p className="text-sm text-muted-foreground">共 {filteredHoldings.length} 个品种</p>
+      <p className={`text-sm text-muted-foreground transition-all duration-500 ease-out delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>共 {filteredHoldings.length} 个品种</p>
 
       <HoldingFormDialog
         open={dialogOpen} onOpenChange={setDialogOpen} onSubmit={handleFormSubmit}
