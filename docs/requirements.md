@@ -1,7 +1,7 @@
 # AssetPilot 需求文档
 
-> 版本：v2.4
-> 最后更新：2026-06-19
+> 版本：v2.5
+> 最后更新：2026-07-06
 
 ---
 
@@ -30,6 +30,7 @@
 - ✅ **净值走势图**：Recharts 折线图（基于 networth_snapshots 快照）
 - ✅ **资产配比**：按 market（CN/US/CRYPTO）分组的市值占比，进度条展示
 - ✅ **手动刷新**：刷新按钮强制拉最新行情（force_refresh=true 绕过基金 15min 缓存）
+- ✅ **入场动画**：卡片/图表/进度条依次 fade-in + 上滑 500ms 入场，数字从 0 滚动到目标值（0.8s ease-out）
 
 ### 3.2 持仓页（`/holdings`）✅ 已实现
 
@@ -126,6 +127,7 @@
 | 前端 | React + TypeScript + Vite + Tailwind CSS + shadcn/ui |
 | 图表 | Recharts |
 | 图标 | lucide-react |
+| 数字动画 | 自定义 CountUp 组件（requestAnimationFrame，替换 react-countup） |
 | HTTP 客户端 | Axios（前端）/ httpx（后端） |
 | 状态管理 | Zustand（待用） + TanStack Query |
 | 美股爬取 | Playwright (async API) |
