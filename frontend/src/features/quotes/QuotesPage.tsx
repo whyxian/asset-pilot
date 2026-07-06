@@ -236,8 +236,10 @@ export function QuotesPage() {
 
       {/* 初始空态 — 没有任何查询时显示 */}
       {!quoteMutation.isPending && !quoteMutation.isError && results.length === 0 && (
-        <div className="flex items-center justify-center h-64 border rounded-md bg-muted/20">
-          <p className="text-muted-foreground">输入标的代码查看实时行情</p>
+        <div className={`transition-all duration-500 ease-out delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+          <div className="flex items-center justify-center h-64 border rounded-md bg-muted/20">
+            <p className="text-muted-foreground">输入标的代码查看实时行情</p>
+          </div>
         </div>
       )}
     </div>
