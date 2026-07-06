@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClosedHoldings, useDeleteClosedHolding } from '@/hooks/useClosedHoldings'
 import { Badge } from '@/components/ui/badge'
@@ -45,6 +45,11 @@ export function HistoryPage() {
   const { data, isLoading, isError, error, refetch } = useClosedHoldings()
   const deleteMut = useDeleteClosedHolding()
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50)
+    return () => clearTimeout(t)
+  }, [])
   const { upColor, downColor } = useColors()
   const [deleteConfirm, setDeleteConfirm] = useState<ClosedHolding | null>(null)
 
@@ -118,27 +123,32 @@ export function HistoryPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader />
+      <div className={`transition-all duration-500 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <PageHeader />
+      </div>
 
-      {deleteConfirm && (
-        <div className="flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 p-3">
-          <p className="text-sm">
-            确定删除 <span className="font-medium">{deleteConfirm.ticker}</span>（{deleteConfirm.name}）的历史持仓记录？关联的归档交易也会一并删除。
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setDeleteConfirm(null)}>取消</Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={confirmDelete}
-              disabled={deleteMut.isPending}
-            >
-              {deleteMut.isPending ? '删除中...' : '确认删除'}
-            </Button>
+      <div className={`transition-all duration-500 ease-out delay-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        {deleteConfirm && (
+          <div className="flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 p-3">
+            <p className="text-sm">
+              确定删除 <span className="font-medium">{deleteConfirm.ticker}</span>（{deleteConfirm.name}）的历史持仓记录？关联的归档交易也会一并删除。
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDeleteConfirm(null)}>取消</Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={confirmDelete}
+                disabled={deleteMut.isPending}
+              >
+                {deleteMut.isPending ? '删除中...' : '确认删除'}
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
+      <div className={`transition-all duration-500 ease-out delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm tabular-nums">
           <thead>
@@ -206,8 +216,9 @@ export function HistoryPage() {
           </tbody>
         </table>
       </div>
+      </div>
 
-      <p className="text-sm text-muted-foreground">共 {data.length} 笔历史持仓</p>
+      <p className={`text-sm text-muted-foreground transition-all duration-500 ease-out delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>共 {data.length} 笔历史持仓</p>
 
       <ClosedHoldingDetailDialog
         id={detailId}

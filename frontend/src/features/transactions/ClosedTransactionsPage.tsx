@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClosedTransactions } from '@/hooks/useClosedHoldings'
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +33,11 @@ function PageHeader() {
 
 export function ClosedTransactionsPage() {
   const { data, isLoading, isError, error, refetch } = useClosedTransactions()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50)
+    return () => clearTimeout(t)
+  }, [])
 
   // ---- 加载态 ----
   if (isLoading) {
@@ -91,59 +97,68 @@ export function ClosedTransactionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <PageHeader />
-        <p className="text-sm text-muted-foreground">仅展示已清仓周期的归档交易（只读）</p>
+      {/* 标题区 */}
+      <div className={`transition-all duration-500 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <div className="flex items-center justify-between">
+          <PageHeader />
+          <p className="text-sm text-muted-foreground">仅展示已清仓周期的归档交易（只读）</p>
+        </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm tabular-nums">
-          <thead>
-            <tr className="bg-muted/50">
-              <th className="text-left p-3">日期</th>
-              <th className="text-left p-3">代码</th>
-              <th className="text-left p-3">市场</th>
-              <th className="text-left p-3">类型</th>
-              <th className="text-left p-3">方向</th>
-              <th className="text-right p-3">数量</th>
-              <th className="text-right p-3">成交价</th>
-              <th className="text-right p-3">金额</th>
-              <th className="text-right p-3">费率</th>
-              <th className="text-left p-3">备注</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((t) => (
-              <tr key={t.id} className="border-t hover:bg-muted/30">
-                <td className="p-3">{t.transaction_date}</td>
-                <td className="p-3 font-medium">{t.ticker}</td>
-                <td className="p-3"><Badge variant="outline">{marketLabel[t.market] || t.market}</Badge></td>
-                <td className="p-3 text-muted-foreground">{t.asset_class}</td>
-                <td className="p-3">
-                  <Badge variant={t.type === 'buy' ? 'default' : 'destructive'}>
-                    {typeLabel[t.type] || t.type}
-                  </Badge>
-                </td>
-                <td className="p-3 text-right">
-                  {t.quantity != null ? toNum(t.quantity).toLocaleString() : '-'}
-                </td>
-                <td className="p-3 text-right">
-                  {t.unit_price != null ? formatPrice(t.unit_price) : '-'}
-                </td>
-                <td className="p-3 text-right">
-                  {t.amount != null ? formatPrice(t.amount) : '-'}
-                </td>
-                <td className="p-3 text-right">
-                  {t.fee_rate != null ? `${t.fee_rate}%` : '-'}
-                </td>
-                <td className="p-3 text-muted-foreground">{t.notes || '-'}</td>
+      {/* 交易表格 */}
+      <div className={`transition-all duration-500 ease-out delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-sm tabular-nums">
+            <thead>
+              <tr className="bg-muted/50">
+                <th className="text-left p-3">日期</th>
+                <th className="text-left p-3">代码</th>
+                <th className="text-left p-3">市场</th>
+                <th className="text-left p-3">类型</th>
+                <th className="text-left p-3">方向</th>
+                <th className="text-right p-3">数量</th>
+                <th className="text-right p-3">成交价</th>
+                <th className="text-right p-3">金额</th>
+                <th className="text-right p-3">费率</th>
+                <th className="text-left p-3">备注</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.map((t) => (
+                <tr key={t.id} className="border-t hover:bg-muted/30">
+                  <td className="p-3">{t.transaction_date}</td>
+                  <td className="p-3 font-medium">{t.ticker}</td>
+                  <td className="p-3"><Badge variant="outline">{marketLabel[t.market] || t.market}</Badge></td>
+                  <td className="p-3 text-muted-foreground">{t.asset_class}</td>
+                  <td className="p-3">
+                    <Badge variant={t.type === 'buy' ? 'default' : 'destructive'}>
+                      {typeLabel[t.type] || t.type}
+                    </Badge>
+                  </td>
+                  <td className="p-3 text-right">
+                    {t.quantity != null ? toNum(t.quantity).toLocaleString() : '-'}
+                  </td>
+                  <td className="p-3 text-right">
+                    {t.unit_price != null ? formatPrice(t.unit_price) : '-'}
+                  </td>
+                  <td className="p-3 text-right">
+                    {t.amount != null ? formatPrice(t.amount) : '-'}
+                  </td>
+                  <td className="p-3 text-right">
+                    {t.fee_rate != null ? `${t.fee_rate}%` : '-'}
+                  </td>
+                  <td className="p-3 text-muted-foreground">{t.notes || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <p className="text-sm text-muted-foreground">共 {data.length} 笔历史交易</p>
+      {/* 页脚 */}
+      <div className={`transition-all duration-500 ease-out delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <p className="text-sm text-muted-foreground">共 {data.length} 笔历史交易</p>
+      </div>
     </div>
   )
 }

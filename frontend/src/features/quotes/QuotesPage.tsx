@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -129,6 +129,13 @@ export function QuotesPage() {
   const [input, setInput] = useState('')
   const [selectedOption, setSelectedOption] = useState<string>('cn_stock')
 
+  // 入场动画
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50)
+    return () => clearTimeout(t)
+  }, [])
+
   const quoteMutation = useQuoteSearch()
 
   const handleSearch = useCallback(() => {
@@ -164,33 +171,37 @@ export function QuotesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">行情查询</h1>
+      <div className={`transition-all duration-500 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <h1 className="text-2xl font-bold">行情查询</h1>
+      </div>
 
       {/* 搜索栏 */}
-      <div className="flex gap-2">
-        <Input
-          placeholder="输入代码查询，如 600519 / AAPL / BTC"
-          className="max-w-xs"
-          value={input}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-        />
-        <Select value={selectedOption} onValueChange={setSelectedOption}>
-          <SelectTrigger className="w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MARKET_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button onClick={handleSearch} disabled={quoteMutation.isPending}>
-          <Search className="w-4 h-4 mr-2" />
-          查询
-        </Button>
+      <div className={`transition-all duration-500 ease-out delay-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <div className="flex gap-2">
+          <Input
+            placeholder="输入代码查询，如 600519 / AAPL / BTC"
+            className="max-w-xs"
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+          />
+          <Select value={selectedOption} onValueChange={setSelectedOption}>
+            <SelectTrigger className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MARKET_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={handleSearch} disabled={quoteMutation.isPending}>
+            <Search className="w-4 h-4 mr-2" />
+            查询
+          </Button>
+        </div>
       </div>
 
       {/* 加载态 */}
@@ -214,10 +225,12 @@ export function QuotesPage() {
 
       {/* 查询结果 */}
       {!quoteMutation.isPending && !quoteMutation.isError && results.length > 0 && (
-        <div className="space-y-3 max-w-md">
-          {results.map((q) => (
-            <QuoteCard key={q.ticker} quote={q} />
-          ))}
+        <div className={`transition-all duration-500 ease-out delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+          <div className="space-y-3 max-w-md">
+            {results.map((q) => (
+              <QuoteCard key={q.ticker} quote={q} />
+            ))}
+          </div>
         </div>
       )}
 

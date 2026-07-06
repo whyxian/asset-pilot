@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTransactions } from '@/hooks/useTransactions'
 import {
   useCreateTransaction,
@@ -68,6 +68,13 @@ export function TransactionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTxn, setEditingTxn] = useState<Transaction | undefined>(undefined)
   const [deleteConfirm, setDeleteConfirm] = useState<Transaction | null>(null)
+
+  // 入场动画
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50)
+    return () => clearTimeout(t)
+  }, [])
 
   function handleCreate() {
     setEditingTxn(undefined)
@@ -230,17 +237,21 @@ export function TransactionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">交易记录</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate('/transactions/history')}>
-            <Archive className="w-4 h-4 mr-2" />历史记录
-          </Button>
-          <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增交易</Button>
+      {/* 标题 + 操作按钮 */}
+      <div className={`transition-all duration-500 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">交易记录</h1>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/transactions/history')}>
+              <Archive className="w-4 h-4 mr-2" />历史记录
+            </Button>
+            <Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />新增交易</Button>
+          </div>
         </div>
       </div>
 
       {/* 市场筛选 Tab */}
+      <div className={`transition-all duration-500 ease-out delay-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
       <div className="flex gap-1 border-b">
         {tabs.map((tab) => (
           <button
@@ -258,7 +269,9 @@ export function TransactionsPage() {
           </button>
         ))}
       </div>
+      </div>
 
+      <div className={`transition-all duration-500 ease-out delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
       {deleteConfirm && (
         <div className="flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/10 p-3">
           <p className="text-sm">
@@ -340,8 +353,9 @@ export function TransactionsPage() {
           </tbody>
         </table>
       </div>
+      </div>
 
-      <p className="text-sm text-muted-foreground">共 {filteredTxns.length} 条记录</p>
+      <p className={`text-sm text-muted-foreground transition-all duration-500 ease-out delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>共 {filteredTxns.length} 条记录</p>
 
       <TransactionFormDialog
         open={dialogOpen}
