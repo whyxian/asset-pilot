@@ -85,7 +85,7 @@ export function ClosedTransactionsPage() {
   // ---- 空态 ----
   if (!data || data.length === 0) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500">
         <PageHeader />
         <div className="flex flex-col items-center justify-center h-64 border rounded-md bg-muted/20 gap-4">
           <p className="text-muted-foreground text-lg">暂无历史交易</p>

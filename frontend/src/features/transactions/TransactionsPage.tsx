@@ -207,7 +207,7 @@ export function TransactionsPage() {
   // ---- 空态 ----
   if (txnList.length === 0) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">交易记录</h1>
           <div className="flex gap-2">

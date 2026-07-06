@@ -112,6 +112,8 @@ export function OverviewPage() {
   // ---- 正常渲染 ----
   return (
     <div className="space-y-6 tabular-nums">
+      {/* 标题 + 操作按钮 */}
+      <div className={`transition-all duration-500 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">概览</h1>
         <div className="flex gap-2">
@@ -132,6 +134,7 @@ export function OverviewPage() {
             {createSnapshotMut.isPending ? '记录中...' : '记录快照'}
           </Button>
         </div>
+      </div>
       </div>
 
       {/* 统计卡 */}
