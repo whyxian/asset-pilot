@@ -205,7 +205,8 @@ export function OverviewPage() {
       </div>
 
       {/* 净值走势 */}
-      <Card>
+      <div className={`transition-all duration-500 ease-out delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <Card>
         <CardHeader>
           <CardTitle>净值走势</CardTitle>
         </CardHeader>
@@ -255,9 +256,11 @@ export function OverviewPage() {
           )}
         </CardContent>
       </Card>
+      </div>
 
       {/* 资产配比 */}
       {stats.allocation.length > 0 && (
+        <div className={`transition-all duration-500 ease-out delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
         <Card>
           <CardHeader>
             <CardTitle>资产配比</CardTitle>
@@ -287,6 +290,7 @@ export function OverviewPage() {
             </div>
           </CardContent>
         </Card>
+        </div>
       )}
 
       <p className={`text-sm text-center ${stats.rate_stale ? 'text-amber-600' : 'text-muted-foreground'}`}>
