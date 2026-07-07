@@ -184,20 +184,20 @@ export function OverviewPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">历史累计总收益</CardTitle>
-            {stats.annualized_return != null ? (
+            {stats.cumulative_return_pct != null ? (
               stats.cumulative_return >= 0
                 ? <TrendingUp className={`w-4 h-4 ${upColor}`} />
                 : <TrendingDown className={`w-4 h-4 ${downColor}`} />
             ) : null}
           </CardHeader>
           <CardContent>
-            {stats.annualized_return != null ? (
+            {stats.cumulative_return_pct != null ? (
               <div className={`inline-flex items-baseline gap-2 ${stats.cumulative_return >= 0 ? upColor : downColor}`}>
                 <span className="text-2xl font-bold">
                   {stats.cumulative_return >= 0 ? '+' : ''}<CountUp end={toNum(stats.cumulative_return)} duration={0.8} decimals={2} formattingFn={(v: number) => formatPrice(v, stats.currency, 2)} />
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  {formatPct(stats.annualized_return)}
+                  {formatPct(stats.cumulative_return_pct)}
                 </span>
               </div>
             ) : (

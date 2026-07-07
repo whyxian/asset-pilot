@@ -29,7 +29,7 @@ class OverviewStats(BaseModel):
     total_cost: Decimal = Decimal("0")
     total_pnl: Decimal = Decimal("0")
     total_pnl_pct: float | str | None = None      # 零成本时为 "+∞%"
-    annualized_return: float | str | None = None  # 零成本时为 "+∞%"
+    cumulative_return_pct: float | str | None = None  # 历史累计总收益率（Modified Dietz），零成本时为 "+∞%"
     cumulative_return: Decimal = Decimal("0")      # 历史累计收益金额（Modified Dietz）
     allocation: list[AllocationItem] = []
     rate_source_date: str | None = None  # 当前所用汇率的日期（前端展示）

@@ -111,8 +111,8 @@ async def test_get_overview_with_holdings():
     assert result.allocation[1].market == "CN"
 
     # 历史累计收益（Modified Dietz）
-    assert result.annualized_return is not None
-    assert isinstance(result.annualized_return, float)
+    assert result.cumulative_return_pct is not None
+    assert isinstance(result.cumulative_return_pct, float)
 
     # 汇率元数据透传
     assert result.rate_source_date == "2026-06-19"
