@@ -80,7 +80,12 @@ class OverviewService:
         txn_repo = TransactionRepository()
         txns = await txn_repo.list_transactions(limit=9999)
 
-        if txns:
+        # 追加已归档持仓的已实现盈亏（-realized_pnl = 钱从系统回流到可用资金）
+        from app.repositories.closed_holding_repository import ClosedHoldingRepository
+        closed_repo = ClosedHoldingRepository()
+        closed_list = await closed_repo.list_closed_holdings()
+
+        if txns or closed_list:
             from app.core.formulas import calculate_modified_dietz
 
             # ticker → 计价货币（用于交易金额换算到 USD）
@@ -99,9 +104,18 @@ class OverviewService:
                 d = str(t.transaction_date)
                 daily_flows[d] = daily_flows.get(d, Decimal("0")) + amt_usd
 
+            # 已归档持仓：已实现盈亏回流到系统，影响累计净值
+            for ch in closed_list:
+                ch_flow = -ch.realized_pnl  # 盈利→负（钱已从系统回流到可用资金）
+                ch_flow_usd = convert_with_rates(ch_flow, ch.currency, "USD", rates)
+                d = str(ch.closed_at)
+                daily_flows[d] = daily_flows.get(d, Decimal("0")) + ch_flow_usd
+
             trade_flows = [{"date": d, "amount": a} for d, a in sorted(daily_flows.items())]
 
-            start_date = str(min(t.transaction_date for t in txns))
+            # start_date 取最早交易日期或最早清仓日期
+            all_dates = [t.transaction_date for t in txns if t.amount is not None] + [ch.closed_at for ch in closed_list]
+            start_date = str(min(all_dates))
 
             dietz_result = calculate_modified_dietz(
                 V0=Decimal("0"),

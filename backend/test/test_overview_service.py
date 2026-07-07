@@ -89,6 +89,9 @@ async def test_get_overview_with_holdings():
     mp.setattr(svc, "_holding_repo", mock_repo)
     mp.setattr(svc, "_quote_svc", mock_quote_svc)
     mp.setattr("app.services.overview_service.fetch_rates", fake_fetch_rates)
+    # mock ClosedHoldingRepository（概览已追加已归档盈亏，测试无归档数据）
+    from app.repositories.closed_holding_repository import ClosedHoldingRepository
+    mp.setattr(ClosedHoldingRepository, "list_closed_holdings", AsyncMock(return_value=[]))
 
     try:
         result = await svc.get_overview()
