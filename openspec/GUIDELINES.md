@@ -56,14 +56,27 @@
 | **验证** | 开发者 | 完成测试，确保功能符合 `proposal.md` 的描述。 |
 | **归档** | 开发者 | 实施完成后执行 `/opsx:archive <变更名>`。OpenSpec 归档与代码合并是独立操作——代码可先提交，归档可以后做。归档前检查是否有 delta spec 需要同步（见 §5a）。 |
 
-#### 5a. 归档前检查：Delta Spec 同步
+#### 5a. 归档前检查：Spec 同步
 
-如果 change 的 `specs/` 中有 delta spec（即修改了现有 `openspec/specs/` 中已有能力的文件），归档时需要同步到主 spec：
+change 的 `specs/` 目录描述了这个 change 引入的"能力需求"。归档时需要按以下规则回写到主目录 `openspec/specs/`：
 
-1. 执行 `/opsx:sync <变更名>` 将 delta spec 回写到 `openspec/specs/<能力名>/spec.md`
-2. 再执行 `/opsx:archive <变更名>`
+| change 的 specs 情况 | 对应主目录 | 操作 | 方法 |
+|---|---|---|---|
+| **新能力**（change 有 specs，主目录无对应目录） | 不存在 | **copy** | 手动将 change 的 `specs/<能力>/spec.md` 复制到 `openspec/specs/<能力>/spec.md`，去掉 `## ADDED Requirements` header |
+| **修改现有能力**（change 有 MODIFIED 内容，主目录已有对应目录） | 已存在 | **delta merge** | 执行 `/opsx:sync <变更名>`，将 delta spec 合并到主 spec |
+| **无 spec 变更**（change 无 specs 或 specs 为空） | — | **跳过** | 直接归档 |
 
-**纯新增能力**（`openspec/specs/` 中没有对应目录）或**无 spec 变更**的 change 不需要同步，直接归档即可。
+**新能力 copy 示例：**
+
+```bash
+# change 中的 specs 结构
+openspec/changes/archive/YYYY-MM-DD-xxx/specs/closed-holding-dietz-return/spec.md
+
+# 复制到主目录
+mkdir -p openspec/specs/closed-holding-dietz-return
+cp path/to/change/spec.md openspec/specs/closed-holding-dietz-return/
+# 然后编辑去掉 ## ADDED Requirements header
+```
 
 #### 6. 文件夹管理规范
 
