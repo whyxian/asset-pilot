@@ -8,7 +8,8 @@ import { CountUp } from '@/components/ui/countup'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Camera, RefreshCw, TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
+import { Camera, Info, RefreshCw, TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
+import { Tooltip } from '@/components/ui/tooltip'
 import { formatPrice, formatPct, toNum } from '@/lib/utils'
 import { useColors } from '@/lib/settings'
 import {
@@ -22,6 +23,13 @@ import {
 } from 'recharts'
 
 const CURRENCY = 'CNY'
+
+/** "2026-01-01" → "2026年1月1日-至今" */
+function formatDateRange(d: string): string {
+  const parts = d.split('-')
+  if (parts.length !== 3) return d
+  return `${parseInt(parts[0])}年${parseInt(parts[1])}月${parseInt(parts[2])}日-至今`
+}
 
 export function OverviewPage() {
   const { data: stats, isLoading, isError, error, refetch } = useOverview(CURRENCY)
@@ -183,7 +191,14 @@ export function OverviewPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">历史累计总收益</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground inline-flex items-center gap-1.5">
+              历史累计总收益
+              {stats.dietz_start_date && (
+                <Tooltip content={formatDateRange(stats.dietz_start_date)}>
+                  <Info className="w-3.5 h-3.5 cursor-help" />
+                </Tooltip>
+              )}
+            </CardTitle>
             {stats.cumulative_return_pct != null ? (
               stats.cumulative_return >= 0
                 ? <TrendingUp className={`w-4 h-4 ${upColor}`} />

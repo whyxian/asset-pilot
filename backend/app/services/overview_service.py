@@ -85,6 +85,7 @@ class OverviewService:
         closed_repo = ClosedHoldingRepository()
         closed_list = await closed_repo.list_closed_holdings()
 
+        dietz_start_date: str | None = None
         if txns or closed_list:
             from app.core.formulas import calculate_modified_dietz
 
@@ -115,13 +116,13 @@ class OverviewService:
 
             # start_date 取最早交易日期或最早清仓日期
             all_dates = [t.transaction_date for t in txns if t.amount is not None] + [ch.closed_at for ch in closed_list]
-            start_date = str(min(all_dates))
+            dietz_start_date = str(min(all_dates))
 
             dietz_result = calculate_modified_dietz(
                 V0=Decimal("0"),
                 V1=total_value_usd,
                 trade_flows=trade_flows,
-                start_date=str(start_date),
+                start_date=dietz_start_date,
                 end_date=str(today),
             )
             total_return_pct = dietz_result["rate_of_return"] if dietz_result["success"] else None
@@ -159,6 +160,7 @@ class OverviewService:
             total_pnl_pct=total_pnl_pct,
             cumulative_return_pct=total_return_pct,
             cumulative_return=cumulative_return,
+            dietz_start_date=dietz_start_date,
             allocation=allocation,
             rate_source_date=rate_snapshot.source_date,
             rate_stale=rate_snapshot.is_stale,

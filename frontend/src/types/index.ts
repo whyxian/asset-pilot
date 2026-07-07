@@ -84,6 +84,7 @@ export interface OverviewStats {
   total_pnl_pct: number | string | null
   cumulative_return_pct: number | string | null // 历史累计总收益率（Modified Dietz）
   cumulative_return: number                    // 历史累计收益金额
+  dietz_start_date: string | null              // Modified Dietz 统计起点（YYYY-MM-DD）
   allocation: AllocationItem[]
   rate_source_date: string | null   // 当前所用汇率的日期（YYYY-MM-DD）
   rate_stale: boolean               // 汇率是否走了兜底（旧汇率，需警告）

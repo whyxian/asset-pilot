@@ -31,6 +31,7 @@ class OverviewStats(BaseModel):
     total_pnl_pct: float | str | None = None      # 零成本时为 "+∞%"
     cumulative_return_pct: float | str | None = None  # 历史累计总收益率（Modified Dietz），零成本时为 "+∞%"
     cumulative_return: Decimal = Decimal("0")      # 历史累计收益金额（Modified Dietz）
+    dietz_start_date: str | None = None             # Modified Dietz 统计起点（YYYY-MM-DD）
     allocation: list[AllocationItem] = []
     rate_source_date: str | None = None  # 当前所用汇率的日期（前端展示）
     rate_stale: bool = False             # 汇率是否走了兜底（旧汇率，前端警告）
