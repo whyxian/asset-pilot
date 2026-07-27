@@ -4,11 +4,14 @@
 唯一一笔持仓。所有按品种操作都必须传完整三元组。
 """
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
+
+from decimal import Decimal
 
 from app.core.database import async_session
 from app.core.exceptions import BusinessError
 from app.models.orm.asset_holding_orm import AssetHoldingRecord
+from app.models.orm.cash_flow_orm import CashFlowRecord
 from app.models.orm.transaction_orm import TransactionRecord
 from app.models.transaction import Transaction, TransactionCreate, TransactionUpdate
 from app.repositories.transaction_repository import TransactionRepository
@@ -67,6 +70,33 @@ class TransactionService:
 
                 # 在同一事务内回放重算持仓
                 await recompute_holding(session, data.ticker, data.asset_class, data.market)
+
+                # 现金账户联动：先查持仓现金开关（归档前，holding 还在）
+                holding_cash = (await session.execute(
+                    select(AssetHoldingRecord).where(
+                        AssetHoldingRecord.ticker == data.ticker,
+                        AssetHoldingRecord.asset_class == data.asset_class,
+                        AssetHoldingRecord.market == data.market,
+                    )
+                )).scalar_one_or_none()
+                if holding_cash is not None and holding_cash.cash_account_enabled and record.amount is not None:
+                    txn_amt = Decimal(str(record.amount))
+                    if data.type == "buy":
+                        balance = await self._get_cash_balance(session, holding_cash.currency)
+                        if balance < txn_amt:
+                            raise BusinessError(40001,
+                                f"{holding_cash.currency} 现金余额不足：当前 {balance}，需要 {txn_amt}")
+                        session.add(CashFlowRecord(
+                            type="buy", amount=-txn_amt, currency=holding_cash.currency,
+                            transaction_id=record.id,
+                            notes=f"买入 {data.ticker} 扣款" if data.notes is None else data.notes,
+                        ))
+                    elif data.type == "sell":
+                        session.add(CashFlowRecord(
+                            type="sell", amount=txn_amt, currency=holding_cash.currency,
+                            transaction_id=record.id,
+                            notes=f"卖出 {data.ticker} 入账" if data.notes is None else data.notes,
+                        ))
 
                 # 提前快照（归档会删除 record，refresh 会失败）
                 snapshot = _orm_to_transaction(record)
@@ -186,6 +216,26 @@ class TransactionService:
                 for t, ac, mk in triples_to_recompute:
                     await self._archive_if_zero(session, t, ac, mk)
 
+                # 现金账户联动：同步更新 cash_flow amount
+                if data.amount is not None and record.amount is not None and str(record.amount) != str(data.amount):
+                    holding = (await session.execute(
+                        select(AssetHoldingRecord).where(
+                            AssetHoldingRecord.ticker == new_ticker,
+                            AssetHoldingRecord.asset_class == new_class,
+                            AssetHoldingRecord.market == new_market,
+                        )
+                    )).scalar_one_or_none()
+                    if holding is not None and holding.cash_account_enabled:
+                        cf = (await session.execute(
+                            select(CashFlowRecord).where(
+                                CashFlowRecord.transaction_id == record.id
+                            )
+                        )).scalar_one_or_none()
+                        if cf is not None and data.amount is not None:
+                            new_amt = _D(str(data.amount))
+                            cf.amount = -new_amt if record.type == "buy" else new_amt
+                            await session.flush()
+
                 await session.commit()
                 return snapshot
             except Exception:
@@ -205,6 +255,10 @@ class TransactionService:
                 ticker = record.ticker
                 asset_class = record.asset_class
                 market = record.market
+                # 现金账户联动：先删关联 cash_flow（回退现金）
+                await session.execute(
+                    delete(CashFlowRecord).where(CashFlowRecord.transaction_id == transaction_id)
+                )
                 await session.delete(record)
                 await session.flush()
 
@@ -217,6 +271,15 @@ class TransactionService:
             except Exception:
                 await session.rollback()
                 raise
+
+    async def _get_cash_balance(self, session, currency: str) -> Decimal:
+        """查指定币种的现金余额（事务内）"""
+        from sqlalchemy import func, select
+        result = (await session.execute(
+            select(func.coalesce(func.sum(CashFlowRecord.amount), 0))
+            .where(CashFlowRecord.currency == currency)
+        )).scalar()
+        return Decimal(str(result))
 
     async def _validate_create_payload(self, data: TransactionCreate) -> None:
         """create 的前置业务校验：字段组合 / 必须先建仓 / fee_rate 范围 / amount 一致性"""

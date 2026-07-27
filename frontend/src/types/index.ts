@@ -131,6 +131,7 @@ export interface HoldingCreate {
   cost_price: string
   total_invested: string
   first_buy_date: string
+  cash_account_enabled?: boolean  // 是否参与现金账户（建仓后不可改）
 }
 
 /** 更新持仓请求体（所有字段可选） */
@@ -230,4 +231,25 @@ export interface ClosedHolding {
 /** 归档持仓详情 — 含该周期全部交易 */
 export interface ClosedHoldingDetail extends ClosedHolding {
   transactions: ClosedTransaction[]
+}
+
+// ═══════════════════════════════════════════
+// 资金流水
+// ═══════════════════════════════════════════
+
+/** 资金流水 */
+export interface CashFlow {
+  id: number
+  type: 'deposit' | 'withdraw' | 'buy' | 'sell'
+  amount: number
+  currency: string
+  transaction_id: number | null
+  notes: string | null
+  created_at: string | null
+}
+
+/** 币种余额 */
+export interface CashBalance {
+  currency: string
+  balance: number
 }

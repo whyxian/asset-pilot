@@ -33,6 +33,7 @@ class AssetHoldingCreate(BaseModel):
     cost_price: Decimal = Field(..., gt=0)  # 成本价必须 > 0（建仓时）
     total_invested: Decimal = Field(..., gt=0)  # 总投入必须 > 0
     first_buy_date: date
+    cash_account_enabled: bool = False  # 是否参与现金账户
 
 
 class AssetHoldingUpdate(BaseModel):

@@ -29,6 +29,7 @@ interface HoldingFormData {
   cost_price: string
   total_invested: string
   first_buy_date: string
+  cash_account_enabled: boolean
 }
 
 function emptyForm(): HoldingFormData {
@@ -42,6 +43,7 @@ function emptyForm(): HoldingFormData {
     cost_price: '',
     total_invested: '',
     first_buy_date: new Date().toISOString().slice(0, 10),
+    cash_account_enabled: true,
   }
 }
 
@@ -418,6 +420,22 @@ export function HoldingFormDialog({
             <label className="text-xs font-medium text-muted-foreground">货币（自动）</label>
             <Input value={form.currency} disabled />
           </div>
+
+          {/* 现金账户选项（仅新建） */}
+          {!isEdit && (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="cash_account_enabled"
+                className="w-4 h-4 rounded border-gray-300"
+                checked={form.cash_account_enabled}
+                onChange={(e) => updateField('cash_account_enabled', e.target.checked)}
+              />
+              <label htmlFor="cash_account_enabled" className="text-sm cursor-pointer select-none">
+                从现金账户扣除（建仓后不可更改）
+              </label>
+            </div>
+          )}
 
           {/* 后端错误 */}
           {error && (

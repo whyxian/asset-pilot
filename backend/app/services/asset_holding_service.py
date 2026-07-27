@@ -104,6 +104,7 @@ class AssetHoldingService:
                     total_invested=data.total_invested,
                     first_buy_date=data.first_buy_date,
                     first_buy_price=data.cost_price,  # 建仓首笔买入价（盈亏率公式分母，不变）
+                    cash_account_enabled=data.cash_account_enabled,
                 )
                 session.add(record)
                 await session.flush()
@@ -125,6 +126,27 @@ class AssetHoldingService:
 
                 # recompute 从 0 起点回放这笔建仓交易 → 派生字段正确
                 await recompute_holding(session, data.ticker, data.asset_class, data.market)
+
+                # 现金账户联动：如果开启了现金，建仓 buy 从现金扣款
+                if data.cash_account_enabled and data.total_invested:
+                    from app.models.orm.cash_flow_orm import CashFlowRecord
+                    from sqlalchemy import func
+                    from decimal import Decimal as _C
+                    # 校验余额
+                    balance = (await session.execute(
+                        select(func.coalesce(func.sum(CashFlowRecord.amount), 0))
+                        .where(CashFlowRecord.currency == data.currency)
+                    )).scalar()
+                    balance = _C(str(balance))
+                    invested = _C(str(data.total_invested))
+                    if balance < invested:
+                        raise BusinessError(40001,
+                            f"{data.currency} 现金余额不足：当前 {balance}，需要 {invested}")
+                    session.add(CashFlowRecord(
+                        type="buy", amount=-invested, currency=data.currency,
+                        transaction_id=txn.id, notes=f"建仓 {data.ticker} 扣款",
+                    ))
+
                 await session.commit()
                 await session.refresh(record)
                 holding = _record_to_holding(record)

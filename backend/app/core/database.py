@@ -32,6 +32,7 @@ async def init_db():
         from app.models.orm.asset_variety_orm import AssetVarietyRecord  # noqa: F401
         from app.models.orm.transaction_orm import TransactionRecord  # noqa: F401
         from app.models.orm.closed_holding_orm import ClosedHoldingRecord, ClosedTransactionRecord  # noqa: F401
+        from app.models.orm.cash_flow_orm import CashFlowRecord  # noqa: F401
         from app.models.orm.networth_snapshot_orm import NetWorthSnapshotRecord  # noqa: F401
         from app.models.orm.asset_snapshot_orm import AssetSnapshotRecord  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)
@@ -44,5 +45,9 @@ async def init_db():
             pass  # 列已存在
         try:
             await conn.execute(text("ALTER TABLE closed_holdings ADD COLUMN is_crazy_trader BOOLEAN DEFAULT 0 NOT NULL"))
+        except Exception:
+            pass  # 列已存在
+        try:
+            await conn.execute(text("ALTER TABLE asset_holdings ADD COLUMN cash_account_enabled BOOLEAN DEFAULT 0 NOT NULL"))
         except Exception:
             pass  # 列已存在

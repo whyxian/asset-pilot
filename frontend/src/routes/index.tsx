@@ -22,6 +22,9 @@ const QuotesPage = lazy(() =>
 const HistoryPage = lazy(() =>
   import('@/features/history/HistoryPage').then((m) => ({ default: m.HistoryPage })),
 )
+const CashPage = lazy(() =>
+  import('@/features/cash/CashPage').then((m) => ({ default: m.CashPage })),
+)
 
 /** 懒加载页面切换时的占位符 */
 function PageFallback() {
@@ -44,6 +47,7 @@ export function AppRouter() {
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/transactions/history" element={<ClosedTransactionsPage />} />
             <Route path="/quotes" element={<QuotesPage />} />
+            <Route path="/cash" element={<CashPage />} />
           </Routes>
         </Suspense>
       </SidebarLayout>

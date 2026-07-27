@@ -212,6 +212,7 @@ export function HoldingsPage() {
         asset_class: data.asset_class, currency: data.currency,
         quantity: data.quantity, cost_price: data.cost_price,
         total_invested: data.total_invested, first_buy_date: data.first_buy_date,
+        cash_account_enabled: data.cash_account_enabled,
       }
       createMut.mutate(createData, { onSuccess: () => setDialogOpen(false) })
     }

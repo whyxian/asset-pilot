@@ -3,7 +3,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Integer, Numeric, String, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -34,6 +34,8 @@ class AssetHoldingRecord(Base):
     # 清仓日期：quantity 回到 0 时由 recompute_holding 写入最后一笔 sell 的日期，
     # 后续若复活（再次 buy）则清空。NULL 表示从未清仓或建仓时即为 0
     liquidated_at: Mapped[datetime | None] = mapped_column(Date, nullable=True)
+    # 是否参与现金账户：建仓时设定，建仓后不可更改
+    cash_account_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now(), nullable=True)
     created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)

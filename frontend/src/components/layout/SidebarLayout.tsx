@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LayoutDashboard, Wallet, ArrowLeftRight, Search, Settings } from 'lucide-react'
+import { DollarSign, LayoutDashboard, Wallet, ArrowLeftRight, Search, Settings } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { SettingsDialog } from '@/features/settings/SettingsDialog'
@@ -7,6 +7,7 @@ import { SettingsDialog } from '@/features/settings/SettingsDialog'
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: '概览' },
   { to: '/holdings', icon: Wallet, label: '持仓' },
+  { to: '/cash', icon: DollarSign, label: '现金' },
   { to: '/transactions', icon: ArrowLeftRight, label: '交易' },
   { to: '/quotes', icon: Search, label: '行情' },
 ]

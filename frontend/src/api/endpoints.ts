@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AssetQuote, AssetSnapshot, AssetVariety, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingsWithQuotesResponse, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
+import type { AssetQuote, AssetSnapshot, AssetVariety, CashBalance, CashFlow, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingsWithQuotesResponse, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
 
 // ═══════════════════════════════════════════
 // 持仓
@@ -133,6 +133,38 @@ export const fetchSnapshots = (currency: string = 'CNY', limit = 365) =>
   apiClient.get('/api/v1/snapshots', { params: { currency, limit } }) as Promise<NetWorthSnapshot[]>
 
 /** 获取品种级快照（可按三元组过滤） */
+// ═══════════════════════════════════════════
+// 资金流水
+// ═══════════════════════════════════════════
+
+export interface CashDepositData {
+  amount: number
+  currency: string
+  notes?: string | null
+}
+
+export interface CashWithdrawData {
+  amount: number
+  currency: string
+  notes?: string | null
+}
+
+/** 获取各币种现金余额 */
+export const fetchCashBalances = () =>
+  apiClient.get('/api/v1/cash/balances') as Promise<CashBalance[]>
+
+/** 获取资金流水列表 */
+export const fetchCashFlows = (limit = 100) =>
+  apiClient.get('/api/v1/cash/flows', { params: { limit } }) as Promise<CashFlow[]>
+
+/** 入金 */
+export const cashDeposit = (data: CashDepositData) =>
+  apiClient.post('/api/v1/cash/deposit', data) as Promise<CashFlow>
+
+/** 出金 */
+export const cashWithdraw = (data: CashWithdrawData) =>
+  apiClient.post('/api/v1/cash/withdraw', data) as Promise<CashFlow>
+
 export const fetchAssetSnapshots = (
   currency: string = 'CNY',
   ticker?: string,
