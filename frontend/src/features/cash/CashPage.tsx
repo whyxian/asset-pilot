@@ -114,7 +114,6 @@ export function CashPage() {
   const [mounted, setMounted] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'deposit' | 'withdraw'>('deposit')
-  const [showDetail, setShowDetail] = useState(false)
   const { upColor, downColor } = useColors()
 
   useEffect(() => {
@@ -125,7 +124,6 @@ export function CashPage() {
   const total = balancesData?.total ?? 0
   const displayCurrency = balancesData?.display_currency ?? CURRENCY
   const balances = balancesData?.balances ?? []
-  const hasMultipleCurrencies = balances.length > 1
   const isPositive = total >= 0
 
   function fmtDate(d: string | null): string {
@@ -166,106 +164,110 @@ export function CashPage() {
         </div>
       </div>
 
-      {/* 余额卡 */}
-      <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-500 ease-out delay-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-        {balancesLoading ? (
-          <Card className="col-span-2 lg:col-span-2">
-            <CardHeader className="pb-2"><Skeleton className="h-4 w-24" /></CardHeader>
-            <CardContent><Skeleton className="h-8 w-40" /></CardContent>
-          </Card>
-        ) : (
-          <Card className="col-span-2 lg:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                现金总额（{displayCurrency}）
-              </CardTitle>
-              {hasMultipleCurrencies ? (
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowDetail((v) => !v)}>
-                  {showDetail ? '收起明细' : '查看各币种'}
-                </Button>
-              ) : (
+      {/* 左右分栏：左侧 sticky 余额，右侧流水 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 左侧：余额（sticky） */}
+        <div className={`lg:col-span-1 transition-all duration-500 ease-out delay-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+          <div className="lg:sticky lg:top-8 space-y-4">
+            {/* 总额卡片 */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  现金总额（{displayCurrency}）
+                </CardTitle>
                 <DollarSign className="w-4 h-4 text-muted-foreground" />
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className={`${isPositive ? upColor : downColor} text-2xl font-bold`}>
-                {isPositive ? '' : ''}<CountUp end={toNum(total)} duration={0.8} decimals={2} formattingFn={(v: number) => formatPrice(v, displayCurrency, 2)} />
-              </div>
-              {balancesData?.rate_stale && (
-                <p className="text-xs text-amber-600 mt-1">汇率可能过时（走了兜底）</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
+              </CardHeader>
+              <CardContent>
+                {balancesLoading ? (
+                  <Skeleton className="h-8 w-40" />
+                ) : (
+                  <>
+                    <div className={`${isPositive ? upColor : downColor} text-2xl font-bold`}>
+                      <CountUp end={toNum(total)} duration={0.8} decimals={2} formattingFn={(v: number) => formatPrice(v, displayCurrency, 2)} />
+                    </div>
+                    {balancesData?.rate_stale && (
+                      <p className="text-xs text-amber-600 mt-1">汇率可能过时（走了兜底）</p>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
 
-        {/* 各币种明细（点按钮才显示） */}
-        {showDetail && balances.map((b: CashBalance) => (
-          <Card key={b.currency}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{b.currency} 现金</CardTitle>
-              {b.balance >= 0
-                ? <TrendingUp className={`w-4 h-4 ${upColor}`} />
-                : <TrendingDown className={`w-4 h-4 ${downColor}`} />}
-            </CardHeader>
-            <CardContent>
-              <div className={`${b.balance >= 0 ? upColor : downColor} text-2xl font-bold`}>
-                <CountUp end={toNum(b.balance)} duration={0.8} decimals={2} formattingFn={(v: number) => formatPrice(v, b.currency, 2)} />
+            {/* 各币种明细（始终展示） */}
+            {balances.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground px-1">各币种明细</p>
+                {balances.map((b: CashBalance) => (
+                  <Card key={b.currency}>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-sm text-muted-foreground">{b.currency}</CardTitle>
+                      {b.balance >= 0
+                        ? <TrendingUp className={`w-3.5 h-3.5 ${upColor}`} />
+                        : <TrendingDown className={`w-3.5 h-3.5 ${downColor}`} />}
+                    </CardHeader>
+                    <CardContent>
+                      <div className={`${b.balance >= 0 ? upColor : downColor} text-lg font-bold`}>
+                        <CountUp end={toNum(b.balance)} duration={0.8} decimals={2} formattingFn={(v: number) => formatPrice(v, b.currency, 2)} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* 流水表 */}
-      <div className={`transition-all duration-500 ease-out delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm tabular-nums">
-            <thead>
-              <tr className="bg-muted/50">
-                <th className="text-left p-3 whitespace-nowrap">日期</th>
-                <th className="text-left p-3 whitespace-nowrap">类型</th>
-                <th className="text-right p-3 whitespace-nowrap">金额</th>
-                <th className="text-left p-3 whitespace-nowrap">币种</th>
-                <th className="text-left p-3">备注</th>
-              </tr>
-            </thead>
-            <tbody>
-              {flowsLoading ? (
-                [...Array(5)].map((_, i) => (
-                  <tr key={i} className="border-t">
-                    {[...Array(5)].map((_, j) => (
-                      <td key={j} className="p-3"><Skeleton className="h-4 w-full" /></td>
-                    ))}
-                  </tr>
-                ))
-              ) : flows?.length ? (
-                flows.map((f) => {
-                  const positive = f.amount >= 0
-                  return (
-                    <tr key={f.id} className="border-t hover:bg-muted/30">
-                      <td className="p-3 text-muted-foreground whitespace-nowrap">{fmtDate(f.created_at)}</td>
-                      <td className="p-3 whitespace-nowrap">
-                        <Badge variant="outline">{typeLabel[f.type] || f.type}</Badge>
-                      </td>
-                      <td className={`p-3 text-right font-medium whitespace-nowrap ${positive ? upColor : downColor}`}>
-                        {formatPrice(f.amount, f.currency, 2)}
-                      </td>
-                      <td className="p-3 whitespace-nowrap">{f.currency}</td>
-                      <td className="p-3 text-muted-foreground max-w-48 truncate">{f.notes || '-'}</td>
-                    </tr>
-                  )
-                })
-              ) : (
-                <tr>
-                  <td colSpan={5} className="p-6 text-center text-muted-foreground">暂无资金流水，点击右上角「入金」开始记录</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+            )}
+          </div>
         </div>
-        {flows && flows.length > 0 && (
-          <p className="text-sm text-muted-foreground mt-2">共 {flows.length} 笔流水</p>
-        )}
+
+        {/* 右侧：流水表 */}
+        <div className={`lg:col-span-2 transition-all duration-500 ease-out delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm tabular-nums">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="text-left p-3 whitespace-nowrap">日期</th>
+                  <th className="text-left p-3 whitespace-nowrap">类型</th>
+                  <th className="text-right p-3 whitespace-nowrap">金额</th>
+                  <th className="text-left p-3 whitespace-nowrap">币种</th>
+                  <th className="text-left p-3">备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                {flowsLoading ? (
+                  [...Array(8)].map((_, i) => (
+                    <tr key={i} className="border-t">
+                      {[...Array(5)].map((_, j) => (
+                        <td key={j} className="p-3"><Skeleton className="h-4 w-full" /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : flows?.length ? (
+                  flows.map((f) => {
+                    const positive = f.amount >= 0
+                    return (
+                      <tr key={f.id} className="border-t hover:bg-muted/30">
+                        <td className="p-3 text-muted-foreground whitespace-nowrap">{fmtDate(f.created_at)}</td>
+                        <td className="p-3 whitespace-nowrap">
+                          <Badge variant="outline">{typeLabel[f.type] || f.type}</Badge>
+                        </td>
+                        <td className={`p-3 text-right font-medium whitespace-nowrap ${positive ? upColor : downColor}`}>
+                          {formatPrice(f.amount, f.currency, 2)}
+                        </td>
+                        <td className="p-3 whitespace-nowrap">{f.currency}</td>
+                        <td className="p-3 text-muted-foreground max-w-48 truncate">{f.notes || '-'}</td>
+                      </tr>
+                    )
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="p-6 text-center text-muted-foreground">暂无资金流水，点击右上角「入金」开始记录</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {flows && flows.length > 0 && (
+            <p className="text-sm text-muted-foreground mt-2">共 {flows.length} 笔流水</p>
+          )}
+        </div>
       </div>
 
       <CashDialog open={dialogOpen} onOpenChange={setDialogOpen} mode={dialogMode} />
