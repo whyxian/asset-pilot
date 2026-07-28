@@ -74,7 +74,7 @@ class TransactionService:
                 # 在同一事务内回放重算持仓
                 await recompute_holding(session, data.ticker, data.asset_class, data.market)
 
-                # 现金账户联动：先查持仓现金开关（归档前，holding 还在）
+                # 现金账户联动（现金追踪永远开，不检查 cash_account_enabled）
                 holding_cash = (await session.execute(
                     select(AssetHoldingRecord).where(
                         AssetHoldingRecord.ticker == data.ticker,
@@ -82,7 +82,7 @@ class TransactionService:
                         AssetHoldingRecord.market == data.market,
                     )
                 )).scalar_one_or_none()
-                if holding_cash is not None and holding_cash.cash_account_enabled and record.amount is not None:
+                if holding_cash is not None and record.amount is not None:
                     txn_amt = Decimal(str(record.amount))
                     if data.type == "buy":
                         balance = await self._get_cash_balance(session, holding_cash.currency)
@@ -219,25 +219,17 @@ class TransactionService:
                 for t, ac, mk in triples_to_recompute:
                     await self._archive_if_zero(session, t, ac, mk)
 
-                # 现金账户联动：同步更新 cash_flow amount
+                # 现金账户联动：同步更新 cash_flow amount（现金追踪永远开）
                 if data.amount is not None and record.amount is not None and str(record.amount) != str(data.amount):
-                    holding = (await session.execute(
-                        select(AssetHoldingRecord).where(
-                            AssetHoldingRecord.ticker == new_ticker,
-                            AssetHoldingRecord.asset_class == new_class,
-                            AssetHoldingRecord.market == new_market,
+                    cf = (await session.execute(
+                        select(CashFlowRecord).where(
+                            CashFlowRecord.transaction_id == record.id
                         )
                     )).scalar_one_or_none()
-                    if holding is not None and holding.cash_account_enabled:
-                        cf = (await session.execute(
-                            select(CashFlowRecord).where(
-                                CashFlowRecord.transaction_id == record.id
-                            )
-                        )).scalar_one_or_none()
-                        if cf is not None and data.amount is not None:
-                            new_amt = _D(str(data.amount))
-                            cf.amount = -new_amt if record.type == "buy" else new_amt
-                            await session.flush()
+                    if cf is not None:
+                        new_amt = _D(str(data.amount))
+                        cf.amount = -new_amt if record.type == "buy" else new_amt
+                        await session.flush()
 
                 await session.commit()
                 return snapshot

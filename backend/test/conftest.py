@@ -32,6 +32,7 @@ async def engine():
     from app.models.orm.asset_variety_orm import AssetVarietyRecord  # noqa: F401
     from app.models.orm.transaction_orm import TransactionRecord  # noqa: F401
     from app.models.orm.closed_holding_orm import ClosedHoldingRecord, ClosedTransactionRecord  # noqa: F401
+    from app.models.orm.cash_flow_orm import CashFlowRecord  # noqa: F401
     from app.models.orm.networth_snapshot_orm import NetWorthSnapshotRecord  # noqa: F401
     from app.models.orm.asset_snapshot_orm import AssetSnapshotRecord  # noqa: F401
 
@@ -112,6 +113,7 @@ async def seed_holding(Session, seed_variety):
     seed_holding 同时 seed 一笔建仓 buy 交易，使 recompute 结果与 seed 值一致。
     """
     from app.models.orm.asset_holding_orm import AssetHoldingRecord
+    from app.models.orm.cash_flow_orm import CashFlowRecord
     from app.models.orm.transaction_orm import TransactionRecord
 
     async def _seed(
@@ -147,6 +149,12 @@ async def seed_holding(Session, seed_variety):
                 amount=Decimal(total), notes="建仓",
             )
             s.add(t)
+            await s.flush()  # 拿 t.id
+            # 现金流水：注入等额本金供后续交易扣款（测试辅助，不扣建仓款）
+            s.add(CashFlowRecord(
+                type="deposit", amount=Decimal(total), currency="CNY",
+                transaction_id=None, notes=f"建仓 {ticker} 本金注入",
+            ))
             await s.commit()
 
     return _seed
