@@ -78,12 +78,15 @@ class OverviewService:
 
         # 组合历史累计收益 — 用 Modified Dietz 算从建仓第一天到现在的回报率
         txn_repo = TransactionRepository()
-        txns = await txn_repo.list_transactions(limit=9999)
+        # Dietz 需要全部交易（不分页），用大 page_size 一次取完
+        txn_page = await txn_repo.list_transactions(page=1, page_size=9999)
+        txns = txn_page.data
 
         # 追加已归档持仓的已实现盈亏（-realized_pnl = 钱从系统回流到可用资金）
         from app.repositories.closed_holding_repository import ClosedHoldingRepository
         closed_repo = ClosedHoldingRepository()
-        closed_list = await closed_repo.list_closed_holdings()
+        closed_page = await closed_repo.list_closed_holdings(page=1, page_size=9999)
+        closed_list = closed_page.data
 
         dietz_start_date: str | None = None
         if txns or closed_list:

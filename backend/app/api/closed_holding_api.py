@@ -11,9 +11,12 @@ service = ClosedHoldingService()
 
 
 @router.get("/closed-holdings")
-async def list_closed_holdings():
-    """获取全部归档持仓（按清仓日倒序）"""
-    data = await service.list_closed_holdings()
+async def list_closed_holdings(
+    page: int = Query(1, ge=1, description="页码，从 1 开始"),
+    page_size: int = Query(20, ge=1, le=100, description="每页条数"),
+):
+    """获取全部归档持仓（按清仓日倒序，分页）"""
+    data = await service.list_closed_holdings(page=page, page_size=page_size)
     return success(data)
 
 
@@ -37,8 +40,9 @@ async def delete_closed_holding(holding_id: int):
 
 @router.get("/closed-transactions")
 async def list_closed_transactions(
-    limit: int = Query(500, ge=1, le=2000, description="返回条数上限"),
+    page: int = Query(1, ge=1, description="页码，从 1 开始"),
+    page_size: int = Query(20, ge=1, le=100, description="每页条数"),
 ):
-    """获取全部归档交易（按交易日倒序，统一历史交易查询）"""
-    data = await service.list_closed_transactions(limit=limit)
+    """获取全部归档交易（按交易日倒序，分页）"""
+    data = await service.list_closed_transactions(page=page, page_size=page_size)
     return success(data)

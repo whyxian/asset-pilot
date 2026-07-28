@@ -34,11 +34,13 @@ function toNum(v: number | string): number {
 }
 
 export function HoldingDetailDialog({ open, onOpenChange, holding }: HoldingDetailDialogProps) {
-  const { data: transactions, isLoading: txnsLoading } = useTransactions(
+  const { data: txnsData, isLoading: txnsLoading } = useTransactions(
+    1, 100,
     holding?.ticker,
     holding?.asset_class,
     holding?.market,
   )
+  const transactions = txnsData?.data ?? []
 
   const { upColor, downColor } = useColors()
 

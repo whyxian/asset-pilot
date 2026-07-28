@@ -21,9 +21,12 @@ async def get_balances(currency: str = Query("CNY", max_length=3)):
 
 
 @router.get("/flows")
-async def list_flows(limit: int = Query(100, ge=1, le=1000)):
-    """资金流水列表（按时间倒序）"""
-    data = await service.list_flows(limit=limit)
+async def list_flows(
+    page: int = Query(1, ge=1, description="页码，从 1 开始"),
+    page_size: int = Query(20, ge=1, le=100, description="每页条数"),
+):
+    """资金流水列表（按时间倒序，分页）"""
+    data = await service.list_flows(page=page, page_size=page_size)
     return success(data)
 
 

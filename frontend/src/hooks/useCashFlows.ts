@@ -10,11 +10,12 @@ export function useCashBalances(currency: string = 'CNY') {
   })
 }
 
-export function useCashFlows(limit = 100) {
+export function useCashFlows(page: number = 1, pageSize: number = 20) {
   return useQuery({
-    queryKey: ['cash-flows', limit],
-    queryFn: () => fetchCashFlows(limit),
+    queryKey: ['cash-flows', page, pageSize],
+    queryFn: () => fetchCashFlows(page, pageSize),
     refetchInterval: 60_000,
+    placeholderData: (prev) => prev,
   })
 }
 

@@ -254,6 +254,14 @@ export interface CashBalance {
   balance: number
 }
 
+/** 分页响应 */
+export interface PaginatedResponse<T> {
+  data: T[]
+  total: number
+  page: number
+  page_size: number
+}
+
 /** 现金余额聚合（换算到显示币种的总额 + 各币种明细） */
 export interface CashBalancesResponse {
   display_currency: string

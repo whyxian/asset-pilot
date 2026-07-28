@@ -9,6 +9,7 @@ import { Eye, ArrowLeft, Trash2 } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { formatPrice, formatPct } from '@/lib/utils'
 import { useColors } from '@/lib/settings'
+import { Pagination } from '@/components/ui/pagination'
 import type { ClosedHolding } from '@/types'
 
 const marketLabel: Record<string, string> = {
@@ -35,7 +36,11 @@ function PageHeader() {
 }
 
 export function HistoryPage() {
-  const { data, isLoading, isError, error, refetch } = useClosedHoldings()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const { data: pageData, isLoading, isError, error, refetch } = useClosedHoldings(page, pageSize)
+  const data = pageData?.data ?? []
+  const total = pageData?.total ?? 0
   const deleteMut = useDeleteClosedHolding()
   const [detailId, setDetailId] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -45,6 +50,11 @@ export function HistoryPage() {
   }, [])
   const { upColor, downColor } = useColors()
   const [deleteConfirm, setDeleteConfirm] = useState<ClosedHolding | null>(null)
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size)
+    setPage(1)
+  }
 
   function handleDeleteClick(h: ClosedHolding) {
     setDeleteConfirm(h)
@@ -102,7 +112,7 @@ export function HistoryPage() {
   }
 
   // ---- 空态 ----
-  if (!data || data.length === 0) {
+  if (total === 0 && !isLoading) {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500">
         <PageHeader />
@@ -213,7 +223,15 @@ export function HistoryPage() {
       </div>
       </div>
 
-      <p className={`text-sm text-muted-foreground transition-all duration-500 ease-out delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>共 {data.length} 笔历史持仓</p>
+      <div className={`text-sm text-muted-foreground transition-all duration-500 ease-out delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
+      </div>
 
       <ClosedHoldingDetailDialog
         id={detailId}

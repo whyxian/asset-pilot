@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowLeft } from 'lucide-react'
 import { toNum, formatPrice } from '@/lib/utils'
+import { Pagination } from '@/components/ui/pagination'
 
 const marketLabel: Record<string, string> = {
   CN: 'A 股',
@@ -32,12 +33,21 @@ function PageHeader() {
 }
 
 export function ClosedTransactionsPage() {
-  const { data, isLoading, isError, error, refetch } = useClosedTransactions()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const { data, isLoading, isError, error, refetch } = useClosedTransactions(page, pageSize)
+  const records = data?.data ?? []
+  const total = data?.total ?? 0
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50)
     return () => clearTimeout(t)
   }, [])
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size)
+    setPage(1)
+  }
 
   // ---- 加载态 ----
   if (isLoading) {
@@ -83,7 +93,7 @@ export function ClosedTransactionsPage() {
   }
 
   // ---- 空态 ----
-  if (!data || data.length === 0) {
+  if (total === 0 && !isLoading) {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500">
         <PageHeader />
@@ -124,7 +134,7 @@ export function ClosedTransactionsPage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((t) => (
+              {records.map((t) => (
                 <tr key={t.id} className="border-t hover:bg-muted/30">
                   <td className="p-3">{t.transaction_date}</td>
                   <td className="p-3 font-medium">{t.ticker}</td>
@@ -155,9 +165,15 @@ export function ClosedTransactionsPage() {
         </div>
       </div>
 
-      {/* 页脚 */}
+      {/* 分页 */}
       <div className={`transition-all duration-500 ease-out delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-        <p className="text-sm text-muted-foreground">共 {data.length} 笔历史交易</p>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
       </div>
     </div>
   )

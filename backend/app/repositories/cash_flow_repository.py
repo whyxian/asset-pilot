@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session
 from app.models.cash_flow import CashBalance, CashFlow
+from app.models.common import PaginatedResponse
 from app.models.orm.cash_flow_orm import CashFlowRecord
 
 
@@ -36,15 +37,21 @@ class CashFlowRepository:
                 notes=notes,
             )
 
-    async def list_flows(self, limit: int = 100) -> list[CashFlow]:
-        """流水列表（按创建时间倒序）"""
+    async def list_flows(self, page: int = 1, page_size: int = 20) -> PaginatedResponse[CashFlow]:
+        """流水列表（按创建时间倒序，分页）"""
         async with async_session() as session:
+            total = (await session.execute(
+                select(func.count()).select_from(CashFlowRecord)
+            )).scalar() or 0
             records = (await session.execute(
                 select(CashFlowRecord)
                 .order_by(CashFlowRecord.created_at.desc(), CashFlowRecord.id.desc())
-                .limit(limit)
+                .limit(page_size).offset((page - 1) * page_size)
             )).scalars().all()
-            return [_record_to_flow(r) for r in records]
+            return PaginatedResponse[CashFlow](
+                data=[_record_to_flow(r) for r in records],
+                total=total, page=page, page_size=page_size,
+            )
 
     async def get_balances(self) -> list[CashBalance]:
         """按币种汇总余额"""

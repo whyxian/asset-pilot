@@ -6,26 +6,33 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.database import async_session
 from app.models.closed_holding import ClosedHolding, ClosedHoldingDetail, ClosedTransaction
+from app.models.common import PaginatedResponse
 from app.models.orm.closed_holding_orm import ClosedHoldingRecord, ClosedTransactionRecord
 
 
 class ClosedHoldingRepository:
     """归档持仓数据访问"""
 
-    async def list_closed_holdings(self) -> list[ClosedHolding]:
-        """获取全部归档持仓（按清仓日倒序）"""
+    async def list_closed_holdings(self, page: int = 1, page_size: int = 20) -> PaginatedResponse[ClosedHolding]:
+        """获取全部归档持仓（按清仓日倒序，分页）"""
         async with async_session() as session:
+            total = (await session.execute(
+                select(func.count()).select_from(ClosedHoldingRecord)
+            )).scalar() or 0
             records = (await session.execute(
                 select(ClosedHoldingRecord).order_by(
                     ClosedHoldingRecord.closed_at.desc(),
                     ClosedHoldingRecord.id.desc(),
-                )
+                ).limit(page_size).offset((page - 1) * page_size)
             )).scalars().all()
-            return [_record_to_closed_holding(r) for r in records]
+            return PaginatedResponse[ClosedHolding](
+                data=[_record_to_closed_holding(r) for r in records],
+                total=total, page=page, page_size=page_size,
+            )
 
     async def get_closed_holding(self, holding_id: int) -> ClosedHoldingDetail | None:
         """获取单条归档持仓详情（含全部关联交易）"""
@@ -50,18 +57,24 @@ class ClosedHoldingRepository:
                 transactions=[_record_to_closed_transaction(t) for t in txn_records],
             )
 
-    async def list_closed_transactions(self, limit: int = 500) -> list[ClosedTransaction]:
-        """获取全部归档交易（按交易日倒序，便于"近期归档先看到"）"""
+    async def list_closed_transactions(self, page: int = 1, page_size: int = 20) -> PaginatedResponse[ClosedTransaction]:
+        """获取全部归档交易（按交易日倒序，分页）"""
         async with async_session() as session:
+            total = (await session.execute(
+                select(func.count()).select_from(ClosedTransactionRecord)
+            )).scalar() or 0
             records = (await session.execute(
                 select(ClosedTransactionRecord)
                 .order_by(
                     ClosedTransactionRecord.transaction_date.desc(),
                     ClosedTransactionRecord.id.desc(),
                 )
-                .limit(limit)
+                .limit(page_size).offset((page - 1) * page_size)
             )).scalars().all()
-            return [_record_to_closed_transaction(r) for r in records]
+            return PaginatedResponse[ClosedTransaction](
+                data=[_record_to_closed_transaction(r) for r in records],
+                total=total, page=page, page_size=page_size,
+            )
 
 
     async def delete_closed_holding(self, holding_id: int) -> bool:

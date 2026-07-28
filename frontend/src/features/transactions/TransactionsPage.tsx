@@ -12,6 +12,7 @@ import { TransactionFormDialog } from './TransactionFormDialog'
 import { Plus, Pencil, Trash2, Archive } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toNum, formatPrice } from '@/lib/utils'
+import { Pagination } from '@/components/ui/pagination'
 import type {
   Transaction,
   TransactionCreate,
@@ -29,19 +30,13 @@ const marketLabel: Record<string, string> = {
   CRYPTO: '加密',
 }
 
-/** 各市场 Tab：label + 交易条数 */
-function marketTabs(transactions: Transaction[]) {
-  const counts = { CN: 0, US: 0, CRYPTO: 0 } as Record<string, number>
-  for (const t of transactions) {
-    counts[t.market] = (counts[t.market] || 0) + 1
-  }
-  return [
-    { key: 'ALL', label: '全部', count: transactions.length },
-    { key: 'CN', label: 'A 股', count: counts.CN },
-    { key: 'US', label: '美股', count: counts.US },
-    { key: 'CRYPTO', label: '加密', count: counts.CRYPTO },
-  ]
-}
+/** 各市场 Tab */
+const MARKET_TABS = [
+  { key: 'ALL', label: '全部' },
+  { key: 'CN', label: 'A 股' },
+  { key: 'US', label: '美股' },
+  { key: 'CRYPTO', label: '加密' },
+]
 
 /** 表单字符串 → 用于比较的 number（不用于提交） */
 function toNumForCompare(v: string | null | undefined): number | null {
@@ -51,18 +46,18 @@ function toNumForCompare(v: string | null | undefined): number | null {
 }
 
 export function TransactionsPage() {
-  const { data: transactions, isLoading, isError, error, refetch } = useTransactions()
+  const [marketFilter, setMarketFilter] = useState<string>('ALL')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const { data: txnData, isLoading, isError, error, refetch } = useTransactions(
+    page, pageSize, undefined, undefined, marketFilter === 'ALL' ? undefined : marketFilter,
+  )
+  const transactions = txnData?.data ?? []
+  const total = txnData?.total ?? 0
   const createMut = useCreateTransaction()
   const updateMut = useUpdateTransaction()
   const deleteMut = useDeleteTransaction()
   const navigate = useNavigate()
-
-  // 市场筛选 Tab
-  const [marketFilter, setMarketFilter] = useState<string>('ALL')
-  const txnList = transactions ?? []
-  const filteredTxns = marketFilter === 'ALL'
-    ? txnList
-    : txnList.filter((t) => t.market === marketFilter)
 
   // 对话框状态
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -75,6 +70,16 @@ export function TransactionsPage() {
     const t = setTimeout(() => setMounted(true), 50)
     return () => clearTimeout(t)
   }, [])
+
+  function handleMarketChange(market: string) {
+    setMarketFilter(market)
+    setPage(1) // 切换市场时重置到第 1 页
+  }
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size)
+    setPage(1)
+  }
 
   function handleCreate() {
     setEditingTxn(undefined)
@@ -205,7 +210,7 @@ export function TransactionsPage() {
   }
 
   // ---- 空态 ----
-  if (txnList.length === 0) {
+  if (total === 0 && !isLoading) {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500">
         <div className="flex items-center justify-between">
@@ -233,7 +238,6 @@ export function TransactionsPage() {
   }
 
   // ---- 正常渲染 ----
-  const tabs = marketTabs(txnList)
 
   return (
     <div className="space-y-6">
@@ -253,19 +257,18 @@ export function TransactionsPage() {
       {/* 市场筛选 Tab */}
       <div className={`transition-all duration-500 ease-out delay-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
       <div className="flex gap-1 border-b">
-        {tabs.map((tab) => (
+        {MARKET_TABS.map((tab) => (
           <button
             key={tab.key}
             type="button"
-            onClick={() => setMarketFilter(tab.key)}
-            className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors flex items-baseline gap-1.5 ${
+            onClick={() => handleMarketChange(tab.key)}
+            className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${
               marketFilter === tab.key
                 ? 'border-primary text-foreground font-medium'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             {tab.label}
-            <span className="text-xs opacity-60">{tab.count} 条</span>
           </button>
         ))}
       </div>
@@ -312,7 +315,7 @@ export function TransactionsPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredTxns.map((t) => (
+            {transactions.map((t) => (
               <tr key={t.id} className="border-t hover:bg-muted/30">
                 <td className="p-3">{t.transaction_date}</td>
                 <td className="p-3 font-medium">{t.ticker}</td>
@@ -355,7 +358,15 @@ export function TransactionsPage() {
       </div>
       </div>
 
-      <p className={`text-sm text-muted-foreground transition-all duration-500 ease-out delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>共 {filteredTxns.length} 条记录</p>
+      <div className={`transition-all duration-500 ease-out delay-150 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
+      </div>
 
       <TransactionFormDialog
         open={dialogOpen}

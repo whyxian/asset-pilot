@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AssetQuote, AssetSnapshot, AssetVariety, CashBalance, CashBalancesResponse, CashFlow, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingsWithQuotesResponse, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
+import type { AssetQuote, AssetSnapshot, AssetVariety, CashBalance, CashBalancesResponse, CashFlow, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingsWithQuotesResponse, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, PaginatedResponse, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
 
 // ═══════════════════════════════════════════
 // 持仓
@@ -77,16 +77,17 @@ export const fetchFundQuotes = (market: 'CN' | 'US', codes: string[]) =>
 // 交易记录
 // ═══════════════════════════════════════════
 
-/** 获取交易记录列表（三元组都可选筛选） */
+/** 获取交易记录列表（三元组都可选筛选，分页） */
 export const fetchTransactions = (
+  page: number = 1,
+  pageSize: number = 20,
   ticker?: string,
   asset_class?: string,
   market?: string,
-  limit = 100,
 ) =>
   apiClient.get('/api/v1/transactions', {
-    params: { ticker, asset_class, market, limit },
-  }) as Promise<Transaction[]>
+    params: { page, page_size: pageSize, ticker, asset_class, market },
+  }) as Promise<PaginatedResponse<Transaction>>
 
 /** 新增交易记录 */
 export const createTransaction = (data: TransactionCreate) =>
@@ -104,17 +105,17 @@ export const deleteTransaction = (id: number) =>
 // 历史持仓（已归档）
 // ═══════════════════════════════════════════
 
-/** 获取全部归档持仓（按清仓日倒序） */
-export const fetchClosedHoldings = () =>
-  apiClient.get('/api/v1/closed-holdings') as Promise<ClosedHolding[]>
+/** 获取全部归档持仓（按清仓日倒序，分页） */
+export const fetchClosedHoldings = (page: number = 1, pageSize: number = 20) =>
+  apiClient.get('/api/v1/closed-holdings', { params: { page, page_size: pageSize } }) as Promise<PaginatedResponse<ClosedHolding>>
 
 /** 获取单条归档持仓详情（含全部关联交易） */
 export const fetchClosedHolding = (id: number) =>
   apiClient.get(`/api/v1/closed-holdings/${id}`) as Promise<ClosedHoldingDetail>
 
-/** 获取全部归档交易（按交易日倒序，统一历史交易查询） */
-export const fetchClosedTransactions = (limit = 500) =>
-  apiClient.get('/api/v1/closed-transactions', { params: { limit } }) as Promise<ClosedTransaction[]>
+/** 获取全部归档交易（按交易日倒序，分页） */
+export const fetchClosedTransactions = (page: number = 1, pageSize: number = 20) =>
+  apiClient.get('/api/v1/closed-transactions', { params: { page, page_size: pageSize } }) as Promise<PaginatedResponse<ClosedTransaction>>
 
 /** 删除归档持仓及其关联交易 */
 export const deleteClosedHolding = (id: number) =>
@@ -153,9 +154,9 @@ export interface CashWithdrawData {
 export const fetchCashBalances = (currency: string = 'CNY') =>
   apiClient.get('/api/v1/cash/balances', { params: { currency } }) as Promise<CashBalancesResponse>
 
-/** 获取资金流水列表 */
-export const fetchCashFlows = (limit = 100) =>
-  apiClient.get('/api/v1/cash/flows', { params: { limit } }) as Promise<CashFlow[]>
+/** 获取资金流水列表（分页） */
+export const fetchCashFlows = (page: number = 1, pageSize: number = 20) =>
+  apiClient.get('/api/v1/cash/flows', { params: { page, page_size: pageSize } }) as Promise<PaginatedResponse<CashFlow>>
 
 /** 入金 */
 export const cashDeposit = (data: CashDepositData) =>

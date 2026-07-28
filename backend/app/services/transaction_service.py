@@ -12,6 +12,7 @@ from app.core.database import async_session
 from app.core.exceptions import BusinessError
 from app.models.orm.asset_holding_orm import AssetHoldingRecord
 from app.models.orm.cash_flow_orm import CashFlowRecord
+from app.models.common import PaginatedResponse
 from app.models.orm.transaction_orm import TransactionRecord
 from app.models.transaction import Transaction, TransactionCreate, TransactionUpdate
 from app.repositories.transaction_repository import TransactionRepository
@@ -29,11 +30,13 @@ class TransactionService:
         ticker: str | None = None,
         asset_class: str | None = None,
         market: str | None = None,
-        limit: int = 100,
-    ) -> list[Transaction]:
-        """获取交易记录列表（按日期倒序）；三个筛选都是可选"""
+        page: int = 1,
+        page_size: int = 20,
+    ) -> PaginatedResponse[Transaction]:
+        """获取交易记录列表（按日期倒序，分页）；三个筛选都是可选"""
         return await self._repo.list_transactions(
-            ticker=ticker, asset_class=asset_class, market=market, limit=limit
+            ticker=ticker, asset_class=asset_class, market=market,
+            page=page, page_size=page_size,
         )
 
     async def get_transaction(self, transaction_id: int) -> Transaction | None:

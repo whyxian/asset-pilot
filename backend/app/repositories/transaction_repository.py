@@ -1,11 +1,12 @@
-"""交易记录数据访问 — transactions 表 CRUD"""
+"""交易记录数据访问 - transactions 表 CRUD"""
 
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.database import async_session
+from app.models.common import PaginatedResponse
 from app.models.orm.transaction_orm import TransactionRecord
 from app.models.transaction import Transaction, TransactionCreate, TransactionUpdate
 
@@ -18,25 +19,35 @@ class TransactionRepository:
         ticker: str | None = None,
         asset_class: str | None = None,
         market: str | None = None,
-        limit: int = 100,
-    ) -> list[Transaction]:
-        """获取交易记录列表（按日期倒序）
+        page: int = 1,
+        page_size: int = 20,
+    ) -> PaginatedResponse[Transaction]:
+        """获取交易记录列表（按日期倒序，分页）
 
         三个筛选都是可选；任一非空就加 where 条件。要按持仓精确筛选时三个一起传。
         """
         async with async_session() as session:
-            stmt = select(TransactionRecord).order_by(
-                TransactionRecord.transaction_date.desc(), TransactionRecord.id.desc()
-            )
+            base = select(TransactionRecord)
+            count_stmt = select(func.count()).select_from(TransactionRecord)
             if ticker:
-                stmt = stmt.where(TransactionRecord.ticker == ticker)
+                base = base.where(TransactionRecord.ticker == ticker)
+                count_stmt = count_stmt.where(TransactionRecord.ticker == ticker)
             if asset_class:
-                stmt = stmt.where(TransactionRecord.asset_class == asset_class)
+                base = base.where(TransactionRecord.asset_class == asset_class)
+                count_stmt = count_stmt.where(TransactionRecord.asset_class == asset_class)
             if market:
-                stmt = stmt.where(TransactionRecord.market == market)
-            stmt = stmt.limit(limit)
-            records = (await session.execute(stmt)).scalars().all()
-            return [_record_to_transaction(r) for r in records]
+                base = base.where(TransactionRecord.market == market)
+                count_stmt = count_stmt.where(TransactionRecord.market == market)
+
+            total = (await session.execute(count_stmt)).scalar() or 0
+            records = (await session.execute(
+                base.order_by(TransactionRecord.transaction_date.desc(), TransactionRecord.id.desc())
+                .limit(page_size).offset((page - 1) * page_size)
+            )).scalars().all()
+            return PaginatedResponse[Transaction](
+                data=[_record_to_transaction(r) for r in records],
+                total=total, page=page, page_size=page_size,
+            )
 
     async def get_transaction(self, transaction_id: int) -> Transaction | None:
         """按 ID 获取单条交易记录"""

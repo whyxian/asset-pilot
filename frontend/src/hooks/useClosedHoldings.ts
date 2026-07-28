@@ -2,28 +2,30 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deleteClosedHolding, fetchClosedHolding, fetchClosedHoldings, fetchClosedTransactions } from '@/api/endpoints'
 
-/** 获取全部归档持仓 */
-export function useClosedHoldings() {
+/** 获取全部归档持仓（分页） */
+export function useClosedHoldings(page: number, pageSize: number) {
   return useQuery({
-    queryKey: ['closed-holdings'],
-    queryFn: fetchClosedHoldings,
+    queryKey: ['closed-holdings', page, pageSize],
+    queryFn: () => fetchClosedHoldings(page, pageSize),
+    placeholderData: (prev) => prev,
   })
 }
 
 /** 获取单条归档持仓详情 */
 export function useClosedHolding(id: number | null) {
   return useQuery({
-    queryKey: ['closed-holdings', id],
+    queryKey: ['closed-holdings', 'detail', id],
     queryFn: () => fetchClosedHolding(id!),
     enabled: id !== null,
   })
 }
 
-/** 获取全部归档交易（统一历史交易查询） */
-export function useClosedTransactions() {
+/** 获取全部归档交易（分页） */
+export function useClosedTransactions(page: number, pageSize: number) {
   return useQuery({
-    queryKey: ['closed-transactions'],
-    queryFn: () => fetchClosedTransactions(),
+    queryKey: ['closed-transactions', page, pageSize],
+    queryFn: () => fetchClosedTransactions(page, pageSize),
+    placeholderData: (prev) => prev,
   })
 }
 

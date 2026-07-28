@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input'
 import { DollarSign, Plus, Minus, TrendingUp, TrendingDown } from 'lucide-react'
 import { CountUp } from '@/components/ui/countup'
+import { Pagination } from '@/components/ui/pagination'
 import { formatPrice, toNum } from '@/lib/utils'
 import { useColors } from '@/lib/settings'
 import { useCashBalances, useCashFlows, useCashDeposit, useCashWithdraw } from '@/hooks/useCashFlows'
@@ -110,11 +111,20 @@ function CashDialog({
 
 export function CashPage() {
   const { data: balancesData, isLoading: balancesLoading, isError, error, refetch } = useCashBalances(CURRENCY)
-  const { data: flows, isLoading: flowsLoading } = useCashFlows(100)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const { data: flowsData, isLoading: flowsLoading } = useCashFlows(page, pageSize)
+  const flows = flowsData?.data ?? []
+  const flowsTotal = flowsData?.total ?? 0
   const [mounted, setMounted] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'deposit' | 'withdraw'>('deposit')
   const { upColor, downColor } = useColors()
+
+  function handlePageSizeChange(size: number) {
+    setPageSize(size)
+    setPage(1)
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50)
@@ -264,8 +274,14 @@ export function CashPage() {
               </tbody>
             </table>
           </div>
-          {flows && flows.length > 0 && (
-            <p className="text-sm text-muted-foreground mt-2">共 {flows.length} 笔流水</p>
+          {flowsTotal > 0 && (
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={flowsTotal}
+              onPageChange={setPage}
+              onPageSizeChange={handlePageSizeChange}
+            />
           )}
         </div>
       </div>
