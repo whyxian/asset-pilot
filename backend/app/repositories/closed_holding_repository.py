@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from app.core.database import async_session
 from app.models.closed_holding import ClosedHolding, ClosedHoldingDetail, ClosedTransaction
 from app.models.common import PaginatedResponse
+from app.models.orm.cash_flow_orm import CashFlowRecord
 from app.models.orm.closed_holding_orm import ClosedHoldingRecord, ClosedTransactionRecord
 
 
@@ -78,18 +79,35 @@ class ClosedHoldingRepository:
 
 
     async def delete_closed_holding(self, holding_id: int) -> bool:
-        """删除归档持仓及其关联交易，返回是否删除成功"""
+        """删除归档持仓及其关联交易 + 关联 cash_flows，返回是否删除成功
+
+        cash_flows 中 transaction_id 指向原 transactions.id（归档时已删除），
+        通过 closed_transactions.original_id 关联回来。只删 buy/sell 类型
+        的 cash_flow（有 transaction_id 的），自动入金（transaction_id=NULL）保留。
+        """
         async with async_session() as session:
             r = (await session.execute(
                 select(ClosedHoldingRecord).where(ClosedHoldingRecord.id == holding_id)
             )).scalar_one_or_none()
             if not r:
                 return False
-            # 先删关联交易（FK 约束）
+            # 1. 取该归档持仓全部 closed_transactions 的 original_id
+            original_ids = [row[0] for row in (await session.execute(
+                select(ClosedTransactionRecord.original_id)
+                .where(ClosedTransactionRecord.closed_holding_id == holding_id)
+            )).all()]
+            # 2. 删除关联的 cash_flows（buy/sell，有 transaction_id 的）
+            if original_ids:
+                await session.execute(
+                    CashFlowRecord.__table__.delete()
+                    .where(CashFlowRecord.transaction_id.in_(original_ids))
+                )
+            # 3. 删关联归档交易（FK 约束）
             await session.execute(
                 ClosedTransactionRecord.__table__.delete()
                 .where(ClosedTransactionRecord.closed_holding_id == holding_id)
             )
+            # 4. 删归档持仓
             await session.delete(r)
             await session.commit()
             return True
