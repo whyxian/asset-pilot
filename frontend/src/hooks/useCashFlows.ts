@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cashDeposit, cashWithdraw, fetchCashBalances, fetchCashFlows } from '@/api/endpoints'
 import type { CashDepositData, CashWithdrawData } from '@/api/endpoints'
 
-export function useCashBalances() {
+export function useCashBalances(currency: string = 'CNY') {
   return useQuery({
-    queryKey: ['cash-balances'],
-    queryFn: fetchCashBalances,
+    queryKey: ['cash-balances', currency],
+    queryFn: () => fetchCashBalances(currency),
     refetchInterval: 60_000,
   })
 }

@@ -253,3 +253,12 @@ export interface CashBalance {
   currency: string
   balance: number
 }
+
+/** 现金余额聚合（换算到显示币种的总额 + 各币种明细） */
+export interface CashBalancesResponse {
+  display_currency: string
+  total: number
+  balances: CashBalance[]
+  rate_source_date: string | null
+  rate_stale: boolean
+}

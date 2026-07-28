@@ -121,11 +121,12 @@ function CashDialog({
 }
 
 export function CashPage() {
-  const { data: balances, isLoading: balancesLoading } = useCashBalances()
+  const { data: balancesData, isLoading: balancesLoading } = useCashBalances(CURRENCY)
   const { data: flows, isLoading: flowsLoading } = useCashFlows(100)
   const [mounted, setMounted] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'deposit' | 'withdraw'>('deposit')
+  const [showDetail, setShowDetail] = useState(false)
   const { upColor, downColor } = useColors()
   const navigate = useNavigate()
 
@@ -140,6 +141,11 @@ export function CashPage() {
     return d.slice(0, 10)
   }
 
+  const total = balancesData?.total ?? 0
+  const displayCurrency = balancesData?.display_currency ?? CURRENCY
+  const balances = balancesData?.balances ?? []
+  const hasMultipleCurrencies = balances.length > 1
+
   return (
     <div className="space-y-6">
       <div className={`flex items-center gap-3 transition-all duration-500 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
@@ -152,33 +158,48 @@ export function CashPage() {
       {/* 余额卡片 */}
       <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-all duration-500 ease-out delay-50 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
         {balancesLoading ? (
-          <>
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
-          </>
-        ) : balances?.length ? (
-          balances.map((b: CashBalance) => (
-            <Card key={b.currency}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">{b.currency} 现金</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <span className={`text-2xl font-bold ${b.balance >= 0 ? upColor : downColor}`}>
-                  {formatPrice(b.balance, b.currency, 2)}
-                </span>
-              </CardContent>
-            </Card>
-          ))
+          <Skeleton className="h-24" />
         ) : (
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">现金余额</CardTitle>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm text-muted-foreground">
+                现金总额（{displayCurrency}）
+              </CardTitle>
+              {hasMultipleCurrencies && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowDetail((v) => !v)}
+                >
+                  {showDetail ? '收起明细' : '查看各币种'}
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
-              <span className="text-2xl font-bold text-muted-foreground">无数据</span>
+              <span className={`text-2xl font-bold ${total >= 0 ? upColor : downColor}`}>
+                {formatPrice(total, displayCurrency, 2)}
+              </span>
+              {balancesData?.rate_stale && (
+                <p className="text-xs text-amber-600 mt-1">汇率可能过时（走了兜底）</p>
+              )}
             </CardContent>
           </Card>
         )}
+
+        {/* 各币种明细（点按钮才显示） */}
+        {showDetail && balances.map((b: CashBalance) => (
+          <Card key={b.currency}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">{b.currency} 现金</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <span className={`text-2xl font-bold ${b.balance >= 0 ? upColor : downColor}`}>
+                {formatPrice(b.balance, b.currency, 2)}
+              </span>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* 操作按钮 */}

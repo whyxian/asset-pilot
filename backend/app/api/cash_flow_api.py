@@ -1,5 +1,7 @@
 """资金流水接口 — 独立于交易系统"""
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Query
 
 from app.core.exceptions import BusinessError
@@ -12,9 +14,9 @@ service = CashFlowService()
 
 
 @router.get("/balances")
-async def get_balances():
-    """各币种现金余额"""
-    data = await service.get_balances()
+async def get_balances(currency: str = Query("CNY", max_length=3)):
+    """各币种现金余额 + 换算到指定币种的总额"""
+    data = await service.get_balances(display_currency=currency)
     return success(data)
 
 
@@ -35,10 +37,10 @@ async def deposit(data: CashDepositCreate):
 @router.post("/withdraw")
 async def withdraw(data: CashWithdrawCreate):
     """出金"""
-    # 检查余额是否充足
+    # 检查同币种余额是否充足
     balances = await service.get_balances()
     current = Decimal("0")
-    for b in balances:
+    for b in balances.balances:
         if b.currency == data.currency:
             current = b.balance
             break

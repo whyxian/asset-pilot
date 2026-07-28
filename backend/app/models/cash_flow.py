@@ -23,6 +23,15 @@ class CashBalance(BaseModel):
     balance: Decimal = Decimal("0")
 
 
+class CashBalancesResponse(BaseModel):
+    """现金余额聚合 - 按显示币种换算后的总额 + 各币种明细"""
+    display_currency: str                       # 显示币种（如 CNY）
+    total: Decimal = Decimal("0")               # 所有币种余额换算到 display_currency 的总和
+    balances: list[CashBalance] = []            # 各币种原始余额
+    rate_source_date: str | None = None         # 汇率日期
+    rate_stale: bool = False                    # 汇率是否走了兜底
+
+
 class CashDepositCreate(BaseModel):
     """入金请求"""
     amount: Decimal = Field(..., gt=0, description="入金金额，正数")

@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AssetQuote, AssetSnapshot, AssetVariety, CashBalance, CashFlow, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingsWithQuotesResponse, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
+import type { AssetQuote, AssetSnapshot, AssetVariety, CashBalance, CashBalancesResponse, CashFlow, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingsWithQuotesResponse, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
 
 // ═══════════════════════════════════════════
 // 持仓
@@ -149,9 +149,9 @@ export interface CashWithdrawData {
   notes?: string | null
 }
 
-/** 获取各币种现金余额 */
-export const fetchCashBalances = () =>
-  apiClient.get('/api/v1/cash/balances') as Promise<CashBalance[]>
+/** 获取各币种现金余额 + 换算到指定币种的总额 */
+export const fetchCashBalances = (currency: string = 'CNY') =>
+  apiClient.get('/api/v1/cash/balances', { params: { currency } }) as Promise<CashBalancesResponse>
 
 /** 获取资金流水列表 */
 export const fetchCashFlows = (limit = 100) =>
