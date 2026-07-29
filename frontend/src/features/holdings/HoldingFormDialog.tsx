@@ -58,6 +58,7 @@ function holdingToForm(h: HoldingWithQuote): HoldingFormData {
     cost_price: String(Number(h.cost_price)),
     total_invested: String(Number(h.total_invested)),
     first_buy_date: h.first_buy_date,
+    cash_account_enabled: false, // 编辑时不可改，值无意义
   }
 }
 
