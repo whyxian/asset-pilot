@@ -7,7 +7,7 @@ import { POLL_INTERVAL } from '@/lib/config'
 export function useHoldings() {
   return useQuery<HoldingsWithQuotesResponse>({
     queryKey: ['holdings', 'with-quotes'],
-    queryFn: fetchHoldingsWithQuotes,
+    queryFn: () => fetchHoldingsWithQuotes(),
     refetchInterval: POLL_INTERVAL,
     refetchIntervalInBackground: false,
   })

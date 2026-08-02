@@ -163,10 +163,10 @@ export function HoldingsPage() {
     transaction_date: string; type: 'buy' | 'sell'
     quantity: string; unit_price: string; amount: string; notes: string
   }) {
-    const toNumOrNull = (v: string) => {
+    const toNumOrNull = (v: string): string | null => {
       if (!v.trim()) return null
       const n = parseFloat(v)
-      return Number.isNaN(n) ? null : n
+      return Number.isNaN(n) ? null : String(n)
     }
     const payload: TransactionCreate = {
       ticker: data.ticker,

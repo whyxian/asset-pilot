@@ -185,7 +185,7 @@ export function QuotesPage() {
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
           />
-          <Select value={selectedOption} onValueChange={setSelectedOption}>
+          <Select value={selectedOption} onValueChange={(v) => setSelectedOption(v ?? '')}>
             <SelectTrigger className="w-28">
               <SelectValue />
             </SelectTrigger>

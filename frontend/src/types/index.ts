@@ -172,6 +172,7 @@ export interface TransactionCreate {
   quantity?: string | null  // Decimal 字符串
   unit_price?: string | null
   amount?: string | null
+  fee_rate?: number | null  // 费率百分比
   notes?: string | null
 }
 
@@ -185,6 +186,7 @@ export interface TransactionUpdate {
   quantity?: string | null  // Decimal 字符串
   unit_price?: string | null
   amount?: string | null
+  fee_rate?: number | null  // 费率百分比
   notes?: string | null
 }
 

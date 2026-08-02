@@ -14,7 +14,7 @@ const apiClient = axios.create({
 
 // 响应拦截器：自动解包 {code, message, data} → 返回 data；code≠0 时抛 ApiError
 apiClient.interceptors.response.use(
-  (response) => {
+  (response): any => {
     const body = response.data as ApiResponse<unknown>
     if (body.code === 0) {
       // 直接返回解包后的 data，调用方拿到的就是业务数据

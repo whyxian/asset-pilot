@@ -254,7 +254,7 @@ export function OverviewPage() {
                   domain={['auto', 'auto']}
                 />
                 <RechartsTooltip
-                  formatter={(value: number) => formatPrice(value, CURRENCY, 2)}
+                  formatter={(value) => formatPrice(Number(value), CURRENCY, 2)}
                   labelFormatter={(label) => `日期：${label}`}
                 />
                 <Line

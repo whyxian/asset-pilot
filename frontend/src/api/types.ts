@@ -7,11 +7,11 @@ export interface ApiResponse<T> {
 
 /** API 业务异常 */
 export class ApiError extends Error {
-  constructor(
-    public code: number,
-    message: string,
-  ) {
+  code: number
+
+  constructor(code: number, message: string) {
     super(message)
     this.name = 'ApiError'
+    this.code = code
   }
 }

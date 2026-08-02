@@ -114,6 +114,7 @@ export function TransactionsPage() {
     quantity: string
     unit_price: string
     amount: string
+    fee_rate: string
     notes: string
   }) {
     if (editingTxn) {
@@ -128,7 +129,10 @@ export function TransactionsPage() {
       if (toNumForCompare(data.quantity) !== editingTxn.quantity) payload.quantity = data.quantity || null
       if (toNumForCompare(data.unit_price) !== editingTxn.unit_price) payload.unit_price = data.unit_price || null
       if (toNumForCompare(data.amount) !== editingTxn.amount) payload.amount = data.amount || null
-      if (toNumForCompare(data.fee_rate) !== editingTxn.fee_rate) payload.fee_rate = data.fee_rate || null
+      if (toNumForCompare(data.fee_rate) !== editingTxn.fee_rate) {
+        const fee = parseFloat(data.fee_rate)
+        payload.fee_rate = Number.isNaN(fee) ? null : fee
+      }
       const newNotes = data.notes.trim() || null
       if (newNotes !== editingTxn.notes) payload.notes = newNotes
 
@@ -146,7 +150,7 @@ export function TransactionsPage() {
         quantity: data.quantity || null,
         unit_price: data.unit_price || null,
         amount: data.amount || null,
-        fee_rate: data.fee_rate || null,
+        fee_rate: data.fee_rate ? parseFloat(data.fee_rate) : null,
         notes: data.notes.trim() || null,
       }
       createMut.mutate(payload, { onSuccess: () => setDialogOpen(false) })

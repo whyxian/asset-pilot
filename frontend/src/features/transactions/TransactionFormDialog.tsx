@@ -212,7 +212,7 @@ export function TransactionFormDialog({
             <Select
               value={form.ticker ? `${form.ticker}|${form.asset_class}|${form.market}` : ''}
               onValueChange={(v) => {
-                const [ticker, asset_class, market] = v.split('|')
+                const [ticker, asset_class, market] = (v ?? '').split('|')
                 setForm((prev) => ({ ...prev, ticker, asset_class, market }))
                 setErrors((prev) => {
                   if (!prev.ticker) return prev
