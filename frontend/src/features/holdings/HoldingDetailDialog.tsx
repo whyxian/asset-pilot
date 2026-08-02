@@ -8,7 +8,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTransactions } from '@/hooks/useTransactions'
-import { formatPrice, formatPct } from '@/lib/utils'
+import { useNow } from '@/hooks/useNow'
+import { calcHoldingDays, formatPrice, formatPct } from '@/lib/utils'
 import { useColors } from '@/lib/settings'
 import type { HoldingWithQuote } from '@/types'
 
@@ -43,10 +44,11 @@ export function HoldingDetailDialog({ open, onOpenChange, holding }: HoldingDeta
   const transactions = txnsData?.data ?? []
 
   const { upColor, downColor } = useColors()
+  const now = useNow()
 
   if (!holding) return null
 
-  const holdingDays = Math.floor((Date.now() - new Date(holding.first_buy_date).getTime()) / 86400000) + 1
+  const holdingDays = calcHoldingDays(holding.first_buy_date, now)
   const pnlPositive = toNum(holding.pnl) >= 0
   const pnlColor = pnlPositive ? upColor : downColor
 

@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { type AxiosResponse } from 'axios'
 import { ApiError } from './types'
 import type { ApiResponse } from './types'
 
@@ -14,11 +14,12 @@ const apiClient = axios.create({
 
 // 响应拦截器：自动解包 {code, message, data} → 返回 data；code≠0 时抛 ApiError
 apiClient.interceptors.response.use(
-  (response): any => {
+  (response) => {
     const body = response.data as ApiResponse<unknown>
     if (body.code === 0) {
       // 直接返回解包后的 data，调用方拿到的就是业务数据
-      return body.data
+      // （axios 类型要求 fulfilled 拦截器返回 AxiosResponse，此处用断言绕过，运行时无影响）
+      return body.data as unknown as AxiosResponse
     }
     throw new ApiError(body.code, body.message)
   },

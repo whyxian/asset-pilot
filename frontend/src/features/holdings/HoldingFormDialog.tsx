@@ -122,15 +122,18 @@ export function HoldingFormDialog({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // 对话框打开/关闭时重置 + 清空错误
-  useEffect(() => {
+  // 对话框打开时重置表单 + 清空错误
+  // （渲染期调整状态，React 官方推荐模式，避免在 effect 里同步 setState）
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) {
       setForm(holding ? holdingToForm(holding) : emptyForm())
       setSearchResults([])
       setShowDropdown(false)
       setErrors({})
     }
-  }, [open, holding])
+  }
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
@@ -153,7 +156,7 @@ export function HoldingFormDialog({
   const updateField = useCallback(
     (key: keyof HoldingFormData, value: string) => {
       setForm((prev) => {
-        let next = { ...prev, [key]: value }
+        const next = { ...prev, [key]: value }
 
         // ticker 变更 → debounce 搜索品种
         if (key === 'ticker' && !isEdit) {
@@ -206,7 +209,8 @@ export function HoldingFormDialog({
         return dirty ? errs : prev
       })
     },
-    [isEdit, doSearch],
+    // 错误联动逻辑读取当前表单的成本价/数量，须纳入依赖
+    [isEdit, doSearch, form.cost_price, form.quantity],
   )
 
   /** 选中搜索结果 */

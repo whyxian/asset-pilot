@@ -17,7 +17,8 @@ import { TransactionFormDialog } from '@/features/transactions/TransactionFormDi
 import { Plus, Pencil, Eye, HandCoins, Archive, RefreshCw } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useNavigate } from 'react-router-dom'
-import { formatPrice, formatPct } from '@/lib/utils'
+import { useNow } from '@/hooks/useNow'
+import { calcHoldingDays, formatPrice, formatPct } from '@/lib/utils'
 import { useColors } from '@/lib/settings'
 import type { HoldingCreate, HoldingUpdate, HoldingWithQuote, TransactionCreate } from '@/types'
 
@@ -103,6 +104,8 @@ export function HoldingsPage() {
   const createTxnMut = useCreateTransaction()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // 持仓天数计算的"现在"时间（每分钟刷新，避免渲染期直接调用 Date.now()）
+  const now = useNow()
 
   // 入场动画
   const [mounted, setMounted] = useState(false)
@@ -403,7 +406,7 @@ export function HoldingsPage() {
                 <td className="p-3 text-right whitespace-nowrap"><QuoteValueCell value={toNum(h.current_price)} currency={h.currency} status={h.quote_status} /></td>
                 <td className="p-3 text-right whitespace-nowrap"><PnlAmountCell holding={h} /></td>
                 <td className="p-3 text-right whitespace-nowrap"><PnlPctCell holding={h} /></td>
-                <td className="p-3 text-right">{Math.floor((Date.now() - new Date(h.first_buy_date).getTime()) / 86400000) + 1}天</td>
+                <td className="p-3 text-right">{calcHoldingDays(h.first_buy_date, now)}天</td>
                 <td className="p-3 sticky right-0 bg-background">
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon-sm" onClick={() => handleView(h)}>

@@ -36,7 +36,7 @@ export function formatPrice(value: number | string | null | undefined, currency 
       return `${sym}${num.toFixed(decimals)}`
     }
     // 不指定 decimals：保留全部小数位，仅去掉尾随零
-    let decPart = (m[2] ?? '').replace(/0+$/, '')
+    const decPart = (m[2] ?? '').replace(/0+$/, '')
     if (!decPart) return `${sym}${intPart}`
     return `${sym}${intPart}.${decPart}`
   }
@@ -48,6 +48,11 @@ export function formatPrice(value: number | string | null | undefined, currency 
     maximumSignificantDigits: 10,
     useGrouping: false,
   })}`
+}
+
+/** 持仓天数：从建仓日到 now 的间隔天数（含当天，最少 1 天） */
+export function calcHoldingDays(firstBuyDate: string, now: number): number {
+  return Math.floor((now - new Date(firstBuyDate).getTime()) / 86400000) + 1
 }
 
 /** 格式化百分比（始终保留 2 位小数） */

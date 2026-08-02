@@ -16,9 +16,15 @@ export function CountUp({ end, duration = 0.8, formattingFn }: CountUpProps) {
   const startTimeRef = useRef<number | null>(null)
   const rafRef = useRef<number>(0)
 
+  // end 变化时重置计数（渲染期调整状态，React 官方推荐模式，避免在 effect 里同步 setState）
+  const [prevEnd, setPrevEnd] = useState(end)
+  if (prevEnd !== end) {
+    setPrevEnd(end)
+    setCount(0)
+  }
+
   useEffect(() => {
     startTimeRef.current = null
-    setCount(0)
 
     const animate = (timestamp: number) => {
       if (startTimeRef.current === null) startTimeRef.current = timestamp
@@ -37,7 +43,7 @@ export function CountUp({ end, duration = 0.8, formattingFn }: CountUpProps) {
 
     rafRef.current = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(rafRef.current)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [end, duration])
 
   if (formattingFn) return <>{formattingFn(count)}</>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -99,8 +99,11 @@ export function TransactionFormDialog({
   const { data } = useHoldings()
   const holdings = data?.holdings ?? []
 
-  // 对话框打开/关闭时重置表单内容 + 清空错误
-  useEffect(() => {
+  // 对话框打开时重置表单内容 + 清空错误
+  // （渲染期调整状态，React 官方推荐模式，避免在 effect 里同步 setState）
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) {
       if (transaction) {
         setForm(transactionToForm(transaction))
@@ -111,7 +114,7 @@ export function TransactionFormDialog({
       }
       setErrors({})
     }
-  }, [open, transaction, presetData])
+  }
 
   const updateField = useCallback(
     (key: keyof TransactionFormData, value: string) => {

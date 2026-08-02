@@ -1,6 +1,7 @@
 import { Toaster } from 'sonner'
 import { AppRouter } from '@/routes'
-import { SettingsProvider, useToastDuration } from '@/lib/settings'
+import { SettingsProvider } from '@/lib/settings-provider'
+import { useToastDuration } from '@/lib/settings'
 
 function App() {
   return (
