@@ -187,6 +187,7 @@ export function HoldingsPage() {
   function handleFormSubmit(data: {
     ticker: string; name: string; market: string; asset_class: string
     currency: string; quantity: string; cost_price: string; total_invested: string; first_buy_date: string
+    cash_account_enabled: boolean
   }) {
     if (editingHolding) {
       const updateData: HoldingUpdate = {}

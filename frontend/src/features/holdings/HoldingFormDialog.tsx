@@ -108,7 +108,7 @@ export function HoldingFormDialog({
   const [searchResults, setSearchResults] = useState<AssetVariety[]>([])
   const [searching, setSearching] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
 
   // 点击外部关闭下拉
@@ -331,7 +331,7 @@ export function HoldingFormDialog({
               <label className="text-xs font-medium text-muted-foreground">市场</label>
               <Select
                 value={form.market}
-                onValueChange={(v) => updateField('market', v)}
+                onValueChange={(v) => updateField('market', v ?? '')}
                 disabled={isEdit}
               >
                 <SelectTrigger>
@@ -348,7 +348,7 @@ export function HoldingFormDialog({
               <label className="text-xs font-medium text-muted-foreground">类别</label>
               <Select
                 value={form.asset_class}
-                onValueChange={(v) => updateField('asset_class', v)}
+                onValueChange={(v) => updateField('asset_class', v ?? '')}
                 disabled={isEdit}
               >
                 <SelectTrigger>
@@ -430,7 +430,7 @@ export function HoldingFormDialog({
                 id="cash_account_enabled"
                 className="w-4 h-4 rounded border-gray-300"
                 checked={form.cash_account_enabled}
-                onChange={(e) => updateField('cash_account_enabled', e.target.checked)}
+                onChange={(e) => setForm((prev) => ({ ...prev, cash_account_enabled: e.target.checked }))}
               />
               <label htmlFor="cash_account_enabled" className="text-sm cursor-pointer select-none">
                 从现金账户扣除（建仓后不可更改）
