@@ -1,6 +1,6 @@
 # AssetPilot 开发进度
 
-> 最后更新：2026-07-07（历史持仓改用 Modified Dietz 计算收益率 + success 语义修复）
+> 最后更新：2026-08-04（现金账户管理 + 全系统表格分页 + 前端质量清理）
 > 记录所有模块的完成状态、任务拆分和开发规划
 
 ---
@@ -10,6 +10,8 @@
 ```
 Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 4 ──→ 持仓 UI ──→ Phase 5 ──→ 交易→持仓自动反推
  持仓CRUD     品种验证      数据填充      持仓计算      前端对接     增删改      交易CRUD       建仓基线 + 全量重算
+   └──→ 净值快照 ──→ 现金账户 ──→ 表格分页
+         双表+FX冻结    流水+买卖联动     4 列表接入
 ```
 
 | 阶段 | 内容 | 完成时间 | 状态 |
@@ -40,6 +42,12 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | 页面入场动画 | 6 个页面统— fade-in + 上滑 500ms 入场动画（概览/持仓/交易/历史交易/行情/历史持仓） | 2026-07-06 | ✅ |
 | 动画速度统一 | 卡片/数字/进度条/折线图动画节奏统一到 500-800ms 范围 | 2026-07-06 | ✅ |
 | 历史持仓改用 Modified Dietz | 归档时用 Modified Dietz 算盈亏率（建仓=V0，末笔卖出=V1，中间=CF）+ `success` 语义修复 + 前端 `--%` 展示 | 2026-07-07 | ✅ |
+| 现金账户管理 | `cash_flows` 资金流水表 + 独立 API + 买卖/建仓自动联动流水 + 前端现金页（入金/出金/流水列表/余额） | 2026-07-27 | ✅ |
+| 现金页布局重构 | 左右分栏（左侧 sticky 余额卡片，右侧流水）+ 余额按显示币种换算总额（对齐概览页模式） | 2026-07-28 | ✅ |
+| 全系统表格分页 | `PaginatedResponse` 统一分页模型，4 个列表（交易/归档交易/历史持仓/现金流水）接入 `page`/`page_size` + 前端 Pagination 组件 | 2026-07-28 | ✅ |
+| 现金语义修复 | `cash_account_enabled` 只决定建仓时资金来源（勾选=余额扣款校验，不勾选=自动入金历史本金），现金追踪永远开 | 2026-07-29 | ✅ |
+| 归档连带删流水 | 删除归档持仓时连带删除关联 cash_flows | 2026-07-29 | ✅ |
+| 前端质量清理 | tsconfig.app.json 严格检查存量类型错误 + ESLint 清理（react-hooks 严格检查 + react-refresh 混合导出） | 2026-08-02 | ✅ |
 
 ---
 
@@ -48,12 +56,15 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | 表 | 行数 | 说明 |
 |----|------|------|
 | `asset_varieties` | 45,884 | 品种目录 |
-| `asset_holdings` | ~4 | 当前持仓 |
-| `asset_quote` | ~60 | 行情记录 |
-| `transactions` | 0 | 交易记录（表已建，待录入） |
+| `asset_holdings` | 5 | 当前持仓 |
+| `asset_quote` | 20,258 | 行情记录（调度器 30s 预热持续写入） |
+| `transactions` | 7 | 交易记录（唯一现金流事实源） |
+| `cash_flows` | 30 | 资金流水（deposit/withdraw/buy/sell，买卖自动联动） |
 | `closed_holdings` / `closed_transactions` | 0 | 归档持仓 |
-| `networth_snapshots` | 0 | 组合级日快照（USD base + fx_rates 冻结） |
+| `networth_snapshots` | 7 | 组合级日快照（USD base + fx_rates 冻结） |
 | `asset_snapshots` | 0 | 品种级日快照（原币 + USD 双存） |
+
+> 行数统计：2026-08-04 实测。快照为手动记录，每日定时快照见规划 P3。
 
 ---
 
@@ -100,11 +111,23 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/api/v1/transactions[?ticker=][&limit=]` | 交易列表 |
+| `GET` | `/api/v1/transactions?ticker=&page=&page_size=` | 交易列表（分页） |
 | `GET` | `/api/v1/transactions/{id}` | 单条交易 |
-| `POST` | `/api/v1/transactions` | 新增交易 |
-| `PUT` | `/api/v1/transactions/{id}` | 更新交易 |
-| `DELETE` | `/api/v1/transactions/{id}` | 删除交易 |
+| `POST` | `/api/v1/transactions` | 新增交易（buy 扣款/sell 入账自动联动现金流水） |
+| `PUT` | `/api/v1/transactions/{id}` | 更新交易（联动同步流水金额） |
+| `DELETE` | `/api/v1/transactions/{id}` | 删除交易（回退现金流水） |
+
+### 现金账户
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/v1/cash/balances?currency=` | 各币种现金余额 + 按显示币种换算总额（默认 CNY） |
+| `GET` | `/api/v1/cash/flows?page=&page_size=` | 资金流水列表（时间倒序，分页） |
+| `POST` | `/api/v1/cash/deposit` | 入金（正流水） |
+| `POST` | `/api/v1/cash/withdraw` | 出金（负流水，校验同币种余额） |
+| `DELETE` | `/api/v1/cash/flows/{flow_id}` | 删除单笔流水 |
+
+> 统一分页：交易/归档交易/历史持仓/现金流水 4 个列表均返回 `PaginatedResponse{data, total, page, page_size}`，`page_size` 默认 20、范围 1-100。
 
 ---
 
@@ -144,7 +167,7 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | `test_asset_quote_repository.py` | 4 | `AssetQuoteRepository` | INSERT OR IGNORE 去重 + `get_recent_quotes` 去重/时间窗口 |
 | `test_snapshot_service.py` | 6 | `SnapshotService` | 单事务双写 + 多币种聚合 + 当日幂等 + 历史 FX 冻结 + 升序返回 |
 
-未覆盖（薄委托层/工具类，收益低）：`ClosedHoldingService`、`AssetVarietyService`、`ClosedHoldingRepository`、`exceptions.py`、`response.py`、SinaDataSource（需 Playwright）、API 路由层。
+未覆盖（薄委托层/工具类，收益低）：`ClosedHoldingService`、`AssetVarietyService`、`ClosedHoldingRepository`、`CashFlowService`、`CashFlowRepository`（现金流水及买卖联动逻辑）、`exceptions.py`、`response.py`、SinaDataSource（需 Playwright）、API 路由层。
 
 ---
 
@@ -155,5 +178,6 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | P1 | 资产配比饼图 | Recharts PieChart 替代当前进度条 |
 | P2 | 多币种切换 UI | 前端加币种切换器，调用 `?currency=USD/HKD/EUR` |
 | P3 | 净值快照定时 | 行情+汇率已由 APScheduler 定时预热（30s/55min），剩余：每日自动记录净值快照 |
-| P4 | 定投计划 | 周期自动生成交易记录并更新持仓 |
+| P4 | 定投计划 | 周期自动生成交易记录并更新持仓（联动现金扣款） |
 | P5 | 汇率源主备切换 | 当前仅 GitHub raw 单一汇率源，加备用源做主备；与磁盘/种子兜底正交 |
+| P6 | 现金账户测试补齐 | `CashFlowService` / 买卖联动逻辑尚无 pytest 覆盖，纳入下一个测试补齐批次 |

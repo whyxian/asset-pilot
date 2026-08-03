@@ -1,7 +1,7 @@
 # AssetPilot 数据库设计
 
-> 版本：v1.2
-> 最后更新：2026-06-10
+> 版本：v1.3
+> 最后更新：2026-08-04（新增 cash_flows 资金流水表 + asset_holdings.cash_account_enabled）
 
 ---
 
@@ -56,6 +56,7 @@
 | total_invested | DECIMAL(18,4) | NOT NULL | 总投入金额（recompute 算出） |
 | first_buy_date | DATE | NOT NULL | 首次买入日期（建仓交易决定，不可改） |
 | liquidated_at | DATE | NULLABLE | 清仓日期（recompute 写入，归档后行被搬走） |
+| cash_account_enabled | BOOLEAN | NOT NULL DEFAULT 0 | 建仓时资金来源：勾选=从现金余额扣款（校验余额），不勾选=自动先入金等额（历史本金）。现金追踪本身永远开，该字段只影响建仓当次 |
 
 约束：UNIQUE(asset_class, market, ticker)
 
@@ -180,6 +181,23 @@
 | notes | VARCHAR(500) | | 备注 |
 | original_id | INTEGER | | 原 transactions.id（审计追溯） |
 
+### 2.9 cash_flows（资金流水表）✅ 已创建
+
+记录所有资金进出，独立于 transactions 表，是现金余额的事实源。买卖交易自动联动生成流水：新建 buy 交易 → 生成扣款流水（校验余额）；新建 sell 交易 → 生成入账流水；更新/删除交易 → 同步更新/删除关联流水。
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | INTEGER | PK, AUTOINCREMENT | 主键 |
+| type | VARCHAR(10) | NOT NULL | 流水类型：`deposit`（入金）/ `withdraw`（出金）/ `buy`（买入扣款）/ `sell`（卖出入账） |
+| amount | DECIMAL(18,4) | NOT NULL | 金额，正=入账（deposit/sell），负=出账（withdraw/buy） |
+| currency | VARCHAR(3) | NOT NULL | 币种，如 "CNY" / "USD" |
+| transaction_id | INTEGER | FK → transactions.id, NULLABLE, INDEX | buy/sell 时关联交易记录；deposit/withdraw 时为 NULL |
+| notes | VARCHAR(500) | | 备注（建仓自动入金/扣款等） |
+
+约束：withdraw 出金时校验同币种余额充足；删除归档持仓时连带删除关联的 cash_flows（通过 `closed_transactions.original_id` 回溯原 transactions.id，只删有 transaction_id 的 buy/sell 流水，自动入金流水保留）。
+
+> 注意：归档时原 transactions 行被删，`transaction_id` 成为悬空引用（SQLite 默认不强制 FK）。现金余额不受影响——流水仍在，仅失去与归档交易的直接关联。
+
 ## 3. E-R 关系
 
 ```
@@ -187,11 +205,14 @@ asset_holdings                          当前持仓（三元组唯一，派生�
        │
        │ 1
        N
-   transactions                         交易记录（唯一现金流事实源，建仓自动生成 buy）
-       │
+   transactions ──→ cash_flows         交易记录（唯一现金流事实源，建仓自动生成 buy）
+       │              buy/sell 自动联动生成流水（transaction_id 关联）
        │ 清仓归档
        ↓
-   closed_holdings ──→ closed_transactions   归档持仓周期 + 归档交易（原表删除）
+   closed_holdings ──→ closed_transactions   归档持仓周期 + 归档交易（原表删除，original_id 追溯）
+                                                     │ 删除归档持仓时经 original_id
+                                                     ↓ 连带删除关联 buy/sell 流水
+                                                 cash_flows    （deposit/withdraw 独立记录，不入归档）
 
 asset_holdings ──→ asset_quote         行情记录（按三元组+ticker 关联）
        │

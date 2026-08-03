@@ -1,7 +1,7 @@
 # AssetPilot V2 架构设计
 
-> 版本：v2.8
-> 最后更新：2026-06-20
+> 版本：v2.9
+> 最后更新：2026-08-04（新增现金账户机制 §5.14 + 统一分页 §5.15 + 目录结构补全快照/归档/现金模块）
 
 ---
 
@@ -70,28 +70,44 @@ backend/
 │   │   ├── asset_holding_api.py   # 持仓 CRUD
 │   │   ├── asset_variety_api.py   # 品种目录 CRUD
 │   │   ├── overview_api.py        # 概览统计
-│   │   └── transaction_api.py     # 交易记录 CRUD
+│   │   ├── transaction_api.py     # 交易记录 CRUD
+│   │   ├── snapshot_api.py        # 净值快照（组合级 + 品种级）
+│   │   ├── closed_holding_api.py  # 历史持仓归档
+│   │   └── cash_flow_api.py       # 资金流水（入金/出金/余额/流水）
 │   ├── models/                    # 数据模型
 │   │   ├── asset_quote.py         # AssetQuote (Pydantic)
 │   │   ├── asset_holding.py       # AssetHolding / HoldingWithQuote (Pydantic)
 │   │   ├── asset_variety.py       # AssetVariety (Pydantic)
 │   │   ├── transaction.py         # Transaction / Create / Update (Pydantic)
+│   │   ├── overview.py            # OverviewStats / AllocationItem (Pydantic)
+│   │   ├── cash_flow.py           # CashFlow / CashBalance / CashDeposit(Create) (Pydantic)
+│   │   ├── common.py              # PaginatedResponse[T] 统一分页模型（跨模块共享）
 │   │   └── orm/                   # SQLAlchemy ORM 模型
 │   │       ├── asset_quote_orm.py
 │   │       ├── asset_holding_orm.py
 │   │       ├── asset_variety_orm.py
-│   │       └── transaction_orm.py
+│   │       ├── transaction_orm.py
+│   │       ├── asset_snapshot_orm.py
+│   │       ├── networth_snapshot_orm.py
+│   │       ├── closed_holding_orm.py
+│   │       └── cash_flow_orm.py   # CashFlowRecord（含 transaction_id FK）
 │   ├── repositories/              # 数据访问层
 │   │   ├── asset_quote_repository.py  # 行情 Repo（调用 DataSource）
 │   │   ├── asset_holding_repository.py# 持仓 CRUD
 │   │   ├── asset_variety_repository.py# 品种目录 CRUD
-│   │   └── transaction_repository.py  # 交易记录 CRUD
+│   │   ├── transaction_repository.py  # 交易记录 CRUD（分页）
+│   │   ├── snapshot_repository.py     # 净值快照读写
+│   │   ├── closed_holding_repository.py# 历史持仓归档（含删除时连带删 cash_flows）
+│   │   └── cash_flow_repository.py    # 资金流水 CRUD + 余额聚合
 │   └── services/                  # 业务逻辑层
 │       ├── asset_quote_service.py # 行情业务逻辑（QuoteCache 缓存 + force_refresh 绕过 + DB 历史降级）
-│       ├── asset_holding_service.py# 持仓业务逻辑（含计算）
+│       ├── asset_holding_service.py# 持仓业务逻辑（含计算 + 建仓现金联动）
 │       ├── asset_variety_service.py# 品种目录业务逻辑
 │       ├── overview_service.py    # 概览统计（行情并发拉取 + 12s 超时熔断 + 汇率换算聚合）
-│       └── transaction_service.py # 交易记录业务逻辑
+│       ├── transaction_service.py # 交易记录业务逻辑（买卖自动联动现金流水）
+│       ├── snapshot_service.py    # 净值快照（双表写 + 历史 FX 冻结）
+│       ├── closed_holding_service.py# 历史持仓归档
+│       └── cash_flow_service.py   # 资金流水（入金/出金/余额按显示币种换算）
 ├── scheduler/                # 后台定时任务（APScheduler）
 │   └── quote_scheduler.py     # 行情30s + 汇率55min 定时预热，写全局 QuoteCache
 ├── utils/                     # 工具模块
@@ -114,7 +130,10 @@ backend/
 │   ├── test_asset_quote_service.py      # 行情缓存 + 名称补全 + 路由
 │   ├── test_data_sources.py             # 数据源解析（mock httpx）
 │   ├── test_asset_variety_repository.py # 品种搜索相关性排序
-│   └── test_asset_quote_repository.py   # 行情去重 + 缓存查询
+│   ├── test_asset_quote_repository.py   # 行情去重 + 缓存查询
+│   ├── test_quote_cache.py              # 缓存命中/过期不丢/部分命中
+│   ├── test_trading_hours.py            # 交易时段判定
+│   └── test_snapshot_service.py         # 净值快照双表写 + FX 冻结
 └── Dockerfile
 ```
 
@@ -133,16 +152,22 @@ frontend/
 │   │   ├── useHoldings.ts         # 持仓查询（共享缓存）
 │   │   ├── useHoldingMutations.ts # 持仓增删改
 │   │   ├── useQuote.ts            # 行情查询
-│   │   └── useTransactions.ts     # 交易查询
+│   │   ├── useTransactions.ts     # 交易查询
+│   │   ├── useClosedHoldings.ts   # 历史持仓查询
+│   │   └── useCashFlows.ts        # 现金流水 + 余额查询
+│   ├── lib/
+│   │   └── settings.ts            # 显示币种等偏好设置（localStorage）
 │   ├── types/
 │   │   └── index.ts               # TS 类型定义
 │   ├── components/
 │   │   ├── layout/                # 侧边栏布局
-│   │   └── ui/                    # shadcn/ui 组件（badge/button/card/dialog/input/select/sheet/skeleton/table）
+│   │   └── ui/                    # shadcn/ui 组件（badge/button/card/dialog/input/pagination/select/sheet/skeleton/table）
 │   ├── features/                  # 按功能域组织
-│   │   ├── overview/              # 概览：统计卡 + 资产配比 + 手动刷新按钮
+│   │   ├── overview/              # 概览：统计卡 + 净值走势图 + 资产配比 + 手动刷新按钮
 │   │   ├── holdings/              # 持仓表格 + 新增/编辑/删除 + 手动刷新按钮
-│   │   ├── transactions/          # 交易记录列表
+│   │   ├── transactions/          # 交易记录列表（分页）
+│   │   ├── cash/                  # 现金页：余额卡片 + 入金/出金 + 流水列表（分页）
+│   │   ├── history/               # 历史持仓（归档持仓 + 归档交易，分页）
 │   │   └── quotes/                # 行情查询（输入+市场选择+结果卡片）
 │   ├── routes/
 │   ├── App.tsx
@@ -157,10 +182,13 @@ frontend/
 
 | 视图 | 路由 | 内容 | 数据来源 |
 |------|------|------|---------|
-| 概览 | `/` | 总市值/成本/盈亏统计卡 + 资产配比条 | `GET /api/v1/holdings/with-quotes` |
+| 概览 | `/` | 总市值/成本/盈亏统计卡 + 净值走势 + 资产配比条 | `GET /api/v1/overview` |
 | 持仓 | `/holdings` | 品种表格 + 年化回报 + 增删改操作 | `GET /api/v1/holdings/with-quotes` |
-| 交易 | `/transactions` | 交易记录列表（按日期倒序） | `GET /api/v1/transactions` |
+| 交易 | `/transactions` | 交易记录列表（按日期倒序，分页） | `GET /api/v1/transactions` |
 | 行情 | `/quotes` | 输入代码 + 市场选择 → 查询实时行情 | `GET /api/v1/{stock,crypto,fund}/quotes` |
+| 现金 | `/cash` | 余额卡片 + 入金/出金 + 流水列表（分页） | `GET /api/v1/cash/balances`、`/flows` |
+| 历史持仓 | `/holdings/history` | 归档持仓列表（分页） | `GET /api/v1/closed-holdings` |
+| 历史交易 | `/transactions/history` | 归档交易列表（分页） | `GET /api/v1/closed-transactions` |
 
 ## 4. 分层架构
 
@@ -318,3 +346,25 @@ quotes = await repo.fetch_realtime_quote(["166002"], source="akshare")  # ak sha
 - 汇率不 force（1h 才更新，刷新按钮只针对行情）
 
 API 端点：`GET /api/v1/holdings/with-quotes?force_refresh=true`、`GET /api/v1/overview?currency=CNY&force_refresh=true`
+
+### 5.14 现金账户机制（cash_flows）
+
+`cash_flows` 表独立于 transactions，记录所有资金进出（`deposit`/`withdraw`/`buy`/`sell`，正=入账负=出账），是现金余额的唯一事实源：
+
+- **买卖自动联动**：`TransactionService` 写交易时在同一事务内生成流水——buy 生成扣款流水（校验同币种余额充足），sell 生成入账流水；更新交易同步改流水金额，删除交易回退流水。**现金追踪永远开**，不检查 `cash_account_enabled`
+- **建仓联动**：`AssetHoldingService.create_holding` 中 `cash_account_enabled` 只决定资金来源——勾选=从现有现金余额扣款（校验余额不足则拒绝），不勾选=自动先入金等额（notes="建仓 XX 自动入金（历史本金）"）再扣款，代表历史本金注入
+- **余额换算**：`CashFlowService.get_balances` 各币种原始余额 + 用 `fetch_rates()`（单飞复用）按显示币种换算总额，与概览页模式一致；响应带 `rate_source_date` / `rate_stale` 供前端展示汇率日期/兜底警告
+- **归档联动**：归档时原 transactions 删除，流水 `transaction_id` 成悬空引用（SQLite 不强制 FK）；删除归档持仓时经 `closed_transactions.original_id` 回溯删除关联 buy/sell 流水，自动入金流水（`transaction_id=NULL`）保留
+- **出金校验**：`POST /api/v1/cash/withdraw` 在 API 层校验同币种余额充足
+
+### 5.15 统一分页（PaginatedResponse）
+
+所有列表接口统一分页结构（`models/common.py` 的 `PaginatedResponse[T]`，Pydantic Generic）：
+
+```json
+{ "data": [...], "total": 125, "page": 3, "page_size": 20 }
+```
+
+- 已接入：交易（`/transactions`）、归档持仓（`/closed-holdings`）、归档交易（`/closed-holdings/transactions`）、现金流水（`/cash/flows`）
+- 参数：`page`（≥1，默认 1）、`page_size`（1-100，默认 20），仓储层 `limit + offset`
+- 前端 `Pagination` 组件（components/ui/pagination.tsx）统一渲染页码器
