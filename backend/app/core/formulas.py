@@ -29,15 +29,16 @@ def calculate_remaining_position_roi(current_price, broker_cost_price, initial_b
         - net_profit: Decimal（金额精度，与 PnL 一致）
     """
     D = Decimal
-    cp = D(str(current_price))
-    bcp = D(str(broker_cost_price))
-    ibp = D(str(initial_buy_price))
-    ts = D(str(total_shares))
-
-    # 纯账面底仓净利润 = (当前股价 - 券商成本价) * 持仓股数
-    numerator = (cp - bcp) * ts
+    numerator = None  # 参数转换失败时无净利润可算
 
     try:
+        cp = D(str(current_price))
+        bcp = D(str(broker_cost_price))
+        ibp = D(str(initial_buy_price))
+        ts = D(str(total_shares))
+
+        # 纯账面底仓净利润 = (当前股价 - 券商成本价) * 持仓股数
+        numerator = (cp - bcp) * ts
         # 1. 成本大于 0：用正常券商公式计算
         if bcp > 0:
             roi = ((cp - bcp) / bcp) * 100

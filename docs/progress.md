@@ -152,7 +152,7 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 
 ## 六、测试覆盖
 
-> 共 105 个 pytest 用例，全通过
+> 共 150 个 pytest 用例，全通过（测试架构/编写指南见 [docs/testing.md](testing.md)，2026-08-05 报告见 [docs/test_report_2026-08-05.md](test_report_2026-08-05.md)）
 
 | 测试文件 | 用例数 | 覆盖模块 | 关键验证点 |
 |---------|--------|---------|-----------|
@@ -169,8 +169,13 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | `test_asset_quote_repository.py` | 4 | `AssetQuoteRepository` | INSERT OR IGNORE 去重 + `get_recent_quotes` 去重/时间窗口 |
 | `test_snapshot_service.py` | 6 | `SnapshotService` | 单事务双写 + 多币种聚合 + 当日幂等 + 历史 FX 冻结 + 升序返回 |
 | `test_cash_flow_service.py` | 10 | `CashFlowService` + 现金联动 | 入金/出金/余额换算 + 建仓勾选/不勾选 + 勘误 buy/sell + 余额不足拒绝 + 删持仓清流水 + 买卖交易联动/回退 |
+| `test_formulas.py` | 18 | `core/formulas.py` 财务公式 | 做T ROI（正/零/负成本 + 脏数据 + 异常）+ 组合聚合（多币种/疯狂做T/兜底）+ XIRR（年化/流水/无解）+ Modified Dietz（权重/同日/零分母） |
+| `test_asset_variety_service.py` | 5 | `AssetVarietyService` | 创建/重复冲突/搜索排序/软删除/删不存在 |
+| `test_closed_holding_service.py` | 5 | `ClosedHoldingService` | 分页列表/详情含交易/删除连带删流水/删不存在 |
+| `test_api_routes.py` | 8 | API 路由层（代表性） | 统一返回格式 + BusinessError/404/422 错误码 + 品种创建搜索 + 现金入金余额 + 交易分页 |
+| `test_quote_scheduler.py` | 9 | `QuoteScheduler` | 刷新频率（交易时段/基金/股票间隔）+ 预热写缓存 + 网络失败 DB 兜底 + 汇率 force_refresh |
 
-未覆盖（薄委托层/工具类，收益低）：`ClosedHoldingService`、`AssetVarietyService`、`ClosedHoldingRepository`、`exceptions.py`、`response.py`、SinaDataSource（需 Playwright）、API 路由层。
+未覆盖（收益低或需外部环境）：`exceptions.py`、`response.py`、`logger.py`、`scheduler_config.py`（薄层）、SinaDataSource（需 Playwright）、行情 API 端点（依赖真实数据源）、`script/` 导入脚本。详见 [docs/testing.md](testing.md) §5。
 
 ---
 
