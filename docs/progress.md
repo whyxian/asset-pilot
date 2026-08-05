@@ -48,6 +48,8 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | 现金语义修复 | `cash_account_enabled` 只决定建仓时资金来源（勾选=余额扣款校验，不勾选=自动入金历史本金），现金追踪永远开 | 2026-07-29 | ✅ |
 | 归档连带删流水 | 删除归档持仓时连带删除关联 cash_flows | 2026-07-29 | ✅ |
 | 前端质量清理 | tsconfig.app.json 严格检查存量类型错误 + ESLint 清理（react-hooks 严格检查 + react-refresh 混合导出） | 2026-08-02 | ✅ |
+| 现金联动闭环修复 | 前端 3 处 mutation 补 cash invalidate（建仓/交易/删归档）→ 操作后现金页立即可见；后端 update_holding 勘误联动流水 + delete_holding 删流水 + create_transaction 金额回退（amount 空时用 qty×price） | 2026-08-04 | ✅ |
+| 现金账户测试补齐 | 新增 test_cash_flow_service.py 10 个用例（入金出金/余额换算/建仓联动/勘误联动/删持仓清流水/买卖联动回退） | 2026-08-04 | ✅ |
 
 ---
 
@@ -150,7 +152,7 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 
 ## 六、测试覆盖
 
-> 共 95 个 pytest 用例，全通过
+> 共 105 个 pytest 用例，全通过
 
 | 测试文件 | 用例数 | 覆盖模块 | 关键验证点 |
 |---------|--------|---------|-----------|
@@ -166,8 +168,9 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | `test_asset_variety_repository.py` | 5 | `AssetVarietyRepository` | 搜索 4 级相关性排序 + limit + 空结果 |
 | `test_asset_quote_repository.py` | 4 | `AssetQuoteRepository` | INSERT OR IGNORE 去重 + `get_recent_quotes` 去重/时间窗口 |
 | `test_snapshot_service.py` | 6 | `SnapshotService` | 单事务双写 + 多币种聚合 + 当日幂等 + 历史 FX 冻结 + 升序返回 |
+| `test_cash_flow_service.py` | 10 | `CashFlowService` + 现金联动 | 入金/出金/余额换算 + 建仓勾选/不勾选 + 勘误 buy/sell + 余额不足拒绝 + 删持仓清流水 + 买卖交易联动/回退 |
 
-未覆盖（薄委托层/工具类，收益低）：`ClosedHoldingService`、`AssetVarietyService`、`ClosedHoldingRepository`、`CashFlowService`、`CashFlowRepository`（现金流水及买卖联动逻辑）、`exceptions.py`、`response.py`、SinaDataSource（需 Playwright）、API 路由层。
+未覆盖（薄委托层/工具类，收益低）：`ClosedHoldingService`、`AssetVarietyService`、`ClosedHoldingRepository`、`exceptions.py`、`response.py`、SinaDataSource（需 Playwright）、API 路由层。
 
 ---
 
@@ -180,4 +183,3 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | P3 | 净值快照定时 | 行情+汇率已由 APScheduler 定时预热（30s/55min），剩余：每日自动记录净值快照 |
 | P4 | 定投计划 | 周期自动生成交易记录并更新持仓（联动现金扣款） |
 | P5 | 汇率源主备切换 | 当前仅 GitHub raw 单一汇率源，加备用源做主备；与磁盘/种子兜底正交 |
-| P6 | 现金账户测试补齐 | `CashFlowService` / 买卖联动逻辑尚无 pytest 覆盖，纳入下一个测试补齐批次 |

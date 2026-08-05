@@ -228,6 +228,33 @@ class AssetHoldingService:
                     session.add(txn)
 
                 await session.flush()
+
+                # 现金账户联动：勘误交易同样联动流水（与 transaction_service 一致，现金追踪永远开）
+                # buy（加仓/补记投入）→ 扣款校验余额；sell（减仓）→ 入账
+                if txn.amount is not None:
+                    from app.models.orm.cash_flow_orm import CashFlowRecord
+                    from sqlalchemy import func
+                    from decimal import Decimal as _C
+                    txn_amt = _C(str(txn.amount))
+                    if txn.type == "buy":
+                        balance = (await session.execute(
+                            select(func.coalesce(func.sum(CashFlowRecord.amount), 0))
+                            .where(CashFlowRecord.currency == holding.currency)
+                        )).scalar()
+                        balance = _C(str(balance))
+                        if balance < txn_amt:
+                            raise BusinessError(40001,
+                                f"{holding.currency} 现金余额不足：当前 {balance}，需要 {txn_amt}")
+                        session.add(CashFlowRecord(
+                            type="buy", amount=-txn_amt, currency=holding.currency,
+                            transaction_id=txn.id, notes=txn.notes,
+                        ))
+                    elif txn.type == "sell":
+                        session.add(CashFlowRecord(
+                            type="sell", amount=txn_amt, currency=holding.currency,
+                            transaction_id=txn.id, notes=txn.notes,
+                        ))
+
                 await recompute_holding(session, ticker, asset_class, market)
                 await session.commit()
                 await session.refresh(holding)
@@ -261,6 +288,15 @@ class AssetHoldingService:
                     )
                 )).scalars().all()
                 txn_count = len(txn_records)
+                # 现金账户联动：删除该品种全部交易前，先删关联 buy/sell 流水（回退现金，防悬空引用残留）
+                txn_ids = [t.id for t in txn_records]
+                if txn_ids:
+                    from app.models.orm.cash_flow_orm import CashFlowRecord
+                    await session.execute(
+                        CashFlowRecord.__table__.delete().where(
+                            CashFlowRecord.transaction_id.in_(txn_ids)
+                        )
+                    )
                 for t in txn_records:
                     await session.delete(t)
 

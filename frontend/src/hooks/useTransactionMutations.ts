@@ -5,7 +5,7 @@ import { ApiError } from '@/api/types'
 import type { Transaction, TransactionCreate, TransactionUpdate } from '@/types'
 
 /**
- * 交易变更后需要联动失效的缓存：交易列表 + 持仓（重算了）+ 概览（依赖持仓）+ 归档表（可能触发归档）
+ * 交易变更后需要联动失效的缓存：交易列表 + 持仓（重算了）+ 概览（依赖持仓）+ 归档表（可能触发归档）+ 现金（买卖自动联动流水）
  *
  * 返回 Promise 等待 refetch 完成 — onSuccess 返回 Promise 时
  * React Query 会让 isPending 一直保持到 Promise resolve，
@@ -18,6 +18,9 @@ function invalidateTransactionRelated(qc: QueryClient): Promise<void> {
     qc.invalidateQueries({ queryKey: ['overview'] }),
     qc.invalidateQueries({ queryKey: ['closed-holdings'] }),
     qc.invalidateQueries({ queryKey: ['closed-transactions'] }),
+    // 买卖交易自动联动的现金流水（buy 扣款 / sell 入账），让现金页也能立即看到
+    qc.invalidateQueries({ queryKey: ['cash-balances'] }),
+    qc.invalidateQueries({ queryKey: ['cash-flows'] }),
   ]).then(() => undefined)
 }
 

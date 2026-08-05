@@ -37,6 +37,9 @@ export function useDeleteClosedHolding() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['closed-holdings'] })
       qc.invalidateQueries({ queryKey: ['closed-transactions'] })
+      // 后端删除归档持仓时连带删除关联 buy/sell 流水，现金余额变化
+      qc.invalidateQueries({ queryKey: ['cash-balances'] })
+      qc.invalidateQueries({ queryKey: ['cash-flows'] })
       toast.success('历史持仓已删除')
     },
     onError: (e: unknown) => toast.error('删除失败', {

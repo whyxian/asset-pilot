@@ -5,7 +5,7 @@ import { ApiError } from '@/api/types'
 import type { HoldingCreate, HoldingUpdate, HoldingWithQuote } from '@/types'
 
 /**
- * 持仓变更后需要联动失效的缓存：持仓 + 概览（依赖持仓）
+ * 持仓变更后需要联动失效的缓存：持仓 + 概览（依赖持仓）+ 交易（建仓/勘误自动生成）+ 现金（建仓/勘误联动流水）
  *
  * 返回 Promise 等待 refetch 完成 — onSuccess 返回 Promise 时
  * React Query 会让 isPending 一直保持到 Promise resolve，
@@ -18,6 +18,9 @@ function invalidateHoldingRelated(qc: QueryClient): Promise<void> {
     qc.invalidateQueries({ queryKey: ['overview'] }),
     // 建仓/勘误自动生成的交易，让交易页也能立即看到
     qc.invalidateQueries({ queryKey: ['transactions'] }),
+    // 建仓/勘误自动联动的现金流水（deposit+buy / buy / sell），让现金页也能立即看到
+    qc.invalidateQueries({ queryKey: ['cash-balances'] }),
+    qc.invalidateQueries({ queryKey: ['cash-flows'] }),
   ]).then(() => undefined)
 }
 
@@ -69,6 +72,9 @@ export function useDeleteHolding() {
         qc.invalidateQueries({ queryKey: ['transactions'] }),
         qc.invalidateQueries({ queryKey: ['closed-holdings'] }),
         qc.invalidateQueries({ queryKey: ['closed-transactions'] }),
+        // 级联删除交易同时删除关联流水，现金余额变化
+        qc.invalidateQueries({ queryKey: ['cash-balances'] }),
+        qc.invalidateQueries({ queryKey: ['cash-flows'] }),
       ])
       toast.success('持仓已删除')
     },

@@ -82,8 +82,15 @@ class TransactionService:
                         AssetHoldingRecord.market == data.market,
                     )
                 )).scalar_one_or_none()
-                if holding_cash is not None and record.amount is not None:
-                    txn_amt = Decimal(str(record.amount))
+                if holding_cash is not None:
+                    # 金额：amount 优先，其次 quantity × unit_price（与 recompute 口径一致）
+                    if record.amount is not None:
+                        txn_amt = Decimal(str(record.amount))
+                    elif record.quantity is not None and record.unit_price is not None:
+                        txn_amt = Decimal(str(record.quantity * record.unit_price))
+                    else:
+                        txn_amt = None
+                if holding_cash is not None and txn_amt is not None:
                     if data.type == "buy":
                         balance = await self._get_cash_balance(session, holding_cash.currency)
                         if balance < txn_amt:
