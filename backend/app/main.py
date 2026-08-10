@@ -19,6 +19,7 @@ from app.api.closed_holding_api import router as closed_holding_router
 from app.api.overview_api import router as overview_router
 from app.api.snapshot_api import router as snapshot_router
 from app.api.transaction_api import router as transaction_router
+from app.api.watchlist_api import router as watchlist_router
 from app.core.database import engine, init_db
 from app.core.exceptions import BusinessError
 from app.core.logger import logger
@@ -118,6 +119,7 @@ app.include_router(transaction_router)
 app.include_router(cash_flow_router)
 app.include_router(closed_holding_router)
 app.include_router(snapshot_router)
+app.include_router(watchlist_router)
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", reload=True)

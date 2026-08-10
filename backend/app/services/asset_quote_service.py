@@ -142,12 +142,12 @@ class AssetQuoteService:
         hit, missing, _stale = ({}, codes, set()) if force_refresh else self._cache.get(market, codes)
         if not missing:
             logger.info(f"STOCK({market}) 全部 {len(hit)} 只命中缓存，跳过网络")
-            return list(hit.values())
+            result = list(hit.values())
+            await self._enrich_names(result)  # 缓存命中也要用品种库名
+            return result
 
         # 2) 未命中部分走网络（仅从未缓存过的 ticker，调度器正常时走不到）
         fresh = await self._stock_repo.fetch_realtime_quote(missing, market=market)
-        if market == "US" and fresh:
-            await self._enrich_names(fresh)
         # 统一补 asset_class（DataSource 不感知品种类别，由调用方语义决定）
         for q in fresh:
             q.asset_class = "STOCK"
@@ -162,19 +162,26 @@ class AssetQuoteService:
         if not result:
             raise BusinessError(CODE_QUOTE_UNAVAILABLE,
                 f"未找到 {', '.join(codes)} 的行情，请检查代码或市场类型")
+        await self._enrich_names(result)  # 所有市场统一用品种库名覆盖数据源名
         return result
 
     async def _enrich_names(self, quotes: list[AssetQuote]):
-        """用 DB 中的英文名称替换腾讯 API 返回的中文名称
+        """用品种库名称覆盖数据源名称（所有市场）
+
+        按 (asset_class, market, ticker) 三元组精确匹配——同 ticker 多市场
+        （如 000001 同时是 A股和基金）不张冠李戴。品种库没有的保留原名。
 
         Args:
             quotes: 行情列表（会原地修改 name 字段）
         """
-        tickers = [q.ticker for q in quotes]
-        name_map = await AssetVarietyRepository().get_name_map(tickers)
+        if not quotes:
+            return
+        triples = [(q.asset_class, q.market, q.ticker) for q in quotes]
+        name_map = await AssetVarietyRepository().get_name_map_by_triple(triples)
         for q in quotes:
-            if q.ticker in name_map:
-                q.name = name_map[q.ticker]
+            key = (q.asset_class, q.market, q.ticker)
+            if key in name_map:
+                q.name = name_map[key]
 
     async def fetch_crypto_quotes(
         self, codes: list[str], force_refresh: bool = False
@@ -190,7 +197,9 @@ class AssetQuoteService:
         hit, missing, _stale = ({}, codes, set()) if force_refresh else self._cache.get("CRYPTO", codes)
         if not missing:
             logger.info(f"CRYPTO 全部 {len(hit)} 只命中缓存，跳过网络")
-            return list(hit.values())
+            result = list(hit.values())
+            await self._enrich_names(result)  # 缓存命中也要用品种库名
+            return result
 
         fresh = await self._crypto_repo.fetch_realtime_quote(missing, market="CRYPTO")
         for q in fresh:
@@ -206,6 +215,7 @@ class AssetQuoteService:
         if not result:
             raise BusinessError(CODE_QUOTE_UNAVAILABLE,
                 f"未找到 {', '.join(codes)} 的行情，请检查代码或市场类型")
+        await self._enrich_names(result)  # 所有市场统一用品种库名覆盖数据源名
         return result
 
     async def fetch_fund_quotes(
@@ -225,7 +235,9 @@ class AssetQuoteService:
         hit, missing, _stale = ({}, codes, set()) if force_refresh else self._cache.get("FUND", codes)
         if not missing:
             logger.info(f"FUND({market}) 全部 {len(hit)} 只命中缓存，跳过网络请求")
-            return list(hit.values())
+            result = list(hit.values())
+            await self._enrich_names(result)  # 缓存命中也要用品种库名
+            return result
 
         # 2) 未命中部分走网络
         fresh = await self._fund_repo.fetch_realtime_quote(missing, market=market)
@@ -242,6 +254,7 @@ class AssetQuoteService:
         if not result:
             raise BusinessError(CODE_QUOTE_UNAVAILABLE,
                 f"未找到 {', '.join(codes)} 的行情，请检查代码或市场类型")
+        await self._enrich_names(result)  # 所有市场统一用品种库名覆盖数据源名
         return result
 
     async def fetch_quotes_by_asset_class(

@@ -35,6 +35,7 @@ async def engine():
     from app.models.orm.cash_flow_orm import CashFlowRecord  # noqa: F401
     from app.models.orm.networth_snapshot_orm import NetWorthSnapshotRecord  # noqa: F401
     from app.models.orm.asset_snapshot_orm import AssetSnapshotRecord  # noqa: F401
+    from app.models.orm.asset_watchlist_orm import WatchlistRecord  # noqa: F401
 
     engine = create_async_engine(TEST_DB_URL)
     async with engine.begin() as conn:
@@ -63,6 +64,7 @@ async def Session(engine, monkeypatch):
         "app.repositories.asset_variety_repository",
         "app.repositories.closed_holding_repository",
         "app.repositories.cash_flow_repository",
+        "app.repositories.watchlist_repository",
         "app.repositories.snapshot_repository",
         "app.services.asset_holding_service",
         "app.services.transaction_service",
@@ -72,6 +74,7 @@ async def Session(engine, monkeypatch):
         "app.services.closed_holding_service",
         "app.services.overview_service",
         "app.services.snapshot_service",
+        "app.services.watchlist_service",
     ):
         try:
             __import__(mod_path)

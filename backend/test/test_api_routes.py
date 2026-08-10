@@ -125,3 +125,67 @@ async def test_transaction_list_paginated(client):
     assert body["data"]["data"] == []
     assert body["data"]["total"] == 0
     assert body["data"]["page"] == 1
+
+
+# ════════════════════════════════════════════════════
+# watchlist 端点
+# ════════════════════════════════════════════════════
+
+async def test_watchlist_full_flow(client):
+    """收藏（自动注册品种）→ 列表可见 → 取消收藏 → 列表空"""
+    # 收藏
+    r = await client.post("/api/v1/watchlist", json={
+        "ticker": "600519", "name": "贵州茅台", "market": "CN", "asset_class": "STOCK",
+    })
+    assert r.status_code == 201
+    item = r.json()["data"]
+    assert item["ticker"] == "600519"
+    assert item["id"] > 0
+
+    # 列表可见
+    r = await client.get("/api/v1/watchlist")
+    assert [x["ticker"] for x in r.json()["data"]] == ["600519"]
+
+    # 品种已自动注册（搜索可命中）
+    r = await client.get("/api/v1/varieties/search", params={"q": "600519"})
+    assert "600519" in [v["ticker"] for v in r.json()["data"]]
+
+    # 取消收藏
+    r = await client.delete(f"/api/v1/watchlist/{item['id']}")
+    assert r.json()["code"] == 0
+    r = await client.get("/api/v1/watchlist")
+    assert r.json()["data"] == []
+
+
+async def test_variety_create_idempotent(client):
+    """重复添加已存在品种 → 幂等返回已有记录，不再 500
+
+    2026-08-10 事故回归：QQQ 已在品种库，前端「添加到品种库」重复添加
+    此前撞 UNIQUE 约束返回 500（测试只测了创建→搜索，漏了重复添加场景）。
+    """
+    payload = {"ticker": "QQQ", "name": "Invesco QQQ", "market": "US", "asset_class": "FUND"}
+    r1 = await client.post("/api/v1/varieties", json=payload)
+    assert r1.status_code == 201
+    r2 = await client.post("/api/v1/varieties", json=payload)
+    assert r2.status_code == 201
+    assert r2.json()["code"] == 0
+    # 返回库中已有记录（名称保持首次入库的），不重复插入
+    assert r2.json()["data"]["ticker"] == "QQQ"
+    r = await client.get("/api/v1/varieties/search", params={"q": "QQQ"})
+    assert len([v for v in r.json()["data"] if v["ticker"] == "QQQ"]) == 1
+
+
+async def test_watchlist_idempotent_post(client):
+    """重复收藏 → 幂等返回同一 id"""
+    payload = {"ticker": "BTC", "name": "Bitcoin", "market": "CRYPTO", "asset_class": "CRYPTO"}
+    r1 = await client.post("/api/v1/watchlist", json=payload)
+    r2 = await client.post("/api/v1/watchlist", json=payload)
+    assert r1.json()["data"]["id"] == r2.json()["data"]["id"]
+
+
+async def test_watchlist_delete_missing(client):
+    """取消不存在的自选 → 40401"""
+    r = await client.delete("/api/v1/watchlist/999")
+    body = r.json()
+    assert body["code"] == 40401
+    assert "不存在" in body["message"]

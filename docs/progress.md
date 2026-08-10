@@ -50,6 +50,8 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | 前端质量清理 | tsconfig.app.json 严格检查存量类型错误 + ESLint 清理（react-hooks 严格检查 + react-refresh 混合导出） | 2026-08-02 | ✅ |
 | 现金联动闭环修复 | 前端 3 处 mutation 补 cash invalidate（建仓/交易/删归档）→ 操作后现金页立即可见；后端 update_holding 勘误联动流水 + delete_holding 删流水 + create_transaction 金额回退（amount 空时用 qty×price） | 2026-08-04 | ✅ |
 | 现金账户测试补齐 | 新增 test_cash_flow_service.py 10 个用例（入金出金/余额换算/建仓联动/勘误联动/删持仓清流水/买卖联动回退） | 2026-08-04 | ✅ |
+| 自选股 + 行情页改版 | watchlist 表 + 4 API（收藏自动注册品种/幂等/取消/with-quotes 三态）+ 行情页改版（自选区网格占满宽度 + 查询结果弹窗 + 30s 轮询 + 乐观更新 + 状态标记） | 2026-08-10 | ✅ |
+| 测试泄漏事故修复 | test_watchlist_service 漏 Session 参数导致写入真实 DB（watchlist 3 条 + 品种 3 条），修复 + 清理 + testing.md 教训记录 | 2026-08-10 | ✅ |
 
 ---
 
@@ -65,6 +67,7 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | `closed_holdings` / `closed_transactions` | 0 | 归档持仓 |
 | `networth_snapshots` | 7 | 组合级日快照（USD base + fx_rates 冻结） |
 | `asset_snapshots` | 0 | 品种级日快照（原币 + USD 双存） |
+| `watchlist` | 0 | 自选股（收藏时自动注册品种） |
 
 > 行数统计：2026-08-04 实测。快照为手动记录，每日定时快照见规划 P3。
 
@@ -129,6 +132,15 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | `POST` | `/api/v1/cash/withdraw` | 出金（负流水，校验同币种余额） |
 | `DELETE` | `/api/v1/cash/flows/{flow_id}` | 删除单笔流水 |
 
+### 自选股
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/v1/watchlist` | 自选列表（收藏时间倒序） |
+| `GET` | `/api/v1/watchlist/with-quotes` | 自选 + 实时行情（QuoteStatus 三态，前端 30s 轮询） |
+| `POST` | `/api/v1/watchlist` | 收藏（品种不存在时自动注册，幂等） |
+| `DELETE` | `/api/v1/watchlist/{id}` | 取消收藏（不影响品种库） |
+
 > 统一分页：交易/归档交易/历史持仓/现金流水 4 个列表均返回 `PaginatedResponse{data, total, page, page_size}`，`page_size` 默认 20、范围 1-100。
 
 ---
@@ -152,7 +164,7 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 
 ## 六、测试覆盖
 
-> 共 150 个 pytest 用例，全通过（测试架构/编写指南见 [docs/testing.md](testing.md)，2026-08-05 报告见 [docs/test_report_2026-08-05.md](test_report_2026-08-05.md)）
+> 共 164 个 pytest 用例，全通过（测试架构/编写指南见 [docs/testing.md](testing.md)，2026-08-05 报告见 [docs/test_report_2026-08-05.md](test_report_2026-08-05.md)）
 
 | 测试文件 | 用例数 | 覆盖模块 | 关键验证点 |
 |---------|--------|---------|-----------|
@@ -174,6 +186,7 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 | `test_closed_holding_service.py` | 5 | `ClosedHoldingService` | 分页列表/详情含交易/删除连带删流水/删不存在 |
 | `test_api_routes.py` | 8 | API 路由层（代表性） | 统一返回格式 + BusinessError/404/422 错误码 + 品种创建搜索 + 现金入金余额 + 交易分页 |
 | `test_quote_scheduler.py` | 9 | `QuoteScheduler` | 刷新频率（交易时段/基金/股票间隔）+ 预热写缓存 + 网络失败 DB 兜底 + 汇率 force_refresh |
+| `test_watchlist_service.py` | 8 | `WatchlistService` | 收藏自动注册品种 / 幂等 / 取消不删品种库 / 列表倒序 / with-quotes 三态（REALTIME/HISTORICAL/UNAVAILABLE） |
 
 未覆盖（收益低或需外部环境）：`exceptions.py`、`response.py`、`logger.py`、`scheduler_config.py`（薄层）、SinaDataSource（需 Playwright）、行情 API 端点（依赖真实数据源）、`script/` 导入脚本。详见 [docs/testing.md](testing.md) §5。
 

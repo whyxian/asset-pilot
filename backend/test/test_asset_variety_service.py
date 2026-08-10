@@ -32,17 +32,18 @@ async def test_create_and_list(Session):
     assert [x.ticker for x in lst] == ["600519"]
 
 
-async def test_create_duplicate_raises(Session):
-    """同三元组重复创建 → 唯一约束冲突（事务回滚）"""
+async def test_create_duplicate_idempotent(Session):
+    """同三元组重复创建 → 幂等返回已有记录，不重复插入（2026-08-10 修复：原撞唯一约束 500）"""
     svc = AssetVarietyService()
-    await svc.create_variety(AssetVarietyCreate(
+    first = await svc.create_variety(AssetVarietyCreate(
         ticker="600519", name="贵州茅台", market="CN", asset_class="STOCK",
     ))
-    with pytest.raises(Exception):
-        await svc.create_variety(AssetVarietyCreate(
-            ticker="600519", name="贵州茅台二号", market="CN", asset_class="STOCK",
-        ))
-    assert await _count_active(Session) == 1  # 回滚后只有一条
+    second = await svc.create_variety(AssetVarietyCreate(
+        ticker="600519", name="贵州茅台二号", market="CN", asset_class="STOCK",
+    ))
+    assert second.ticker == first.ticker  # 返回已有记录（名称保留首次的）
+    assert second.name == "贵州茅台"
+    assert await _count_active(Session) == 1  # 不产生重复行
 
 
 async def test_search_relevance(Session):

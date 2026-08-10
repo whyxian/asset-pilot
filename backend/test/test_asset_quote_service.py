@@ -135,7 +135,7 @@ async def test_fetch_fund_quotes_force_refresh_skips_cache():
 # ════════════════════════════════════════════════════
 
 async def test_fetch_stock_quotes_cn():
-    """CN 股票：不调 _enrich_names，设 asset_class="STOCK"，保存"""
+    """CN 股票：设 asset_class="STOCK"，保存；名称补全对无品种记录的原名保留"""
     svc = AssetQuoteService()
     raw_quote = _make_quote("600519", market="CN", price="1800")
 
@@ -186,17 +186,17 @@ async def test_fetch_stock_quotes_us_enriches_names():
 # ════════════════════════════════════════════════════
 
 async def test_enrich_names_replaces_from_db():
-    """品种表有英文名则替换，无则保留原名"""
+    """品种表有名则替换，无则保留原名（按三元组精确匹配）"""
     svc = AssetQuoteService()
     quotes = [
-        _make_quote("AAPL", name="苹果"),
-        _make_quote("MSFT", name="微软"),
+        _make_quote("AAPL", name="苹果", asset_class="STOCK"),
+        _make_quote("MSFT", name="微软", asset_class="STOCK"),
     ]
 
-    # mock AssetVarietyRepository.get_name_map
-    mock_name_map = {"AAPL": "Apple Inc"}  # MSFT 不在 map 中
+    # mock AssetVarietyRepository.get_name_map_by_triple（三元组 key）
+    mock_name_map = {("STOCK", "CN", "AAPL"): "Apple Inc"}  # MSFT 不在 map 中
     mock_variety_repo = AsyncMock()
-    mock_variety_repo.get_name_map = AsyncMock(return_value=mock_name_map)
+    mock_variety_repo.get_name_map_by_triple = AsyncMock(return_value=mock_name_map)
 
     mp = pytest.MonkeyPatch()
     mp.setattr("app.services.asset_quote_service.AssetVarietyRepository", lambda: mock_variety_repo)
@@ -207,6 +207,30 @@ async def test_enrich_names_replaces_from_db():
 
     assert quotes[0].name == "Apple Inc"  # 替换
     assert quotes[1].name == "微软"       # 保留原名
+
+
+async def test_enrich_names_triple_not_confused():
+    """同 ticker 多市场（000001 是 A股也是基金）→ 只按三元组精确匹配，不张冠李戴"""
+    svc = AssetQuoteService()
+    quotes = [
+        _make_quote("000001", market="CN", name="数据源名-A股", asset_class="STOCK"),
+        _make_quote("000001", market="CN", name="数据源名-基金", asset_class="FUND"),
+    ]
+
+    # 品种库只有基金三元组的名字
+    mock_name_map = {("FUND", "CN", "000001"): "华夏成长"}
+    mock_variety_repo = AsyncMock()
+    mock_variety_repo.get_name_map_by_triple = AsyncMock(return_value=mock_name_map)
+
+    mp = pytest.MonkeyPatch()
+    mp.setattr("app.services.asset_quote_service.AssetVarietyRepository", lambda: mock_variety_repo)
+    try:
+        await svc._enrich_names(quotes)
+    finally:
+        mp.undo()
+
+    assert quotes[0].name == "数据源名-A股"  # STOCK 三元组不在品种库 → 保留
+    assert quotes[1].name == "华夏成长"      # FUND 三元组命中 → 替换
 
 
 # ════════════════════════════════════════════════════

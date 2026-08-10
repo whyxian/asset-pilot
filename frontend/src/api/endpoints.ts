@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AssetQuote, AssetSnapshot, AssetVariety, CashBalancesResponse, CashFlow, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingsWithQuotesResponse, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, PaginatedResponse, Transaction, TransactionCreate, TransactionUpdate } from '@/types'
+import type { AssetQuote, AssetSnapshot, AssetVariety, CashBalancesResponse, CashFlow, ClosedHolding, ClosedHoldingDetail, ClosedTransaction, HoldingCreate, HoldingsWithQuotesResponse, HoldingUpdate, HoldingWithQuote, NetWorthSnapshot, OverviewStats, PaginatedResponse, Transaction, TransactionCreate, TransactionUpdate, WatchlistCreate, WatchlistItem, WatchlistWithQuote } from '@/types'
 
 // ═══════════════════════════════════════════
 // 持仓
@@ -42,6 +42,10 @@ export const searchVarieties = (q: string, limit = 10) =>
   apiClient.get('/api/v1/varieties/search', {
     params: { q, limit },
   }) as Promise<AssetVariety[]>
+
+/** 新增品种（添加到品种库） */
+export const createVariety = (data: { ticker: string; name: string; market: string; asset_class: string }) =>
+  apiClient.post('/api/v1/varieties', data) as Promise<AssetVariety>
 
 // ═══════════════════════════════════════════
 // 股票行情
@@ -176,3 +180,23 @@ export const fetchAssetSnapshots = (
   apiClient.get('/api/v1/snapshots/assets', {
     params: { currency, ticker, asset_class, market, limit },
   }) as Promise<AssetSnapshot[]>
+
+// ═══════════════════════════════════════════
+// 自选股
+// ═══════════════════════════════════════════
+
+/** 自选列表（收藏时间倒序） */
+export const fetchWatchlist = () =>
+  apiClient.get('/api/v1/watchlist') as Promise<WatchlistItem[]>
+
+/** 自选 + 实时行情（QuoteStatus 三态，前端 30s 轮询此端点） */
+export const fetchWatchlistWithQuotes = () =>
+  apiClient.get('/api/v1/watchlist/with-quotes') as Promise<WatchlistWithQuote[]>
+
+/** 收藏（品种不存在时后端自动注册） */
+export const createWatchlist = (data: WatchlistCreate) =>
+  apiClient.post('/api/v1/watchlist', data) as Promise<WatchlistItem>
+
+/** 取消收藏 */
+export const deleteWatchlist = (watchlistId: number) =>
+  apiClient.delete(`/api/v1/watchlist/${watchlistId}`) as Promise<void>

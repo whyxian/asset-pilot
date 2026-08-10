@@ -28,10 +28,13 @@
   - ⚠️ `seed_holding` **自带一笔本金注入流水**（deposit = total 金额），断言现金余额时务必计入
 - **`approx(a, b_str, tol="0.01")`**：Decimal 容差比较断言（`assert approx(x, "1.5")`）
 
-### 1.3 ⚠️ API 测试必读：Session 依赖陷阱
+### 1.3 ⚠️ 写库测试必读：Session 依赖陷阱（两起事故）
 
-API 路由测试（`test_api_routes.py`）用 `httpx.ASGITransport` 直连 FastAPI app（不触发 lifespan，不启动调度器）。
-**`client` fixture 必须显式依赖 `Session`**：
+conftest 的 DB patch 只在 **`Session` fixture 建立时**执行——任何测试（包括 service 层测试）
+**只要会写数据库（直接或间接调用 repo/service 的写操作），函数签名必须显式依赖 `Session`**，
+否则会静默写入真实 `data/database/assetpilot.db`。
+
+事故一（2026-08-05）：`test_api_routes.py` 的 `client` fixture 漏掉 `Session`，测试连了真实 DB（返回真实持仓数据）。
 
 ```python
 @pytest.fixture
@@ -40,7 +43,24 @@ async def client(Session):   # ← 没有 Session，conftest 的 DB patch 不执
         yield c
 ```
 
-教训：2026-08-05 首次编写时漏掉 `Session` 依赖，测试连了真实 DB（返回了真实持仓数据）。
+事故二（2026-08-10）：`test_watchlist_service.py::test_list_with_quotes_three_state` 签名只有
+`monkeypatch`、漏掉 `Session`，其内部 `create_watchlist`（写库 + 自动注册品种）**写入真实数据库**
+（watchlist 3 条 + asset_varieties 3 条），且因"重复收藏幂等"掩盖了后续泄漏——重跑测试看不出问题，
+真实库数据却在增长。已修复签名并清理脏数据。
+
+**自检规则**：写测试前先问"这个测试会写库吗？"——会，就必须有 `Session` 参数（即使只用 monkeypatch）。
+不写库的纯逻辑测试（formulas、scheduler mock）可以不需要。
+
+### 1.4 ⚠️ 断言方向检查：从用户期望出发，不从实现行为出发
+
+事故三（2026-08-10）：`test_create_duplicate_raises` 把"重复创建品种抛异常"当预期行为写进测试——
+测试全绿反而固化了 bug。真实用户路径：前端「添加到品种库」点击 QQQ（已在品种库）→ 后端撞
+UNIQUE 约束 → 500。测试从"实现当前行为"出发断言了错误行为。
+
+**写断言前先问**："用户做这个操作，什么结果才算对？"——从用户期望推断言，而非从代码现状推。
+- 异常断言（`pytest.raises`）必须核对：这个场景**真的应该**是错误吗？还是应该被友好处理（幂等/兜底）？
+- 新增/修改 API 时，为其"重复调用"场景写幂等测试（重复添加/重复收藏/重复建仓）
+- 前后端联动按钮（收藏/添加/建仓）必须补 API 层测试——前端无自动化测试，API 层是唯一防线
 
 ## 2. 运行测试
 
@@ -105,8 +125,9 @@ monkeypatch.setattr("app.services.cash_flow_service.fetch_rates", fake_fetch_rat
 | 归档服务 | `test_closed_holding_service.py` | 5 | 分页/详情/删除连带删流水 |
 | API 路由 | `test_api_routes.py` | 8 | 统一返回格式 + 错误码 + 代表性端点 |
 | 定时调度 | `test_quote_scheduler.py` | 9 | 刷新频率 + 预热 + DB 历史兜底 |
+| 自选股 | `test_watchlist_service.py` | 8 | 收藏自动注册品种/幂等/取消/三态行情 |
 
-**合计 150 个用例。**
+**合计 164 个用例。**
 
 ## 5. 未覆盖说明
 

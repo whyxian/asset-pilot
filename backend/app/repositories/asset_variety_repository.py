@@ -68,16 +68,30 @@ class AssetVarietyRepository:
             return _record_to_variety(r) if r else None
 
     async def create_variety(self, data: AssetVarietyCreate) -> AssetVariety:
-        """新增品种"""
-        record = AssetVarietyRecord(
-            ticker=data.ticker,
-            name=data.name,
-            market=data.market,
-            asset_class=data.asset_class,
-            sub_category=data.sub_category,
-            currency=data.currency,
-        )
+        """新增品种 — 幂等：同 (asset_class, market, ticker) 已存在时返回已有记录
+
+        不重复插入：品种库数据源导入时已包含常见标的（如 QQQ），用户在前端
+        「添加到品种库」重复添加时直接返回已有记录，避免 UNIQUE 约束 500。
+        """
         async with async_session() as session:
+            existing = (await session.execute(
+                select(AssetVarietyRecord).where(
+                    AssetVarietyRecord.ticker == data.ticker,
+                    AssetVarietyRecord.asset_class == data.asset_class,
+                    AssetVarietyRecord.market == data.market,
+                )
+            )).scalar_one_or_none()
+            if existing:
+                return _record_to_variety(existing)
+
+            record = AssetVarietyRecord(
+                ticker=data.ticker,
+                name=data.name,
+                market=data.market,
+                asset_class=data.asset_class,
+                sub_category=data.sub_category,
+                currency=data.currency,
+            )
             session.add(record)
             await session.commit()
             await session.refresh(record)
@@ -99,6 +113,34 @@ class AssetVarietyRepository:
                 )
             )
             return {row[0]: row[1] for row in result}
+
+    async def get_name_map_by_triple(
+        self, triples: list[tuple[str, str, str]]
+    ) -> dict[tuple[str, str, str], str]:
+        """按 (asset_class, market, ticker) 三元组批量查询品种名称（仅 active）
+
+        同 ticker 多市场/多类别（如 000001 同时是 A股和基金）时精确匹配，不张冠李戴。
+
+        Args:
+            triples: [(asset_class, market, ticker), ...]
+
+        Returns:
+            {(asset_class, market, ticker): name, ...}，只返回存在的品种
+        """
+        tickers = [t[2] for t in triples]
+        async with async_session() as session:
+            result = await session.execute(
+                select(
+                    AssetVarietyRecord.asset_class,
+                    AssetVarietyRecord.market,
+                    AssetVarietyRecord.ticker,
+                    AssetVarietyRecord.name,
+                ).where(
+                    AssetVarietyRecord.ticker.in_(tickers),
+                    AssetVarietyRecord.is_active == True,  # noqa: E712
+                )
+            )
+            return {(r[0], r[1], r[2]): r[3] for r in result}
 
     async def soft_delete_variety(self, ticker: str) -> bool:
         """软删除品种"""

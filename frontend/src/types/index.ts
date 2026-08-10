@@ -6,6 +6,7 @@
 export interface AssetQuote {
   ticker: string
   market: string // "CN" / "US" / "CRYPTO"
+  asset_class: string // "STOCK" / "FUND" / "CRYPTO"
   name: string
   price: number // Decimal → number
   currency: string // "CNY" / "USD"
@@ -254,6 +255,34 @@ export interface CashFlow {
 export interface CashBalance {
   currency: string
   balance: number
+}
+
+/** 自选股条目 */
+export interface WatchlistItem {
+  id: number
+  ticker: string
+  asset_class: string
+  market: string
+  name: string
+}
+
+/** 自选条目 + 实时行情（QuoteStatus 三态） */
+export interface WatchlistWithQuote {
+  id: number
+  ticker: string
+  asset_class: string
+  market: string
+  name: string
+  quote: AssetQuote | null
+  status: 'REALTIME' | 'HISTORICAL' | 'UNAVAILABLE'
+}
+
+/** 收藏请求 */
+export interface WatchlistCreate {
+  ticker: string
+  asset_class: string
+  market: string
+  name: string
 }
 
 /** 分页响应 */
