@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -86,31 +85,19 @@ export function QuoteDialog({
   /** detail 模式：直接传入的行情 */
   quote?: AssetQuote | null
 }) {
-  const searchMut = useQuoteSearch()
+  // search 模式：useQuery 拉取（内置 dedupe + 缓存，enabled=open 时触发；
+  // StrictMode 双跑只发一次请求，卸载重挂载数据不丢——不用 mutation 避免 observer 卸载丢状态）
+  const searchQuery = useQuoteSearch(query, open)
   const { data: watchlist } = useWatchlistQuotes()
   const addWatchlist = useAddWatchlist()
   const removeWatchlist = useRemoveWatchlist()
   const addVariety = useAddVariety()
   const qc = useQueryClient()
 
-  // search 模式：query 变化时重新查询
-  // ref 防重：React StrictMode 开发模式下 effect 会执行两次（mount 双调用），
-  // 同一 query key 只提交一次 mutation，避免发送重复请求
-  const submittedKey = useRef('')
-  useEffect(() => {
-    if (open && query) {
-      const key = `${query.market}-${query.codes.join(',')}-${query.assetClass}`
-      if (submittedKey.current === key) return
-      submittedKey.current = key
-      searchMut.mutate(query)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, query?.market, query?.codes.join(','), query?.assetClass])
-
-  const quote = presetQuote ?? searchMut.data?.[0] ?? null
-  const isError = !presetQuote && searchMut.isError
-  const isLoading = !presetQuote && searchMut.isPending
-  const errorMessage = searchMut.error instanceof Error ? searchMut.error.message : '未知错误'
+  const quote = presetQuote ?? searchQuery.data?.[0] ?? null
+  const isError = !presetQuote && searchQuery.isError
+  const isLoading = !presetQuote && searchQuery.isPending
+  const errorMessage = searchQuery.error instanceof Error ? searchQuery.error.message : '未知错误'
 
   // 品种库状态：弹窗打开时真实查询（收藏自动注册 / 导入 / 手动添加都算已添加）
   // 用 React Query 管理：无同步 setState 级联渲染问题，同 ticker 重复打开有缓存
