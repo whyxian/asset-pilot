@@ -7,6 +7,7 @@ URL 设计：URL path 用 ticker，asset_class + market 走 query 参数（必�
 from fastapi import APIRouter, Query
 
 from app.core.exceptions import BusinessError
+from app.core.error_codes import CODE_VALIDATION, CODE_NOT_FOUND
 from app.core.response import success
 from app.models.asset_holding import AssetHoldingCreate, AssetHoldingUpdate
 from app.services.asset_holding_service import AssetHoldingService
@@ -40,7 +41,7 @@ async def get_holding(
     """按三元组获取持仓"""
     holding = await service.get_holding(ticker, asset_class, market)
     if not holding:
-        raise BusinessError(40401, "持仓不存在")
+        raise BusinessError(CODE_NOT_FOUND, "持仓不存在")
     return success(holding)
 
 
@@ -61,7 +62,7 @@ async def update_holding(
     """更新持仓（按三元组定位）"""
     holding = await service.update_holding(ticker, asset_class, market, data)
     if not holding:
-        raise BusinessError(40401, "持仓不存在")
+        raise BusinessError(CODE_NOT_FOUND, "持仓不存在")
     return success(holding, message="持仓更新成功")
 
 
@@ -74,6 +75,6 @@ async def delete_holding(
     """删除持仓 — 级联删除该品种的全部交易记录"""
     txn_count = await service.delete_holding(ticker, asset_class, market)
     if txn_count == -1:
-        raise BusinessError(40401, "持仓不存在")
+        raise BusinessError(CODE_NOT_FOUND, "持仓不存在")
     msg = f"持仓删除成功，同时删除 {txn_count} 条关联交易记录" if txn_count > 0 else "持仓删除成功"
     return success(message=msg)

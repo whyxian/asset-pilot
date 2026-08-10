@@ -447,3 +447,72 @@ async def test_fetch_quote_map_concurrent_partial_fallback_to_db():
     assert ("STOCK", "CN", "000002") in quote_map
     assert quote_map[("STOCK", "CN", "000002")][1] == QuoteStatus.HISTORICAL
     assert quote_map[("STOCK", "CN", "000002")][0].price == Decimal("10.0")
+
+
+# ════════════════════════════════════════════════════
+# 查询查无结果 → BusinessError(CODE_QUOTE_UNAVAILABLE)
+# 2026-08-05 修复：此前静默返回空数组，前端显示初始空态无任何报错
+# ════════════════════════════════════════════════════
+
+async def test_fetch_stock_quotes_no_result_raises():
+    """用户查询无效代码（数据源返回空）→ 抛 BusinessError 40002"""
+    from app.core.error_codes import CODE_QUOTE_UNAVAILABLE
+    from app.core.exceptions import BusinessError
+
+    svc = AssetQuoteService()
+    svc._cache.clear()
+    mock_repo = AsyncMock()
+    mock_repo.fetch_realtime_quote = AsyncMock(return_value=[])
+    mock_repo.save_asset_quotes = AsyncMock(return_value=0)
+    mp = pytest.MonkeyPatch()
+    mp.setattr(svc, "_stock_repo", mock_repo)
+    try:
+        with pytest.raises(BusinessError) as ei:
+            await svc.fetch_stock_quotes("CN", ["999999"])
+        assert ei.value.code == CODE_QUOTE_UNAVAILABLE
+        assert "999999" in ei.value.message
+    finally:
+        mp.undo()
+        svc._cache.clear()
+
+
+async def test_fetch_crypto_quotes_no_result_raises():
+    """加密货币查无结果 → 抛 BusinessError 40002"""
+    from app.core.error_codes import CODE_QUOTE_UNAVAILABLE
+    from app.core.exceptions import BusinessError
+
+    svc = AssetQuoteService()
+    svc._cache.clear()
+    mock_repo = AsyncMock()
+    mock_repo.fetch_realtime_quote = AsyncMock(return_value=[])
+    mock_repo.save_asset_quotes = AsyncMock(return_value=0)
+    mp = pytest.MonkeyPatch()
+    mp.setattr(svc, "_crypto_repo", mock_repo)
+    try:
+        with pytest.raises(BusinessError) as ei:
+            await svc.fetch_crypto_quotes(["SHIB"])
+        assert ei.value.code == CODE_QUOTE_UNAVAILABLE
+    finally:
+        mp.undo()
+        svc._cache.clear()
+
+
+async def test_fetch_fund_quotes_no_result_raises():
+    """基金查无结果 → 抛 BusinessError 40002"""
+    from app.core.error_codes import CODE_QUOTE_UNAVAILABLE
+    from app.core.exceptions import BusinessError
+
+    svc = AssetQuoteService()
+    svc._cache.clear()
+    mock_repo = AsyncMock()
+    mock_repo.fetch_realtime_quote = AsyncMock(return_value=[])
+    mock_repo.save_asset_quotes = AsyncMock(return_value=0)
+    mp = pytest.MonkeyPatch()
+    mp.setattr(svc, "_fund_repo", mock_repo)
+    try:
+        with pytest.raises(BusinessError) as ei:
+            await svc.fetch_fund_quotes("CN", ["999999"])
+        assert ei.value.code == CODE_QUOTE_UNAVAILABLE
+    finally:
+        mp.undo()
+        svc._cache.clear()

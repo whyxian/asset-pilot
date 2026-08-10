@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Query
 
 from app.core.exceptions import BusinessError
+from app.core.error_codes import CODE_VALIDATION, CODE_NOT_FOUND
 from app.core.response import success
 from app.models.transaction import TransactionCreate, TransactionUpdate
 from app.services.transaction_service import TransactionService
@@ -32,7 +33,7 @@ async def get_transaction(transaction_id: int):
     """获取单条交易记录"""
     txn = await service.get_transaction(transaction_id)
     if not txn:
-        raise BusinessError(40401, "交易记录不存在")
+        raise BusinessError(CODE_NOT_FOUND, "交易记录不存在")
     return success(txn)
 
 
@@ -48,7 +49,7 @@ async def update_transaction(transaction_id: int, data: TransactionUpdate):
     """更新交易记录"""
     txn = await service.update_transaction(transaction_id, data)
     if not txn:
-        raise BusinessError(40401, "交易记录不存在")
+        raise BusinessError(CODE_NOT_FOUND, "交易记录不存在")
     return success(txn, message="交易记录更新成功")
 
 
@@ -57,5 +58,5 @@ async def delete_transaction(transaction_id: int):
     """删除交易记录"""
     deleted = await service.delete_transaction(transaction_id)
     if not deleted:
-        raise BusinessError(40401, "交易记录不存在")
+        raise BusinessError(CODE_NOT_FOUND, "交易记录不存在")
     return success(message="交易记录删除成功")

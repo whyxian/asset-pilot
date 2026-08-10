@@ -8,6 +8,7 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
+from app.core.error_codes import CODE_VALIDATION
 from app.main import app
 from test.conftest import approx
 
@@ -43,7 +44,7 @@ async def test_business_error_format(client):
     })
     assert r.status_code == 200
     body = r.json()
-    assert body["code"] == 40001
+    assert body["code"] == CODE_VALIDATION
     assert "请先在持仓页新增" in body["message"]
     assert body["data"] is None
 

@@ -5,6 +5,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Query
 
 from app.core.exceptions import BusinessError
+from app.core.error_codes import CODE_VALIDATION, CODE_NOT_FOUND
 from app.core.response import success
 from app.models.cash_flow import CashDepositCreate, CashWithdrawCreate
 from app.services.cash_flow_service import CashFlowService
@@ -48,7 +49,7 @@ async def withdraw(data: CashWithdrawCreate):
             current = b.balance
             break
     if current < data.amount:
-        raise BusinessError(40001, f"{data.currency} 现金余额不足：当前 {current}，需要 {data.amount}")
+        raise BusinessError(CODE_VALIDATION, f"{data.currency} 现金余额不足：当前 {current}，需要 {data.amount}")
     flow = await service.withdraw(data)
     return success(flow)
 
@@ -58,5 +59,5 @@ async def delete_flow(flow_id: int):
     """删除单笔资金流水"""
     ok = await service.delete_flow(flow_id)
     if not ok:
-        raise BusinessError(40401, "资金流水记录不存在")
+        raise BusinessError(CODE_NOT_FOUND, "资金流水记录不存在")
     return success(message="已删除")

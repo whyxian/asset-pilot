@@ -246,14 +246,19 @@ quotes = await repo.fetch_realtime_quote(["166002"], source="akshare")  # ak sha
 // 成功
 { "code": 0, "message": "ok", "data": [...] }
 
-// 业务错误
+// 业务校验失败
 { "code": 40001, "message": "未识别的品种代码", "data": null }
+
+// 行情不可用（数据源查无此代码）
+{ "code": 40002, "message": "未找到 999999 的行情，请检查代码或市场类型", "data": null }
 
 // 未找到
 { "code": 40401, "message": "持仓不存在", "data": null }
 ```
 
-服务层通过抛出 `BusinessError(code, message)` 触发业务错误，全局异常处理器统一捕获。
+**错误码统一在 `core/error_codes.py` 管理**（常量 `CODE_VALIDATION` / `CODE_QUOTE_UNAVAILABLE` / `CODE_NOT_FOUND` 等），
+禁止散落硬编码。服务层通过抛出 `BusinessError(code, message)` 触发业务错误，全局异常处理器统一捕获。
+框架层：404（路由不存在）、422（参数校验，FastAPI 原生 `{"detail": ...}` 格式）、500（未捕获异常）。
 
 | 层 | 策略 |
 |----|------|

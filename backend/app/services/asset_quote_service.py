@@ -2,6 +2,8 @@
 
 import asyncio
 
+from app.core.error_codes import CODE_QUOTE_UNAVAILABLE
+from app.core.exceptions import BusinessError
 from app.core.logger import logger
 from app.core.scheduler_config import SchedulerConfig
 from app.models.asset_quote import AssetQuote, QuoteStatus
@@ -156,7 +158,11 @@ class AssetQuoteService:
 
         if hit:
             logger.info(f"STOCK({market}) 命中缓存 {len(hit)} 只，未命中 {len(missing)} 只走网络")
-        return list(hit.values()) + fresh
+        result = list(hit.values()) + fresh
+        if not result:
+            raise BusinessError(CODE_QUOTE_UNAVAILABLE,
+                f"未找到 {', '.join(codes)} 的行情，请检查代码或市场类型")
+        return result
 
     async def _enrich_names(self, quotes: list[AssetQuote]):
         """用 DB 中的英文名称替换腾讯 API 返回的中文名称
@@ -196,7 +202,11 @@ class AssetQuoteService:
 
         if hit:
             logger.info(f"CRYPTO 命中缓存 {len(hit)} 只，未命中 {len(missing)} 只走网络")
-        return list(hit.values()) + fresh
+        result = list(hit.values()) + fresh
+        if not result:
+            raise BusinessError(CODE_QUOTE_UNAVAILABLE,
+                f"未找到 {', '.join(codes)} 的行情，请检查代码或市场类型")
+        return result
 
     async def fetch_fund_quotes(
         self, market: str, codes: list[str], force_refresh: bool = False
@@ -228,7 +238,11 @@ class AssetQuoteService:
 
         if hit:
             logger.info(f"FUND({market}) 命中缓存 {len(hit)} 只，未命中 {len(missing)} 只走网络")
-        return list(hit.values()) + fresh
+        result = list(hit.values()) + fresh
+        if not result:
+            raise BusinessError(CODE_QUOTE_UNAVAILABLE,
+                f"未找到 {', '.join(codes)} 的行情，请检查代码或市场类型")
+        return result
 
     async def fetch_quotes_by_asset_class(
         self, asset_class: str, market: str, tickers: list[str], force_refresh: bool = False

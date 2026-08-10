@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BusinessError
+from app.core.error_codes import CODE_QUOTE_UNAVAILABLE, CODE_VALIDATION, CODE_NOT_FOUND
 from app.core.logger import logger
 from app.models.asset_holding import (
     AssetHolding,
@@ -65,14 +66,14 @@ class AssetHoldingService:
         actual = _D(str(data.total_invested))
         if abs(expected - actual) > _D("0.01"):
             raise BusinessError(
-                40001,
+                CODE_VALIDATION,
                 f"总投入与 数量×成本价 不一致：期望 {expected}，实际 {actual}",
             )
 
         # 1. 校验品种存在
         variety = await self._variety_repo.get_variety(data.ticker, data.asset_class, data.market)
         if not variety:
-            raise BusinessError(40001, f"未识别的品种代码 '{data.ticker}'，请先通过 /api/v1/varieties 添加该品种")
+            raise BusinessError(CODE_VALIDATION, f"未识别的品种代码 '{data.ticker}'，请先通过 /api/v1/varieties 添加该品种")
 
         # 2. 拉取该 ticker 行情（先拉后建仓，失败直接抛错不写 DB；同时预热缓存）
         quotes = await self._quote_svc.fetch_quotes_by_asset_class(
@@ -81,7 +82,7 @@ class AssetHoldingService:
         quote = next((q for q in quotes if q.ticker == data.ticker), None)
         if quote is None:
             raise BusinessError(
-                40002,
+                CODE_QUOTE_UNAVAILABLE,
                 f"无法获取 '{data.ticker}' 的实时行情，请检查代码是否正确或稍后重试",
             )
 
@@ -141,7 +142,7 @@ class AssetHoldingService:
                         )).scalar()
                         balance = _C(str(balance))
                         if balance < invested:
-                            raise BusinessError(40001,
+                            raise BusinessError(CODE_VALIDATION,
                                 f"{data.currency} 现金余额不足：当前 {balance}，需要 {invested}")
                     else:
                         # 不勾选：自动先入金等额现金（代表历史本金注入），再扣款
@@ -243,7 +244,7 @@ class AssetHoldingService:
                         )).scalar()
                         balance = _C(str(balance))
                         if balance < txn_amt:
-                            raise BusinessError(40001,
+                            raise BusinessError(CODE_VALIDATION,
                                 f"{holding.currency} 现金余额不足：当前 {balance}，需要 {txn_amt}")
                         session.add(CashFlowRecord(
                             type="buy", amount=-txn_amt, currency=holding.currency,
@@ -475,7 +476,7 @@ async def recompute_holding(
     # 取持仓 ORM 记录（按三元组）
     holding = await repo.get_record_in_session(session, ticker, asset_class, market)
     if holding is None:
-        raise BusinessError(40401, f"持仓 '{ticker}' ({asset_class}/{market}) 不存在，无法重算")
+        raise BusinessError(CODE_NOT_FOUND, f"持仓 '{ticker}' ({asset_class}/{market}) 不存在，无法重算")
 
     # 起点 = 0（交易记录是唯一事实源，建仓 buy 交易已含在内）
     q = Decimal("0")
@@ -509,11 +510,11 @@ async def recompute_holding(
 
         elif txn.type == "sell":
             if txn.quantity is None:
-                raise BusinessError(40001, f"卖出交易 #{txn.id} 缺少数量字段")
+                raise BusinessError(CODE_VALIDATION, f"卖出交易 #{txn.id} 缺少数量字段")
             qty = Decimal(str(txn.quantity))
             if qty > q:
                 raise BusinessError(
-                    40001,
+                    CODE_VALIDATION,
                     f"卖出 {qty} 超过当前持仓 {q}（交易 #{txn.id}，{txn.transaction_date}）",
                 )
             # 降低成本法（适配做 T）：sell 的"成交金额"直接冲减总成本
@@ -535,7 +536,7 @@ async def recompute_holding(
             else:
                 p = t / q  # 重算成本价
         else:
-            raise BusinessError(40001, f"未知交易类型 '{txn.type}'（交易 #{txn.id}）")
+            raise BusinessError(CODE_VALIDATION, f"未知交易类型 '{txn.type}'（交易 #{txn.id}）")
 
     # 写回派生字段
     holding.quantity = q
@@ -575,9 +576,9 @@ async def archive_holding(
 
     holding = await repo.get_record_in_session(session, ticker, asset_class, market)
     if holding is None:
-        raise BusinessError(40401, f"持仓 '{ticker}' ({asset_class}/{market}) 不存在，无法归档")
+        raise BusinessError(CODE_NOT_FOUND, f"持仓 '{ticker}' ({asset_class}/{market}) 不存在，无法归档")
     if Decimal(str(holding.quantity)) != Decimal("0"):
-        raise BusinessError(40001, f"持仓 '{ticker}' quantity={holding.quantity} 非 0，不能归档")
+        raise BusinessError(CODE_VALIDATION, f"持仓 '{ticker}' quantity={holding.quantity} 非 0，不能归档")
 
     txns = (await session.execute(
         select(TransactionRecord)
@@ -613,7 +614,7 @@ async def archive_holding(
     if closed_at is None:
         last_sell = next((x for x in reversed(txns) if x.type == "sell"), None)
         if last_sell is None:
-            raise BusinessError(40001, f"持仓 '{ticker}' 没有清仓日期，无法归档")
+            raise BusinessError(CODE_VALIDATION, f"持仓 '{ticker}' 没有清仓日期，无法归档")
         closed_at = last_sell.transaction_date
 
     holding_days = (closed_at - holding.first_buy_date).days + 1

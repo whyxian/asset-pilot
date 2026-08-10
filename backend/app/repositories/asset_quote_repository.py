@@ -16,6 +16,7 @@ from app.core.data_sources import (
 )
 from app.core.database import async_session
 from app.core.exceptions import BusinessError
+from app.core.error_codes import CODE_VALIDATION, CODE_NOT_FOUND
 from app.models.asset_quote import AssetQuote
 from app.models.orm.asset_quote_orm import AssetQuoteRecord
 from app.models.orm.asset_variety_orm import AssetVarietyRecord
@@ -207,7 +208,7 @@ class StockQuoteRepository(AssetQuoteRepository):
                 return await self._tencent.fetch(codes, market="US")
             if source == "sina":
                 return await self._sina.fetch(codes, market="US")
-        raise BusinessError(40001, f"不支持的市场/数据源: market={market}, source={source}")
+        raise BusinessError(CODE_VALIDATION, f"不支持的市场/数据源: market={market}, source={source}")
 
     async def close(self):
         """释放资源"""
@@ -225,7 +226,7 @@ class CryptoQuoteRepository(AssetQuoteRepository):
     ) -> list[AssetQuote]:
         if source == "coinglass":
             return await self._source.fetch(codes, market="CRYPTO")
-        raise BusinessError(40001, f"不支持的数据源: {source}")
+        raise BusinessError(CODE_VALIDATION, f"不支持的数据源: {source}")
 
     async def close(self):
         pass
@@ -259,7 +260,7 @@ class FundQuoteRepository(AssetQuoteRepository):
             elif source == "akshare":
                 results.extend(await self._akshare.fetch(fund_codes, market="CN"))
             else:
-                raise BusinessError(40001, f"不支持的数据源: {source}")
+                raise BusinessError(CODE_VALIDATION, f"不支持的数据源: {source}")
         return results
 
     async def _get_etf_tickers(self, codes: list[str]) -> set[str]:

@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from app.core.database import async_session
 from app.core.exceptions import BusinessError
+from app.core.error_codes import CODE_VALIDATION, CODE_NOT_FOUND
 from app.models.orm.asset_holding_orm import AssetHoldingRecord
 from app.models.orm.cash_flow_orm import CashFlowRecord
 from app.models.common import PaginatedResponse
@@ -94,7 +95,7 @@ class TransactionService:
                     if data.type == "buy":
                         balance = await self._get_cash_balance(session, holding_cash.currency)
                         if balance < txn_amt:
-                            raise BusinessError(40001,
+                            raise BusinessError(CODE_VALIDATION,
                                 f"{holding_cash.currency} 现金余额不足：当前 {balance}，需要 {txn_amt}")
                         session.add(CashFlowRecord(
                             type="buy", amount=-txn_amt, currency=holding_cash.currency,
@@ -163,7 +164,7 @@ class TransactionService:
 
                 # fee_rate 范围校验
                 if merged_fee is not None and (merged_fee < 0 or merged_fee > 100):
-                    raise BusinessError(40001, f"费率必须在 0~100 之间，当前值 {merged_fee}")
+                    raise BusinessError(CODE_VALIDATION, f"费率必须在 0~100 之间，当前值 {merged_fee}")
 
                 # amount 一致性验算
                 if merged_qty is not None and merged_price is not None and merged_amount is not None:
@@ -174,7 +175,7 @@ class TransactionService:
                     actual = _D(str(merged_amount))
                     if abs(expected - actual) > _D("0.01"):
                         raise BusinessError(
-                            40001,
+                            CODE_VALIDATION,
                             f"交易金额与 数量×成交价×(1+费率%) 不一致：期望 {expected}，实际 {actual}",
                         )
 
@@ -204,7 +205,7 @@ class TransactionService:
                     )).scalar_one_or_none()
                     if not holding:
                         raise BusinessError(
-                            40001,
+                            CODE_VALIDATION,
                             f"请先在持仓页新增 {new_ticker} ({new_class}/{new_market}) 的建仓记录，再录入交易",
                         )
 
@@ -292,14 +293,14 @@ class TransactionService:
         has_amount = data.amount is not None
         if not has_qty_price and not has_amount:
             raise BusinessError(
-                40001,
+                CODE_VALIDATION,
                 "请填写 (数量 + 成交价) 或 (交易金额)，至少填一组",
             )
 
         # fee_rate 范围校验：0~100
         if data.fee_rate is not None:
             if data.fee_rate < 0 or data.fee_rate > 100:
-                raise BusinessError(40001, f"费率必须在 0~100 之间，当前值 {data.fee_rate}")
+                raise BusinessError(CODE_VALIDATION, f"费率必须在 0~100 之间，当前值 {data.fee_rate}")
 
         # amount 一致性验算：qty × price × (1 + fee_rate/100) 必须与传入的 amount 一致
         if has_qty_price and has_amount:
@@ -311,7 +312,7 @@ class TransactionService:
             # 允许 0.01 的精度误差（Decimal 除法尾差）
             if abs(expected - actual) > _D("0.01"):
                 raise BusinessError(
-                    40001,
+                    CODE_VALIDATION,
                     f"交易金额与 数量×成交价×(1+费率%) 不一致：期望 {expected}，实际 {actual}",
                 )
 
@@ -326,7 +327,7 @@ class TransactionService:
             )).scalar_one_or_none()
             if not holding:
                 raise BusinessError(
-                    40001,
+                    CODE_VALIDATION,
                     f"请先在持仓页新增 {data.ticker} ({data.asset_class}/{data.market}) 的建仓记录，再录入交易",
                 )
 

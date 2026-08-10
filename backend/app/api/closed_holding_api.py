@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Query
 
 from app.core.exceptions import BusinessError
+from app.core.error_codes import CODE_VALIDATION, CODE_NOT_FOUND
 from app.core.response import success
 from app.services.closed_holding_service import ClosedHoldingService
 
@@ -25,7 +26,7 @@ async def get_closed_holding(holding_id: int):
     """获取单条归档持仓详情（含该周期全部交易）"""
     holding = await service.get_closed_holding(holding_id)
     if not holding:
-        raise BusinessError(40401, "归档持仓不存在")
+        raise BusinessError(CODE_NOT_FOUND, "归档持仓不存在")
     return success(holding)
 
 
@@ -34,7 +35,7 @@ async def delete_closed_holding(holding_id: int):
     """删除归档持仓及其关联交易"""
     deleted = await service.delete_closed_holding(holding_id)
     if not deleted:
-        raise BusinessError(40401, "归档持仓不存在")
+        raise BusinessError(CODE_NOT_FOUND, "归档持仓不存在")
     return success(message="已删除")
 
 

@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Query
 
 from app.core.exceptions import BusinessError
+from app.core.error_codes import CODE_VALIDATION, CODE_NOT_FOUND
 from app.core.response import success
 from app.models.asset_variety import AssetVarietyCreate
 from app.services.asset_variety_service import AssetVarietyService
@@ -40,5 +41,5 @@ async def delete_variety(ticker: str):
     """删除品种（软删除）"""
     deleted = await service.delete_variety(ticker)
     if not deleted:
-        raise BusinessError(40401, "品种不存在")
+        raise BusinessError(CODE_NOT_FOUND, "品种不存在")
     return success(message="品种删除成功")
