@@ -1,7 +1,7 @@
 # 测试报告 2026-08-05
 
 > 范围：功能模块测试覆盖盘点 + 补全（formulas / 归档 / 品种 / API 路由 / 调度器）
-> 配套指南：见 [testing.md](testing.md)
+> 配套指南：见 [testing.md](../testing.md)
 
 ---
 
@@ -55,7 +55,7 @@
 | # | 缺陷 | 影响 | 修复 |
 |---|------|------|------|
 | 1 | `calculate_remaining_position_roi` 参数转换在 try 块外，非法输入直接抛异常，违反 docstring "异常返回 success=False" 契约 | 前端拿到未捕获异常而非结构化响应 | ✅ 已修（[formulas.py](backend/app/core/formulas.py)，转换移入 try） |
-| 2 | API 测试基建：client fixture 未依赖 Session 时连真实数据库（测试自身问题，非产品缺陷） | 测试可能静默污染真实 DB 数据 | ✅ 已修（[test_api_routes.py](backend/test/test_api_routes.py)）+ 写入 [testing.md §1.3](testing.md) 警示 |
+| 2 | API 测试基建：client fixture 未依赖 Session 时连真实数据库（测试自身问题，非产品缺陷） | 测试可能静默污染真实 DB 数据 | ✅ 已修（[test_api_routes.py](backend/test/test_api_routes.py)）+ 写入 [testing.md §1.3](../testing.md) 警示 |
 
 ## 5. 覆盖矩阵
 

@@ -164,7 +164,7 @@ Phase 1 ──→ Phase 1a ──→ Phase 1b ──→ Phase 2 ──→ Phase 
 
 ## 六、测试覆盖
 
-> 共 164 个 pytest 用例，全通过（测试架构/编写指南见 [docs/testing.md](testing.md)，2026-08-05 报告见 [docs/test_report_2026-08-05.md](test_report_2026-08-05.md)）
+> 共 164 个 pytest 用例，全通过（测试架构/编写指南见 [docs/testing.md](testing.md)，测试报告见 [docs/test_reports/](test_reports/) 目录）
 
 | 测试文件 | 用例数 | 覆盖模块 | 关键验证点 |
 |---------|--------|---------|-----------|
