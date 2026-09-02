@@ -18,6 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > 架构设计：详见 [docs/architecture.md](docs/architecture.md)
 > 需求文档：详见 [docs/requirements.md](docs/requirements.md)
 > 数据库设计：详见 [docs/database.md](docs/database.md)
+> 财务公式：详见 [docs/formulas.md](docs/formulas.md)
+> 测试指南：详见 [docs/testing.md](docs/testing.md)（测试报告见 [docs/test_reports/](docs/test_reports/)，测试覆盖历史见 [docs/progress.md §六](docs/progress.md)）
 > 开发进度：详见 [docs/progress.md](docs/progress.md)
 
 ## 项目目标
