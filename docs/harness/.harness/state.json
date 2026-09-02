@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-09-03",
+  "gitHead": "39abdb8b07c1fd51eda701a7276758e8c2d7a590",
+  "files": {
+    "backend/pyproject.toml": "159b2f38eb0face5095e06f35eb16ed5eea09564e58661330c52799f6c3c95e5",
+    "backend/app/core/error_codes.py": "6749efdeaab1948b3aeaf707717427c8f1788779ae7420f087a2c07fb0628260",
+    "backend/app/main.py": "38b22630d4002bb35765a57ce7fcc8d25d34fb0eb2007300f27425f6f427aa26",
+    "app_structure": "5ad06c2394a819348f2852c62ae8062dfcf77aa8e9c470fce67a772eb906f968"
+  }
+}

@@ -41,6 +41,8 @@ AssetPilot/
 │   │   ├── core/                    # 基础设施
 │   │   │   ├── database.py          # SQLAlchemy 引擎 + init_db
 │   │   │   ├── data_sources.py      # 数据源层：腾讯/新浪/CoinGlass/天天基金/akshare
+│   │   │   ├── error_codes.py       # 统一错误码（所有 BusinessError code 集中管理）
+│   │   │   ├── formulas.py          # 财务公式（做T ROI / XIRR / Modified Dietz）
 │   │   │   ├── scheduler_config.py  # 统一配置：调度间隔/缓存TTL/网络超时（SchedulerConfig）
 │   │   │   ├── exceptions.py        # BusinessError 自定义异常
 │   │   │   ├── logger.py            # 统一日志模块
@@ -52,13 +54,18 @@ AssetPilot/
 │   │   │   ├── transaction_api.py   # 交易记录 CRUD
 │   │   │   ├── overview_api.py      # 概览统计（汇率换算聚合）
 │   │   │   ├── snapshot_api.py      # 净值快照（组合级 + 品种级）
-│   │   │   └── closed_holding_api.py# 历史持仓归档
+│   │   │   ├── closed_holding_api.py# 历史持仓归档
+│   │   │   ├── cash_flow_api.py     # 现金流水（入金/出金/余额/流水）
+│   │   │   └── watchlist_api.py     # 自选股（收藏/取消/列表/带行情）
 │   │   ├── models/
 │   │   │   ├── asset_quote.py       # AssetQuote (Pydantic)
 │   │   │   ├── asset_holding.py     # AssetHolding / HoldingWithQuote (Pydantic)
 │   │   │   ├── asset_variety.py     # AssetVariety (Pydantic)
 │   │   │   ├── transaction.py       # Transaction / Create / Update (Pydantic)
 │   │   │   ├── overview.py          # OverviewStats / AllocationItem (Pydantic)
+│   │   │   ├── cash_flow.py         # CashFlow / CashDeposit(Create) (Pydantic)
+│   │   │   ├── asset_watchlist.py   # WatchlistItem / WatchlistWithQuote (Pydantic)
+│   │   │   ├── common.py            # PaginatedResponse[T] 统一分页模型
 │   │   │   └── orm/                 # SQLAlchemy ORM
 │   │   │       ├── asset_quote_orm.py
 │   │   │       ├── asset_holding_orm.py
@@ -66,14 +73,18 @@ AssetPilot/
 │   │   │       ├── transaction_orm.py
 │   │   │       ├── asset_snapshot_orm.py
 │   │   │       ├── networth_snapshot_orm.py
-│   │   │       └── closed_holding_orm.py
+│   │   │       ├── closed_holding_orm.py
+│   │   │       ├── cash_flow_orm.py     # CashFlowRecord（含 transaction_id FK）
+│   │   │       └── asset_watchlist_orm.py# WatchlistRecord
 │   │   ├── repositories/
 │   │   │   ├── asset_quote_repository.py  # 行情 Repo（调用 DataSource）
 │   │   │   ├── asset_holding_repository.py# 持仓 CRUD
 │   │   │   ├── asset_variety_repository.py# 品种目录 CRUD
 │   │   │   ├── transaction_repository.py  # 交易记录 CRUD
 │   │   │   ├── snapshot_repository.py     # 净值快照读写
-│   │   │   └── closed_holding_repository.py# 历史持仓归档
+│   │   │   ├── closed_holding_repository.py# 历史持仓归档（含删除连带删流水）
+│   │   │   ├── cash_flow_repository.py    # 现金流水 CRUD + 余额聚合
+│   │   │   └── watchlist_repository.py    # 自选股 CRUD
 │   │   ├── services/
 │   │   │   ├── asset_quote_service.py     # 行情业务逻辑（基金 15min 缓存 + force_refresh）
 │   │   │   ├── asset_holding_service.py   # 持仓业务逻辑（含市值/盈亏/年化计算）
@@ -81,7 +92,9 @@ AssetPilot/
 │   │   │   ├── transaction_service.py     # 交易业务逻辑（交易记录写入 + recompute 反推持仓）
 │   │   │   ├── overview_service.py        # 概览（行情并发拉取 + 超时熔断 + 汇率聚合）
 │   │   │   ├── snapshot_service.py        # 净值快照（双表写 + 历史 FX 冻结）
-│   │   │   └── closed_holding_service.py  # 历史持仓归档
+│   │   │   ├── closed_holding_service.py  # 历史持仓归档
+│   │   │   ├── cash_flow_service.py       # 现金流水（入金/出金/余额按币种换算）
+│   │   │   └── watchlist_service.py       # 自选股（收藏自动注册品种 + 分类对齐）
 │   │   └── utils/
 │   │       ├── exchange_rate.py     # 汇率工具（五级兜底 + 单飞）
 │   │       ├── quote_cache.py       # 行情内存缓存（进程级单例）
@@ -105,6 +118,10 @@ AssetPilot/
 │   ├── architecture.md
 │   ├── requirements.md
 │   ├── database.md
+│   ├── formulas.md
+│   ├── testing.md
+│   ├── test_reports/          # 测试报告（按日期）
+│   ├── code_review/           # 评审记录 + CHECKLIST
 │   └── progress.md
 └── CLAUDE.md
 ```
@@ -201,12 +218,14 @@ api (HTTP 路由) → services (业务逻辑) → repositories (数据访问) �
 
 ## 核心功能模块
 
-详见 [docs/requirements.md](docs/requirements.md)
+详见 [docs/requirements.md](docs/requirements.md) 与 [openspec/specs/](openspec/specs/)（主规范）
 
 1. 概览 — 组合级统计卡 + 净值走势 + 资产配比
 2. 持仓 — 品种盈亏列表（实时行情驱动）
-3. 交易 — 交易记录 CRUD（辅助功能）
-4. 行情 — 四市场实时价格查询
+3. 交易 — 交易记录 CRUD（唯一现金流事实源）
+4. 行情 — 自选股网格 + 四市场实时价格查询
+5. 现金账户 — 资金流水（买卖自动联动）
+6. 自选股 — 收藏/取消 + 30s 轮询行情
 
 ## 数据源架构
 
