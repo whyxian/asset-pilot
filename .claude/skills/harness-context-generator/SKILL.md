@@ -1,7 +1,7 @@
 ---
 name: harness-context-generator
 description: 为项目生成或更新 AI 上下文文档体系（AGENTS.md / CLAUDE.md + 规范文档 + 规则文件）。CLAUDE.md/AGENTS.md 与规则文件写入标准位置（自动加载生效），规范文档默认生成到 docs/harness/ 防止与项目现有 docs 冲突。适用于将 AI 工具（如 Claude Code）集成到项目中的场景。
-argument-hint: "--full 全量生成 | --agents-only 仅根文档 | --doc <主题> 按需单文档 | --update 增量更新 | --check 仅检测 | --rollback 回滚"
+argument-hint: "--full 全量生成 | --root-only 仅根文档 | --doc <主题> 按需单文档 | --update 增量更新 | --check 仅检测 | --rollback 回滚"
 user-invocable: true
 ---
 
@@ -47,7 +47,7 @@ user-invocable: true
 | 触发 | 模式 | 行为 |
 |------|------|------|
 | `--full`（或首次） | 全量生成 | 按 §2 生成：根文档/规则写标准位置，规范文档写 `docs/harness/`，状态写 `.harness/` |
-| `--agents-only` | 仅根文档 | 只生成/更新根文档（跳过 docs 与 rules） |
+| `--root-only` | 仅根文档 | 只生成/更新根文档（跳过 docs 与 rules） |
 | `--doc <主题>` | 按需单文档 | 用户指定主题 → 定位相关代码 → 归纳生成单份文档（见 §2.5） |
 | `--update` | 增量更新 | 对比签名 → 报告 → 备份 → 更新 |
 | `--check` | 仅检测 | 对比签名出报告，不写任何文件 |
