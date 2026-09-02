@@ -27,5 +27,8 @@ frontend/dist/
 Thumbs.db
 
 # Dev tools
-.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/harness-context-generator/
 .VSCodeCounter/
