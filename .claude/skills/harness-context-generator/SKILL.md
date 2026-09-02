@@ -148,6 +148,8 @@ user-invocable: true
 
 ### 2.3 规则文件（.claude/rules/，仅产物含 CLAUDE.md 或用户要求时）
 
+规则文件的核心价值是让 Claude Code 自动加载根文档。如果不使用 Claude Code，规则文件无实际作用。
+
 `must-read-context.md` 写入 `.claude/rules/`（工具自动加载位置；已存在同名文件时走合并确认），**frontmatter 必须含 description**（Claude Code 靠它索引规则）：
 
 ```markdown
