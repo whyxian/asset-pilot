@@ -40,6 +40,7 @@ user-invocable: true
   - 推荐逻辑：检测到多工具配置文件/用户提及多工具 → **✅ 推荐两者都生成**（AGENTS 通用 + CLAUDE 补充层）；仅 Claude 单工具使用 → ✅ 推荐仅 CLAUDE.md
 - **落点**：按"产物位置"三分类执行——生效文件写标准位置（已存在则走更新合并），规范文档默认 `docs/harness/`
 - **场景**：存量项目已有 `docs/` 体系 → 规范文档默认 `docs/harness/` 隔离不冲突（并入见"产物位置"）
+- **协作模式（决定状态基线是否入库）**：团队多人都会跑本 skill 更新文档 → **✅ 推荐共享 state.json 基线**（`.gitignore` 放行 `state.json`，clone 即得基线、防多人各自校准漂移；`.backups/` 保持本地）；仅个人维护 → ✅ 推荐全本地（`.harness/` 全忽略，现状）。按选择配置 `.gitignore`
 
 ## 操作模式
 
