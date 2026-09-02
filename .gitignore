@@ -33,4 +33,5 @@ Thumbs.db
 !.claude/skills/openspec-*/
 !.claude/skills/harness-context-generator/
 !.claude/rules/
+!.claude/commands/
 .VSCodeCounter/
