@@ -18,7 +18,7 @@ user-invocable: true
 2. **规范文档**（ARCHITECTURE/TESTING/DATABASE 等参考类）→ **`docs/harness/`（默认）**
    - 与项目现有 `docs/` 体系隔离，文件名通用不冲突
    - 用户明确要求并入 `docs/` 时才写入 `docs/`（逐份确认 + 同步现有导航）
-3. **skill 内部状态** → `docs/harness/.harness/state.json`、`docs/harness/.backups/`（备份集中管理，不散落项目各处）
+3. **skill 内部状态** → `.harness/state.json`、`.harness/backups/`（备份集中管理，不散落项目各处）
 
 ## 核心原则
 
@@ -43,7 +43,7 @@ user-invocable: true
 
 | 触发 | 模式 | 行为 |
 |------|------|------|
-| `--full`（或首次） | 全量生成 | 按 §2 生成：根文档/规则写标准位置，规范文档写 `docs/harness/`，状态写 `docs/harness/.harness/` |
+| `--full`（或首次） | 全量生成 | 按 §2 生成：根文档/规则写标准位置，规范文档写 `docs/harness/`，状态写 `.harness/` |
 | `--agents-only` | 仅根文档 | 只生成/更新根文档（跳过 docs 与 rules） |
 | `--update` | 增量更新 | 对比签名 → 报告 → 备份 → 更新 |
 | `--check` | 仅检测 | 对比签名出报告，不写任何文件 |
@@ -63,7 +63,7 @@ user-invocable: true
 
 ## 阶段 2：全量生成（--full）
 
-落点按"产物位置"三分类执行：根文档/规则写标准位置，规范文档写 `docs/harness/`，内部状态写 `docs/harness/.harness/`。
+落点按"产物位置"三分类执行：根文档/规则写标准位置，规范文档写 `docs/harness/`，内部状态写 `.harness/`。
 
 ### 2.1 根文档（项目根 / CLAUDE.md 或 AGENTS.md）
 
@@ -139,7 +139,7 @@ paths:
 例外：与代码无关的通用问答。
 ```
 
-### 2.4 状态文件（docs/harness/.harness/state.json）
+### 2.4 状态文件（.harness/state.json）
 
 ```json
 {
@@ -157,13 +157,13 @@ paths:
 
 ## 阶段 3：增量更新 / 检测（--update / --check）
 
-1. 读 `docs/harness/.harness/state.json`；缺失时提示先 `--full` 或按"全部视为新增"继续（需确认）
+1. 读 `.harness/state.json`；缺失时提示先 `--full` 或按"全部视为新增"继续（需确认）
 2. 重新计算各监控对象摘要 → 差异 → 生成报告：依赖/结构/数据库/CI 变化，影响哪些文档（需更新 / 无需更新）
 3. `--check` 到此为止，问是否执行 `--update`
 4. `--update` 执行（每份文档）：
 
 ```
-备份: 被更新文件（标准位置或 docs/harness/ 内）→ docs/harness/.backups/<文件名>.bak.<日期>
+备份: 被更新文件（标准位置或 docs/harness/ 内）→ .harness/backups/<文件名>.bak.<日期>
 提取: 现有文档的 user/lock 保护区内容
 重生成自动部分（基于当前项目真实状态）
 合并（见下）→ 写回 → 变更处附近标 🔄
@@ -182,7 +182,7 @@ paths:
 
 ## 阶段 4：回滚（--rollback）
 
-1. 扫描 `docs/harness/.backups/` 下 `*.bak.<日期>`，按文档分组列出（含日期）
+1. 扫描 `.harness/backups/` 下 `*.bak.<日期>`，按文档分组列出（含日期）
 2. 用户选：A 全部恢复最新 / B 逐个选版本 / C 取消
 3. 恢复前当前文件先存 `原文件.bak.rollback.<日期>`（同在 .backups/）
 4. 完成后建议执行 `--check` 校验状态
@@ -200,4 +200,4 @@ paths:
 - **写位置按分类执行**：根文档/规则只写标准位置（已存在走合并，不静默覆盖）；规范文档默认只写 `docs/harness/`，并入 `docs/` 需逐份确认
 - 存量项目有成熟 docs 时不得整目录重建；先 `--check` 沟通
 - 文档语言跟随项目现状（README/注释语言），不强制英文或中文
-- `docs/harness/.harness/state.json` 建议纳入版本控制
+- `.harness/` 是本地工具状态（含备份），默认纳入 `.gitignore` 不入库；团队如需共享文档变更基线，可选择性放行 `state.json`（gitignore 例外）

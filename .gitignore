@@ -27,6 +27,7 @@ frontend/dist/
 Thumbs.db
 
 # Dev tools
+.harness/
 .claude/*
 !.claude/skills/
 .claude/skills/*
